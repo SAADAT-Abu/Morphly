@@ -427,27 +427,122 @@ export default function CanvasStage({ stageRef, onRequestTextEdit, onExternalDro
 
   // -- clicking empty space -------------------------------------------------
 
+  /**
+   * Rubber-band selection.
+   *
+   * Pressing on empty space with the Select tool starts a band; releasing
+   * selects everything it touches. A press that never moves is a plain click,
+   * so it clears the selection as it always did. Holding shift adds to the
+   * current selection rather than replacing it.
+   *
+   * The band lives in canvas coordinates, so it stays put under the cursor
+   * whatever the zoom, and its live corners are kept on a ref rather than in
+   * state: the mouse-up handler needs the final corner, not whichever one the
+   * last render happened to see.
+   */
+  const marqueeRef = useRef(null);
+  const [marquee, setMarquee] = useState(null);
+
+  const pointerOnCanvas = useCallback(
+    (stage) => {
+      const pointer = stage.getPointerPosition();
+      return {
+        x: (pointer.x - stagePos.x) / zoom,
+        y: (pointer.y - stagePos.y) / zoom,
+      };
+    },
+    [stagePos, zoom]
+  );
+
   const handleStageMouseDown = useCallback(
     (e) => {
       const clickedEmpty = e.target === e.target.getStage() || e.target.name() === "canvas-bg";
       if (!clickedEmpty) return;
 
+      const at = pointerOnCanvas(e.target.getStage());
+
       // A drawing tool places its shape where the user clicked.
       if (activeTool !== "select") {
-        const stage = e.target.getStage();
-        const pointer = stage.getPointerPosition();
-        const at = {
-          x: (pointer.x - stagePos.x) / zoom,
-          y: (pointer.y - stagePos.y) / zoom,
-        };
         if (activeTool === "text") addText(at);
         else addShape(activeTool, at);
         return;
       }
-      clearSelection();
+
+      // Space-drag panning claims the same gesture, so it wins.
+      if (isPanning) return;
+
+      marqueeRef.current = {
+        origin: at,
+        last: at,
+        additive: e.evt?.shiftKey ?? false,
+        moved: false,
+      };
+      setMarquee({ x1: at.x, y1: at.y, x2: at.x, y2: at.y });
     },
-    [activeTool, stagePos, zoom, addShape, addText, clearSelection]
+    [activeTool, isPanning, addShape, addText, pointerOnCanvas]
   );
+
+  const handleStageMouseMove = useCallback(
+    (e) => {
+      const band = marqueeRef.current;
+      if (!band) return;
+      const at = pointerOnCanvas(e.target.getStage());
+      band.last = at;
+      // A few pixels of travel is an unsteady click, not a drag, so the band
+      // only counts as one past that.
+      if (Math.abs(at.x - band.origin.x) > 3 / zoom || Math.abs(at.y - band.origin.y) > 3 / zoom) {
+        band.moved = true;
+      }
+      setMarquee({ x1: band.origin.x, y1: band.origin.y, x2: at.x, y2: at.y });
+    },
+    [pointerOnCanvas, zoom]
+  );
+
+  const handleStageMouseUp = useCallback(() => {
+    const band = marqueeRef.current;
+    marqueeRef.current = null;
+    setMarquee(null);
+    if (!band) return;
+
+    if (!band.moved) {
+      // A plain click on empty space.
+      if (!band.additive) clearSelection();
+      return;
+    }
+
+    const box = {
+      left: Math.min(band.origin.x, band.last.x),
+      right: Math.max(band.origin.x, band.last.x),
+      top: Math.min(band.origin.y, band.last.y),
+      bottom: Math.max(band.origin.y, band.last.y),
+    };
+
+    // Anything the band touches is caught, rather than only what it fully
+    // encloses. On a dense figure, having to lasso an entire illustration to
+    // catch it is more work than shift-clicking the odd extra back out.
+    const hits = elements
+      .filter((el) => el.visible && !el.locked)
+      .filter((el) => {
+        const node = nodeRefs.current.get(el.id);
+        if (!node) return false;
+        // getClientRect relative to the layer is in real canvas units and
+        // already accounts for rotation, strokes and text metrics.
+        const r = node.getClientRect({ relativeTo: node.getLayer() });
+        return (
+          r.x < box.right &&
+          r.x + r.width > box.left &&
+          r.y < box.bottom &&
+          r.y + r.height > box.top
+        );
+      })
+      .map((el) => el.id);
+
+    if (hits.length === 0) {
+      if (!band.additive) clearSelection();
+      return;
+    }
+    selectWithGroups(band.additive ? [...new Set([...selectedIds, ...hits])] : hits);
+  }, [elements, selectedIds, clearSelection, selectWithGroups]);
 
   // -- drag with snapping ---------------------------------------------------
 
@@ -677,6 +772,11 @@ export default function CanvasStage({ stageRef, onRequestTextEdit, onExternalDro
         onWheel={handleWheel}
         onMouseDown={handleStageMouseDown}
         onTouchStart={handleStageMouseDown}
+        onMouseMove={handleStageMouseMove}
+        onTouchMove={handleStageMouseMove}
+        onMouseUp={handleStageMouseUp}
+        onTouchEnd={handleStageMouseUp}
+        onMouseLeave={handleStageMouseUp}
         onDragEnd={(e) => {
           if (isPanning && e.target === e.target.getStage()) {
             setStagePos({ x: e.target.x(), y: e.target.y() });
@@ -774,8 +874,20 @@ export default function CanvasStage({ stageRef, onRequestTextEdit, onExternalDro
           />
         </Layer>
 
-        {/* Snapping guides, drawn above everything */}
+        {/* Snapping guides and the selection band, above everything */}
         <Layer listening={false}>
+          {marquee && (
+            <Rect
+              x={Math.min(marquee.x1, marquee.x2)}
+              y={Math.min(marquee.y1, marquee.y2)}
+              width={Math.abs(marquee.x2 - marquee.x1)}
+              height={Math.abs(marquee.y2 - marquee.y1)}
+              fill="rgba(76, 141, 255, 0.12)"
+              stroke="#4c8dff"
+              strokeWidth={1 / zoom}
+              dash={[5 / zoom, 4 / zoom]}
+            />
+          )}
           {guides.vertical !== null && (
             <Line
               points={[guides.vertical, -10000, guides.vertical, 10000]}

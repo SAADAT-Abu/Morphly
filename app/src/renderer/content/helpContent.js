@@ -79,6 +79,8 @@ export const SHORTCUTS = [
       ["Double-click text", "Edit in place"],
       ["Double-click a cell", "Edit that table cell"],
       ["Shift + click", "Add to selection"],
+      ["Drag on empty space", "Select everything the band touches"],
+      ["Shift + drag", "Add the band to the selection"],
       ["Esc", "Deselect / back to Select tool"],
     ],
   },
@@ -144,7 +146,9 @@ export const GETTING_STARTED = [
       "figure is larger than the window, use the scrollbars, shift plus wheel for sideways, " +
       "or hold space and drag. Pink guides appear as edges line up with " +
       "the page centre or with other elements. Select several things and press Ctrl+G to " +
-      "group them, so they move and scale as one piece. The Layers panel handles stacking " +
+      "group them, so they move and scale as one piece. To select several at once, drag a "
+      + "band across empty space and everything it touches is caught; hold shift to add to "
+      + "what is already selected. The Layers panel handles stacking " +
       "order, renaming, hiding and locking.",
   },
   {

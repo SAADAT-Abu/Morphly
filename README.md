@@ -60,7 +60,8 @@ else's server.
   drawing aid only and never appears in an export.
 - **Figure-friendly canvas**: presets for single-column, double-column, slide
   and poster sizes; snapping guides; alignment tools; layers with lock and
-  hide; undo/redo.
+  hide; undo/redo. Drag a band across empty space to select several elements
+  at once, and group them with Ctrl+G.
 - **True vector export**: PNG at 1×/2×/4×, plus SVG and PDF that stay sharp at
   any size. Not a rasterised image wrapped in a PDF.
 - **Attribution handled for you**: asset credits can be written into the

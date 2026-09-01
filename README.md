@@ -83,8 +83,7 @@ nothing else to download and Morphly works offline the moment you open it.
 | Windows | [Morphly Setup 0.1.0.exe](https://zenodo.org/records/22238249/files/Morphly%20Setup%200.1.0.exe?download=1) | 406 MB |
 
 Both files, with their checksums, are on the
-[Zenodo record](https://doi.org/10.5281/zenodo.22238249). macOS is not built
-yet: it needs a macOS machine, and a `.dmg` will be added to a later release.
+[Zenodo record](https://doi.org/10.5281/zenodo.22238249). 
 
 On Linux, mark the AppImage executable and run it:
 
@@ -130,9 +129,9 @@ npm run dist     # output lands in app/release/
 ## Getting the asset libraries
 
 **The packaged builds already contain both libraries**, around 3,500
-illustrations in all, which is why an installer is roughly 450 MB. They are
-mounted automatically the first time you open the app, so it works offline
-straight away with nothing to download or configure.
+illustrations in all. They are mounted automatically the first time you 
+open the app, so it works offline straight away with nothing to download 
+or configure.
 
 You only need this section if you are running from source, or if you want to
 mount an extra library or a fresher copy of one. Morphly can read any number of

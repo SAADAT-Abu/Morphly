@@ -43,6 +43,10 @@ export const useStore = create((set, get) => ({
   zoom: 0.4,
   stagePos: { x: 0, y: 0 },
   activeTool: "select",
+  /** Head style for the next arrow: "none" | "end" | "both". Remembers the
+   *  last choice so drawing several matching arrows doesn't mean re-setting
+   *  it every time. */
+  lastArrowHeads: "end",
   library: null,
   libraryError: null,
   projectPath: null,
@@ -155,6 +159,7 @@ export const useStore = create((set, get) => ({
         strokeWidth: 4,
         // points are relative to the element's x/y origin
         points: [0, 0, size, 0],
+        ...(type === "arrow" ? { heads: get().lastArrowHeads } : {}),
       });
     } else {
       return;
@@ -243,6 +248,16 @@ export const useStore = create((set, get) => ({
     if (commit) get().commit();
     set((s) => ({
       elements: s.elements.map((el) => (el.id === id ? { ...el, ...patch } : el)),
+      dirty: true,
+    }));
+  },
+
+  /** Change an arrow's head style, and remember it for the next arrow. */
+  setArrowHeads: (id, heads) => {
+    get().commit();
+    set((s) => ({
+      elements: s.elements.map((el) => (el.id === id ? { ...el, heads } : el)),
+      lastArrowHeads: heads,
       dirty: true,
     }));
   },

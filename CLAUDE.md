@@ -209,8 +209,10 @@ by Vite 7. Plain JavaScript, no TypeScript.
 - Multi-variant entries collapse to one tile with an expandable variant strip.
 - Click a thumbnail to place centred, or drag it onto the canvas to drop it
   under the cursor.
-- Shapes: rectangle (corner radius), ellipse, triangle, line, arrow. Text with
-  font/size/style/alignment/colour and double-click inline editing.
+- Shapes: rectangle (corner radius), ellipse, triangle, line, arrow. Arrows
+  take no head, a single head or two heads; the last choice is remembered for
+  the next arrow. Text with font/size/style/alignment/colour and double-click
+  inline editing.
 - **SVG palette recolour** — see the recolour note below.
 - Select / move / resize / rotate, multi-select, snapping guides against the
   canvas centre, canvas edges and other elements' edges.
@@ -226,7 +228,13 @@ by Vite 7. Plain JavaScript, no TypeScript.
 - Native application menu (File/Edit/View/Help). Menu items dispatch named
   actions to the renderer rather than acting in the main process, so each
   command has one implementation shared with its keyboard shortcut.
+- App icon (`icon.png` at the repo root; `app/build/` holds the sizes
+  electron-builder needs, and the renderer imports a 256 px copy).
 - Help window with four tabs: Getting started, Licensing, Shortcuts, About.
+  About credits the author, both illustration libraries with their licences,
+  and every open-source dependency, and links to the repo and issue tracker.
+  External links open in the user's browser via a main-process handler
+  restricted to http(s).
   The Licensing tab explains the PD/BY/SA tiers in plain language and shows
   live counts from the mounted libraries, so it never goes stale against what
   is actually loaded.

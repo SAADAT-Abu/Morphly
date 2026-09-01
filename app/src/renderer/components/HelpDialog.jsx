@@ -9,10 +9,15 @@ import React, { useState } from "react";
 import { useStore } from "../store";
 import {
   LICENCE_TIERS,
-  SOURCES,
   SHORTCUTS,
   GETTING_STARTED,
+  AUTHOR,
+  LINKS,
+  MORPHLY_LICENSE,
+  ASSET_CREDITS,
+  SOFTWARE_CREDITS,
 } from "../content/helpContent";
+import iconUrl from "../assets/icon.png";
 
 const TABS = [
   ["start", "Getting started"],
@@ -174,29 +179,103 @@ function Shortcuts() {
   );
 }
 
+/** Opens in the user's browser rather than navigating the app window. */
+function ExternalLink({ href, children }) {
+  return (
+    <button className="link" onClick={() => window.morphly.openExternal(href)}>
+      {children ?? href}
+    </button>
+  );
+}
+
 function About() {
   return (
     <>
-      <p className="lede">Morphly v0.1 — a free, offline scientific figure editor.</p>
-      <section>
-        <h3>Asset libraries</h3>
-        {SOURCES.map((s) => (
-          <p key={s.name}>
-            <strong>{s.name}</strong> — {s.blurb}
-            <br />
-            <span className="hint">{s.url}</span>
+      <div className="about-head">
+        <img src={iconUrl} alt="" width="72" height="72" />
+        <div>
+          <h3 className="about-title">Morphly v0.1</h3>
+          <p className="about-sub">
+            A free, offline editor for scientific figures, built on openly licensed
+            illustration libraries.
           </p>
-        ))}
-        <p className="hint">
-          Morphly is not affiliated with NIAID/NIH or Bioicons. It reads libraries you
-          generate yourself with the scripts in <code>scraper/</code>.
+          <p className="about-sub">
+            Released under the {MORPHLY_LICENSE} licence.
+          </p>
+        </div>
+      </div>
+
+      <section>
+        <h3>Author</h3>
+        <p>
+          <strong>{AUTHOR.name}</strong>
+          <br />
+          {AUTHOR.role}, {AUTHOR.affiliationFull}
         </p>
       </section>
+
+      <section>
+        <h3>Source code & feedback</h3>
+        <p>
+          Morphly is open source. Bug reports and feature requests are welcome — please
+          open an issue rather than emailing, so other users can see it too.
+        </p>
+        <div className="link-row">
+          <button className="ghost small" onClick={() => window.morphly.openExternal(LINKS.repo)}>
+            Source on GitHub
+          </button>
+          <button
+            className="ghost small"
+            onClick={() => window.morphly.openExternal(LINKS.issues)}
+          >
+            Report a bug / request a feature
+          </button>
+        </div>
+      </section>
+
+      <section>
+        <h3>Illustration libraries</h3>
+        <p className="hint">
+          Morphly reads these libraries from a folder on your machine. It does not host,
+          bundle or redistribute any of the artwork, and it is not affiliated with or
+          endorsed by the projects below. All credit for the illustrations belongs to
+          their creators.
+        </p>
+        {ASSET_CREDITS.map((source) => (
+          <div className="credit" key={source.name}>
+            <strong>{source.name}</strong>
+            <p className="credit-who">{source.who}</p>
+            <p className="credit-licence">{source.licenses}</p>
+            <p>{source.note}</p>
+            <ExternalLink href={source.url} />
+          </div>
+        ))}
+      </section>
+
       <section>
         <h3>Built with</h3>
+        <p className="hint">
+          Morphly stands on these open-source projects, with thanks to their maintainers.
+        </p>
+        <table className="credits-table">
+          <tbody>
+            {SOFTWARE_CREDITS.map((s) => (
+              <tr key={s.name}>
+                <td><strong>{s.name}</strong></td>
+                <td className="muted">{s.what}</td>
+                <td className="muted">{s.license}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
+
+      <section>
+        <h3>Figure files</h3>
         <p>
-          Electron, React and Konva — all open source. Figures are saved as{" "}
-          <code>.morphly</code> JSON and export to PNG, SVG and PDF.
+          Figures are saved as <code>.morphly</code> JSON and export to PNG, SVG and PDF.
+          The format is plain text and documented in the repository, so your work is not
+          locked inside this app.
         </p>
       </section>
     </>

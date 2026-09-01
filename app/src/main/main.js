@@ -77,6 +77,7 @@ function createWindow() {
     minHeight: 700,
     backgroundColor: "#1e1f24",
     title: "Morphly",
+    icon: path.join(__dirname, "../../build/icon.png"),
     show: false,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),

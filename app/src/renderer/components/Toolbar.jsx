@@ -1,5 +1,6 @@
 import React from "react";
 import { useStore } from "../store";
+import iconUrl from "../assets/icon.png";
 
 const TOOLS = [
   ["select", "Select", "⬉"],
@@ -31,7 +32,7 @@ export default function Toolbar({ onNew, onOpen, onSave, onExport, onFitToScreen
   return (
     <div className="toolbar">
       <div className="brand">
-        <span className="logo">◈</span> Morphly
+        <img className="logo" src={iconUrl} alt="" width="20" height="20" /> Morphly
       </div>
 
       <div className="group">

@@ -13,6 +13,9 @@ contextBridge.exposeInMainWorld("morphly", {
   getSettings: () => ipcRenderer.invoke("settings:get"),
   setSettings: (patch) => ipcRenderer.invoke("settings:set", patch),
 
+  /** Opens http(s) links in the user's browser. */
+  openExternal: (url) => ipcRenderer.invoke("shell:openExternal", url),
+
   /** Menu items are routed to the renderer, which owns the editor state.
    *  Returns an unsubscribe function. */
   onMenuAction: (callback) => {

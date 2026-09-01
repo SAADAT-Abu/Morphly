@@ -50,23 +50,6 @@ export const LICENCE_TIERS = [
   },
 ];
 
-export const SOURCES = [
-  {
-    name: "NIH BioArt Source",
-    url: "https://bioart.niaid.nih.gov",
-    blurb:
-      "~2,000 vetted scientific and medical illustrations from NIAID. Public domain — the " +
-      "easy library. Many entries come in several colour variants of the same drawing.",
-  },
-  {
-    name: "Bioicons",
-    url: "https://bioicons.com",
-    blurb:
-      "2,830 science icons contributed by ~130 authors. Mostly CC BY, so most need a credit " +
-      "line. Strong on lab equipment, anatomy, animals and chemistry.",
-  },
-];
-
 export const SHORTCUTS = [
   {
     group: "Tools",
@@ -119,11 +102,12 @@ export const GETTING_STARTED = [
   {
     title: "1. Point Morphly at a library",
     body:
-      "Morphly does not ship the artwork — it reads folders you generate with the two " +
-      "scripts in scraper/. That keeps the app small and lets you refresh either library " +
-      "independently. Use File → Add asset library folder, and pick the folder that " +
-      "contains manifest.json. You can mount both libraries at once; they are browsed " +
-      "together with a collection filter.",
+      "Morphly does not bundle the artwork — it reads a library folder from your machine, " +
+      "which keeps the download small and lets each library be updated independently. " +
+      "Use File → Add asset library folder and pick the folder containing manifest.json. " +
+      "You can get a library either by downloading a prepared one, or by building it " +
+      "yourself with the scripts in scraper/. Both libraries can be mounted at once and " +
+      "are browsed together with a collection filter.",
   },
   {
     title: "2. Place artwork",
@@ -157,4 +141,61 @@ export const GETTING_STARTED = [
       "blurry. Leave “Append asset citations” ticked and your credits are written into " +
       "the file automatically.",
   },
+];
+
+// ---------------------------------------------------------------------------
+// Credits
+// ---------------------------------------------------------------------------
+
+export const AUTHOR = {
+  name: "Abu Saadat",
+  role: "Postdoctoral Fellow",
+  /** Short form for the welcome byline; long form for the About tab. */
+  affiliation: "IJC Barcelona",
+  affiliationFull: "Josep Carreras Leukaemia Research Institute (IJC), Barcelona",
+};
+
+export const LINKS = {
+  repo: "https://github.com/SAADAT-Abu/Morphly",
+  issues: "https://github.com/SAADAT-Abu/Morphly/issues",
+};
+
+export const MORPHLY_LICENSE = "MIT";
+
+/**
+ * Asset libraries Morphly reads. Morphly does not host or redistribute any of
+ * this artwork -- it reads a library folder on your machine -- but the people
+ * who made it deserve naming regardless.
+ */
+export const ASSET_CREDITS = [
+  {
+    name: "NIH BioArt Source",
+    who: "NIAID Visual & Medical Arts, National Institutes of Health",
+    url: "https://bioart.niaid.nih.gov",
+    licenses: "Public Domain (some entries CC BY)",
+    note:
+      "Free for any use. Citation is appreciated but not required for public-domain " +
+      "entries.",
+  },
+  {
+    name: "Bioicons",
+    who: "Simon Duerr and ~130 contributing artists",
+    url: "https://bioicons.com",
+    licenses: "Per icon: CC0 1.0, CC BY 3.0/4.0, CC BY-SA 3.0/4.0, MIT, BSD-3-Clause",
+    note:
+      "The largest contributors are Servier Medical Art and DBCLS. Most icons require " +
+      "attribution; a few are share-alike. See the Licensing tab.",
+  },
+];
+
+/** Open-source projects Morphly is built on. Versions are the ones in use. */
+export const SOFTWARE_CREDITS = [
+  { name: "Electron", version: "38", license: "MIT", what: "Desktop application shell" },
+  { name: "React", version: "19", license: "MIT", what: "User interface" },
+  { name: "Konva / react-konva", version: "10 / 19", license: "MIT", what: "Canvas engine" },
+  { name: "Zustand", version: "5", license: "MIT", what: "Editor state" },
+  { name: "Vite", version: "7", license: "MIT", what: "Build tooling" },
+  { name: "electron-builder", version: "26", license: "MIT", what: "Installers" },
+  { name: "Requests", version: "2", license: "Apache-2.0", what: "Asset fetching (Python)" },
+  { name: "BeautifulSoup", version: "4", license: "MIT", what: "Asset fetching (Python)" },
 ];

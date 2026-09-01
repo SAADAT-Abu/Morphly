@@ -29,6 +29,22 @@ function sizedSvg(svgText, width, height) {
   });
 }
 
+/**
+ * Triangle for one arrowhead: tip at (tipX,tipY) pointing along `angle`, with
+ * base `size` behind it. Width matches Konva's default pointerWidth so canvas
+ * and export agree.
+ */
+function arrowHeadPoints(tipX, tipY, angle, size) {
+  const baseX = tipX - Math.cos(angle) * size;
+  const baseY = tipY - Math.sin(angle) * size;
+  const halfW = size / 2;
+  const offX = Math.sin(angle) * halfW;
+  const offY = Math.cos(angle) * halfW;
+  return (
+    `${tipX},${tipY} ${baseX - offX},${baseY + offY} ${baseX + offX},${baseY - offY}`
+  );
+}
+
 /** Konva wraps text internally; reuse its computed lines so the exported SVG
  *  breaks in exactly the same places the canvas does. */
 function textLines(element, stage) {
@@ -79,21 +95,35 @@ function elementToSvg(element, stage) {
     }
 
     case "arrow": {
-      const p = element.points;
-      const [x1, y1, x2, y2] = [p[0], p[1], p.at(-2), p.at(-1)];
-      const head = element.strokeWidth * 3;
+      const pts = element.points;
+      const [x1, y1, x2, y2] = [pts[0], pts[1], pts.at(-2), pts.at(-1)];
+      const size = element.strokeWidth * 3;
       const angle = Math.atan2(y2 - y1, x2 - x1);
-      // Shorten the shaft so it stops at the base of the arrowhead.
-      const sx = x2 - Math.cos(angle) * head;
-      const sy = y2 - Math.sin(angle) * head;
-      const wing = head / 2;
-      const p1 = `${x2},${y2}`;
-      const p2 = `${sx - Math.sin(angle) * -wing},${sy + Math.cos(angle) * -wing}`;
-      const p3 = `${sx + Math.sin(angle) * -wing},${sy - Math.cos(angle) * -wing}`;
+
+      // "none" | "end" (default) | "both" -- must mirror how Konva draws it
+      // on canvas, or the export won't match what the user arranged.
+      const heads = element.heads ?? "end";
+      const headAtEnd = heads !== "none";
+      const headAtStart = heads === "both";
+
+      // Stop the shaft at the base of each head so the stroke doesn't show
+      // through the tip.
+      const ex = headAtEnd ? x2 - Math.cos(angle) * size : x2;
+      const ey = headAtEnd ? y2 - Math.sin(angle) * size : y2;
+      const sx = headAtStart ? x1 + Math.cos(angle) * size : x1;
+      const sy = headAtStart ? y1 + Math.sin(angle) * size : y1;
+
       body =
-        `<line x1="${x1}" y1="${y1}" x2="${sx}" y2="${sy}" stroke="${element.fill}" ` +
-        `stroke-width="${element.strokeWidth}" stroke-linecap="round"/>` +
-        `<polygon points="${p1} ${p2} ${p3}" fill="${element.fill}"/>`;
+        `<line x1="${sx}" y1="${sy}" x2="${ex}" y2="${ey}" stroke="${element.fill}" ` +
+        `stroke-width="${element.strokeWidth}" stroke-linecap="round"/>`;
+
+      if (headAtEnd) {
+        body += `<polygon points="${arrowHeadPoints(x2, y2, angle, size)}" fill="${element.fill}"/>`;
+      }
+      if (headAtStart) {
+        // Same head, pointing the other way.
+        body += `<polygon points="${arrowHeadPoints(x1, y1, angle + Math.PI, size)}" fill="${element.fill}"/>`;
+      }
       break;
     }
 

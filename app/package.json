@@ -32,10 +32,10 @@
   "build": {
     "appId": "com.abusaadat.morphly",
     "productName": "Morphly",
-    "files": ["src/main/**/*", "dist/**/*", "package.json"],
+    "files": ["src/main/**/*", "dist/**/*", "build/icon.*", "package.json"],
     "directories": { "output": "release" },
-    "linux": { "target": ["AppImage"], "category": "Science" },
-    "win": { "target": ["nsis"] },
-    "mac": { "target": ["dmg"], "category": "public.app-category.graphics-design" }
+    "linux": { "target": ["AppImage"], "category": "Science", "icon": "build/icon.png" },
+    "win": { "target": ["nsis"], "icon": "build/icon.ico" },
+    "mac": { "target": ["dmg"], "category": "public.app-category.graphics-design", "icon": "build/icon.png" }
   }
 }

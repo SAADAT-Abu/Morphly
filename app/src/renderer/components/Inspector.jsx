@@ -248,13 +248,35 @@ function TextFields({ element }) {
   );
 }
 
+const ARROW_HEADS = [
+  ["none", "⎯", "No heads"],
+  ["end", "→", "Single head"],
+  ["both", "↔", "Double headed"],
+];
+
 function ShapeFields({ element }) {
   const updateElement = useStore((s) => s.updateElement);
+  const setArrowHeads = useStore((s) => s.setArrowHeads);
   const set = (patch) => updateElement(element.id, patch);
   const isLine = element.type === "line" || element.type === "arrow";
 
   return (
     <Section title="Shape">
+      {element.type === "arrow" && (
+        <div className="segmented" role="group" aria-label="Arrow heads">
+          {ARROW_HEADS.map(([value, glyph, label]) => (
+            <button
+              key={value}
+              className={(element.heads ?? "end") === value ? "active" : ""}
+              title={label}
+              onClick={() => setArrowHeads(element.id, value)}
+            >
+              <span className="seg-glyph">{glyph}</span>
+              {label.split(" ")[0]}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="field-grid">
         <Field label={isLine ? "Colour" : "Fill"}>
           <input type="color" value={element.fill} onChange={(e) => set({ fill: e.target.value })} />

@@ -109,6 +109,9 @@ function ElementShape({ element }) {
           strokeWidth={element.strokeWidth}
           pointerLength={element.strokeWidth * 3}
           pointerWidth={element.strokeWidth * 3}
+          // "none" | "end" (default) | "both"
+          pointerAtEnding={element.heads !== "none"}
+          pointerAtBeginning={element.heads === "both"}
           lineCap="round"
         />
       );

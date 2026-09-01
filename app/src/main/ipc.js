@@ -8,7 +8,7 @@
  * the IPC boundary, so the UI can show a message instead of a dead promise.
  */
 
-const { ipcMain, dialog, BrowserWindow } = require("electron");
+const { ipcMain, dialog, BrowserWindow, shell } = require("electron");
 const fs = require("node:fs/promises");
 const path = require("node:path");
 
@@ -24,6 +24,21 @@ function registerIpc() {
   ipcMain.handle("settings:set", async (_event, patch) =>
     ok({ settings: await writeSettings(patch) })
   );
+
+  /** Open a link in the user's browser. Restricted to http(s) so a malformed
+   *  or hostile URL cannot be turned into a file:// or command invocation. */
+  ipcMain.handle("shell:openExternal", async (_event, url) => {
+    try {
+      const parsed = new URL(String(url));
+      if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+        return fail(`Refusing to open ${parsed.protocol} link`);
+      }
+      await shell.openExternal(parsed.toString());
+      return ok({});
+    } catch (err) {
+      return fail(err);
+    }
+  });
 
   // -- library -------------------------------------------------------------
 

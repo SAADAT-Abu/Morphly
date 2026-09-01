@@ -13,6 +13,7 @@ const LINKS = {
   bioart: "https://bioart.niaid.nih.gov",
   bioicons: "https://bioicons.com",
   repo: "https://github.com/SAADAT-Abu/Morphly",
+  issues: "https://github.com/SAADAT-Abu/Morphly/issues",
   ccby: "https://creativecommons.org/licenses/by/4.0/",
   ccbysa: "https://creativecommons.org/licenses/by-sa/4.0/",
 };
@@ -78,6 +79,12 @@ function buildMenu(getWindow) {
           click: () => shell.openExternal(LINKS.bioart),
         },
         { label: "Bioicons website", click: () => shell.openExternal(LINKS.bioicons) },
+        { type: "separator" },
+        { label: "Morphly on GitHub", click: () => shell.openExternal(LINKS.repo) },
+        {
+          label: "Report a bug or request a feature…",
+          click: () => shell.openExternal(LINKS.issues),
+        },
         { type: "separator" },
         { label: "About Morphly", click: send("help:about") },
       ],

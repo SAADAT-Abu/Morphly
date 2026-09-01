@@ -11,6 +11,8 @@
 
 import React, { useState } from "react";
 import { useStore } from "../store";
+import iconUrl from "../assets/icon.png";
+import { AUTHOR } from "../content/helpContent";
 
 export default function WelcomeDialog({ onClose, onOpenHelp, onAddLibrary }) {
   const library = useStore((s) => s.library);
@@ -35,11 +37,14 @@ export default function WelcomeDialog({ onClose, onOpenHelp, onAddLibrary }) {
     <div className="modal-backdrop">
       <div className="modal welcome-modal">
         <div className="welcome-head">
-          <span className="welcome-logo">◈</span>
+          <img className="welcome-logo" src={iconUrl} alt="" width="64" height="64" />
           <div>
             <h2>Welcome to Morphly</h2>
             <p className="lede">
               Build scientific figures from free, openly licensed illustration libraries.
+            </p>
+            <p className="byline">
+              Developed by {AUTHOR.name} · {AUTHOR.role}, {AUTHOR.affiliation}
             </p>
           </div>
         </div>

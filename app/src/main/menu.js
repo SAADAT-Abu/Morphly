@@ -61,13 +61,6 @@ function buildMenu(getWindow) {
         // Not Ctrl+Shift+I: Chromium claims that one for the developer tools,
         // and it wins over an application accelerator.
         { label: "Image…", accelerator: "CmdOrCtrl+Shift+M", click: send("insertImage") },
-        { type: "separator" },
-        { label: "Rectangle", click: send("insertRect") },
-        { label: "Ellipse", click: send("insertEllipse") },
-        { label: "Triangle", click: send("insertTriangle") },
-        { label: "Line", click: send("insertLine") },
-        { label: "Arrow", click: send("insertArrow") },
-        { label: "Text box", click: send("insertText") },
       ],
     },
     {

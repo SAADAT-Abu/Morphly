@@ -16,9 +16,14 @@ const ICON = {
   line: <path d="M4.5 19.5 19.5 4.5" />,
   arrow: <path d="M4.5 19.5 19 5m0 0h-6.2M19 5v6.2" />,
   text: <path d="M5 5.5h14M12 5.5v13M8.8 18.5h6.4" />,
-  table: <path d="M3.5 5.5h17v13h-17zM3.5 10h17M3.5 14.5h17M9.5 5.5v13M15 5.5v13" />,
+  table: (
+    <>
+      <path d="M3.5 5.5h17v4h-17z" fill="currentColor" />
+      <path d="M3.5 5.5h17v13h-17zM3.5 9.5h17M3.5 14h17M10 9.5v9M16 9.5v9" />
+    </>
+  ),
   image: <path d="M3.5 5.5h17v13h-17zM3.5 15l4.5-4.5 4 4 3-2.5 5.5 4.5M15.5 9.5h.01" />,
-  grid: <path d="M3.5 3.5h17v17h-17zM9 3.5v17M15 3.5v17M3.5 9h17M3.5 15h17" />,
+  grid: <path d="M8 3v18M16 3v18M3 8h18M3 16h18" />,
 };
 
 const TOOLS = [
@@ -74,8 +79,14 @@ export default function Toolbar({
   const duplicateSelected = useStore((s) => s.duplicateSelected);
   const deleteSelected = useStore((s) => s.deleteSelected);
   const selectedIds = useStore((s) => s.selectedIds);
+  const groupSelected = useStore((s) => s.groupSelected);
+  const ungroupSelected = useStore((s) => s.ungroupSelected);
+  const elements = useStore((s) => s.elements);
   const grid = useStore((s) => s.grid);
   const toggleGrid = useStore((s) => s.toggleGrid);
+
+  // Ungroup is only meaningful when something in the selection is grouped.
+  const hasGroup = elements.some((el) => selectedIds.includes(el.id) && el.groupId);
 
   const fileName = projectPath ? projectPath.split(/[/\\]/).pop() : "Untitled figure";
 
@@ -112,7 +123,22 @@ export default function Toolbar({
       <div className="divider" />
 
       <div className="group">
-        <InsertMenu onInsertTable={onInsertTable} onInsertImage={onInsertImage} />
+        <button
+          className="tool"
+          onClick={onInsertTable}
+          title="Insert a table (Ctrl+Shift+T)"
+          aria-label="Insert a table"
+        >
+          <ToolIcon name="table" />
+        </button>
+        <button
+          className="tool"
+          onClick={onInsertImage}
+          title="Insert an image (Ctrl+Shift+M)"
+          aria-label="Insert an image"
+        >
+          <ToolIcon name="image" />
+        </button>
         <button
           className={`tool${grid.visible ? " active" : ""}`}
           onClick={toggleGrid}
@@ -130,6 +156,22 @@ export default function Toolbar({
         <button className="ghost" onClick={redo} disabled={future.length === 0} title="Redo (Ctrl+Shift+Z)">↷</button>
         <button className="ghost" onClick={duplicateSelected} disabled={selectedIds.length === 0} title="Duplicate (Ctrl+D)">⧉</button>
         <button className="ghost" onClick={deleteSelected} disabled={selectedIds.length === 0} title="Delete (Del)">🗑</button>
+        <button
+          className="ghost"
+          onClick={groupSelected}
+          disabled={selectedIds.length < 2}
+          title="Group (Ctrl+G)"
+        >
+          Group
+        </button>
+        <button
+          className="ghost"
+          onClick={ungroupSelected}
+          disabled={!hasGroup}
+          title="Ungroup (Ctrl+Shift+G)"
+        >
+          Ungroup
+        </button>
       </div>
 
       <div className="divider" />
@@ -150,82 +192,6 @@ export default function Toolbar({
 
       <button className="ghost help-btn" onClick={onHelp} title="Help (F1)">?</button>
       <button className="primary" onClick={onExport}>Export…</button>
-    </div>
-  );
-}
-
-/**
- * "Insert" dropdown.
- *
- * Tables and images are one-off insertions rather than modes you draw in, so
- * they belong in a menu rather than as tool buttons: making them tools would
- * imply you click the canvas to place them, which is not how either works.
- */
-function InsertMenu({ onInsertTable, onInsertImage }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
-  const addShape = useStore((s) => s.addShape);
-  const addText = useStore((s) => s.addText);
-
-  // Close on a click anywhere else, and on Escape.
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e) => {
-      if (!ref.current?.contains(e.target)) setOpen(false);
-    };
-    const onKey = (e) => e.key === "Escape" && setOpen(false);
-    window.addEventListener("mousedown", onDown);
-    window.addEventListener("keydown", onKey);
-    return () => {
-      window.removeEventListener("mousedown", onDown);
-      window.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
-
-  const run = (fn) => () => {
-    setOpen(false);
-    fn();
-  };
-
-  return (
-    <div className="menu-host" ref={ref}>
-      <button
-        className={`ghost${open ? " active" : ""}`}
-        onClick={() => setOpen((v) => !v)}
-        aria-haspopup="menu"
-        aria-expanded={open}
-      >
-        Insert ▾
-      </button>
-      {open && (
-        <div className="dropdown" role="menu">
-          <button role="menuitem" onClick={run(onInsertTable)}>
-            <ToolIcon name="table" /> Table…
-          </button>
-          <button role="menuitem" onClick={run(onInsertImage)}>
-            <ToolIcon name="image" /> Image…
-          </button>
-          <div className="dropdown-sep" />
-          <button role="menuitem" onClick={run(() => addShape("rect"))}>
-            <ToolIcon name="rect" /> Rectangle
-          </button>
-          <button role="menuitem" onClick={run(() => addShape("ellipse"))}>
-            <ToolIcon name="ellipse" /> Ellipse
-          </button>
-          <button role="menuitem" onClick={run(() => addShape("triangle"))}>
-            <ToolIcon name="triangle" /> Triangle
-          </button>
-          <button role="menuitem" onClick={run(() => addShape("line"))}>
-            <ToolIcon name="line" /> Line
-          </button>
-          <button role="menuitem" onClick={run(() => addShape("arrow"))}>
-            <ToolIcon name="arrow" /> Arrow
-          </button>
-          <button role="menuitem" onClick={run(() => addText())}>
-            <ToolIcon name="text" /> Text
-          </button>
-        </div>
-      )}
     </div>
   );
 }

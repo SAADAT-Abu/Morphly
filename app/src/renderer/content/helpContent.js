@@ -150,10 +150,11 @@ export const GETTING_STARTED = [
   {
     title: "5. Add tables, plots and a grid",
     body:
-      "Insert → Table draws a table you can size by pointing at the grid in the dialog. " +
+      "The table button in the toolbar, or Insert → Table, draws a table you can size by "
+      + "pointing at the grid in the dialog. " +
       "Double-click any cell on the canvas to type in it. The properties panel adds and " +
       "removes rows and columns, sets column width and row height, and controls headers, " +
-      "shading, borders and rounded corners. Insert → Image brings in a plot, a " +
+      "shading, borders and rounded corners. The image button, or Insert → Image, brings in a plot, a " +
       "micrograph or a photo as PNG, JPEG, GIF, WebP or BMP, and you can also drag image " +
       "files straight onto the canvas from your file manager. Imported images are stored " +
       "inside the .morphly file, so a saved figure still opens after the original file has " +

@@ -327,12 +327,6 @@ export default function App() {
         case "addLibrary": return addLibrary();
         case "insertTable": return setTableDialogOpen(true);
         case "insertImage": return handleInsertImage();
-        case "insertRect": return s.addShape("rect");
-        case "insertEllipse": return s.addShape("ellipse");
-        case "insertTriangle": return s.addShape("triangle");
-        case "insertLine": return s.addShape("line");
-        case "insertArrow": return s.addShape("arrow");
-        case "insertText": return s.addText();
         case "toggleGrid": return s.toggleGrid();
         case "undo": return s.undo();
         case "redo": return s.redo();

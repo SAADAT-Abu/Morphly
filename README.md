@@ -53,7 +53,7 @@ else's server.
   any time, and headers, row shading, borders, cell padding and rounded corners
   are all adjustable.
 - **Image import**: bring in plots, micrographs and photos as PNG, JPEG, GIF,
-  WebP or BMP, from the Insert menu or by dragging files onto the canvas.
+  WebP or BMP, from the toolbar or by dragging files onto the canvas.
   Images are stored inside the .morphly file, so a saved figure still opens
   after the original file has been moved or renamed.
 - **Grid**: a background grid at any spacing, with optional snapping. It is a
@@ -162,7 +162,7 @@ file. Both libraries can be mounted at once and are browsed together.
 3. **Recolour**: select the illustration and edit the swatches in the Colours
    panel.
 4. **Build the figure**: add shapes, arrows and labels from the toolbar, and
-   tables or images from the Insert menu. Pink guides appear as things line up,
+   tables or images from the toolbar buttons beside them. Pink guides appear as things line up,
    and the grid button gives you a background grid to work against.
 5. **Export**: PNG for a quick look, SVG to keep editing elsewhere, PDF for
    submission. Leave *Append asset citations* ticked.

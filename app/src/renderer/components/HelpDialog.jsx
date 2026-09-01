@@ -65,7 +65,7 @@ function GettingStarted() {
     <>
       <p className="lede">
         Morphly builds scientific figures from free, openly licensed illustration
-        libraries — a self-hosted alternative to the paid tools.
+        libraries, a self-hosted alternative to the paid tools.
       </p>
       {GETTING_STARTED.map((step) => (
         <section key={step.title}>
@@ -89,7 +89,7 @@ function Licensing() {
     <>
       <p className="lede">
         Everything in Morphly is free to use, including commercially. The only thing
-        that varies is whether you have to credit the artist — and, for a small
+        that varies is whether you have to credit the artist and, for a small
         number of icons, whether that obligation passes on to your figure.
       </p>
 
@@ -126,7 +126,7 @@ function Licensing() {
           </li>
         </ul>
         <p className="hint">
-          PNG export does not draw the citation footer — copy the credit lines from the
+          PNG export does not draw the citation footer. Copy the credit lines from the
           properties panel instead, or export SVG/PDF.
         </p>
       </section>
@@ -136,7 +136,7 @@ function Licensing() {
         <p>
           Use anything. Leave the citation checkbox ticked. If you see an orange
           share-alike warning, decide whether you are happy for that figure to be openly
-          reusable — and if not, swap in a different icon.
+          reusable, and if not, swap in a different icon.
         </p>
         <p className="hint">
           This is a plain-language summary of the licence terms, not legal advice. For
@@ -217,7 +217,7 @@ function About() {
       <section>
         <h3>Source code & feedback</h3>
         <p>
-          Morphly is open source. Bug reports and feature requests are welcome — please
+          Morphly is open source. Bug reports and feature requests are welcome. Please
           open an issue rather than emailing, so other users can see it too.
         </p>
         <div className="link-row">

@@ -1,4 +1,4 @@
-# Scraped asset libraries — large (>1.4 GB combined), regenerate locally with
+# Scraped asset libraries: large (>1.4 GB combined), regenerate locally with
 # the scripts in scraper/. Built installers go to Zenodo, not git.
 bioart_library/
 bioicons_library/
@@ -17,7 +17,7 @@ app/out/
 dist/
 release/
 
-# Project brief for Claude Code — local working notes, not part of the release
+# Project brief for Claude Code: local working notes, not part of the release
 CLAUDE.md
 
 # OS / editor

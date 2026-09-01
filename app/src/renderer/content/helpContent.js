@@ -14,7 +14,7 @@ export const LICENCE_TIERS = [
   {
     badge: "PD",
     tone: "pd",
-    title: "Public domain — nothing required",
+    title: "Public domain: nothing required",
     covers: "All of NIH BioArt, plus the CC0 icons in Bioicons.",
     meaning:
       "Use it for anything at all: papers, posters, slides, teaching, commercial work. " +
@@ -24,24 +24,24 @@ export const LICENCE_TIERS = [
   {
     badge: "BY",
     tone: "by",
-    title: "Credit required — the common case",
+    title: "Credit required: the common case",
     covers: "Most of Bioicons (CC BY 3.0 and 4.0), plus a few MIT/BSD icons.",
     meaning:
       "Use it for anything, including commercial work, on one condition: say who made it. " +
       "That is the entire obligation.",
     todo:
-      "Keep a credit line with the figure. Morphly writes these for you — tick " +
+      "Keep a credit line with the figure. Morphly writes these for you: tick " +
       "“Append asset citations” when you export.",
   },
   {
     badge: "SA",
     tone: "sa",
-    title: "Share-alike — the one to think about",
+    title: "Share-alike: the one to think about",
     covers: "A small number of Bioicons icons (CC BY-SA 3.0 and 4.0).",
     meaning:
       "Credit is required, and there is a catch: whatever you make with it must be shared " +
       "under the same open licence. Put one in a figure and the argument can be made that " +
-      "the whole figure now carries CC BY-SA too — meaning anyone may reuse and modify it, " +
+      "the whole figure now carries CC BY-SA too, meaning anyone may reuse and modify it, " +
       "and you cannot restrict that.",
     todo:
       "For an open-access paper this is usually fine. It can matter if a publisher wants " +
@@ -102,7 +102,7 @@ export const GETTING_STARTED = [
   {
     title: "1. Point Morphly at a library",
     body:
-      "Morphly does not bundle the artwork — it reads a library folder from your machine, " +
+      "Morphly does not bundle the artwork. It reads a library folder from your machine, " +
       "which keeps the download small and lets each library be updated independently. " +
       "Use File → Add asset library folder and pick the folder containing manifest.json. " +
       "You can get a library either by downloading a prepared one, or by building it " +
@@ -115,13 +115,13 @@ export const GETTING_STARTED = [
       "Search by title, keyword or creator in the left sidebar. Click a thumbnail to drop it " +
       "in the middle of the page, or drag it onto the canvas to place it exactly where you " +
       "want. Entries showing “N variants” are the same drawing in different colour " +
-      "schemes — expand the tile to pick one.",
+      "schemes. Expand the tile to pick one.",
   },
   {
     title: "3. Recolour it",
     body:
       "Select a placed illustration and the Colours panel lists every distinct colour in it. " +
-      "Change one swatch and every shape using that colour updates together — that is why " +
+      "Change one swatch and every shape using that colour updates together, which is why " +
       "recolouring a 500-shape illustration takes one click rather than five hundred. " +
       "Nothing is destructive: the original file is untouched and every swatch has a reset.",
   },

@@ -91,8 +91,8 @@ export default function AssetLibrary({ onPlaceAsset }) {
         <div className="panel-header">Asset library</div>
         <div className="library-empty">
           <p>
-            Morphly reads libraries produced by the scripts in <code>scraper/</code> —
-            NIH BioArt and Bioicons. Point it at a folder containing{" "}
+            Morphly reads an asset library folder, such as one built with the scripts
+            in <code>scraper/</code>. Point it at a folder containing{" "}
             <code>manifest.json</code>.
           </p>
           {libraryError && <p className="error">{libraryError}</p>}
@@ -212,7 +212,7 @@ function AssetTile({ asset, expanded, onToggle, onPlace }) {
     `${asset.title}\n${asset.collection}` +
     (asset.creator ? ` · ${asset.creator}` : "") +
     (asset.license ? `\n${asset.license}` : "") +
-    (asset.shareAlike ? " — SHARE-ALIKE" : "") +
+    (asset.shareAlike ? " (SHARE-ALIKE)" : "") +
     (hasVariants ? `\n${asset.variants.length} variants` : "") +
     "\nClick to add, drag onto the canvas to place";
 

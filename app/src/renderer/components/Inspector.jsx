@@ -166,7 +166,7 @@ function AttributionBlock({ element }) {
       {element.shareAlike && (
         <p className="warning">
           <strong>Share-alike.</strong> {element.license} requires derivative works to
-          carry the same licence — that can extend to this whole figure.
+          carry the same licence, which can extend to this whole figure.
         </p>
       )}
       <p className="citation">{element.citation}</p>

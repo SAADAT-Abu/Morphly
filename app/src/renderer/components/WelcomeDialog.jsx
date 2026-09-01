@@ -51,12 +51,12 @@ export default function WelcomeDialog({ onClose, onOpenHelp, onAddLibrary }) {
 
         <div className="welcome-points">
           <Point icon="🔍" title="Browse thousands of illustrations">
-            Search NIH BioArt and Bioicons side by side — viruses, cells, anatomy, lab
+            Search NIH BioArt and Bioicons side by side: viruses, cells, anatomy, lab
             equipment, animals, chemistry. Click to place, or drag onto the canvas.
           </Point>
           <Point icon="🎨" title="Recolour any vector in one click">
             Every illustration is a real vector. Change one swatch and every shape using
-            that colour follows — no need to touch hundreds of paths by hand.
+            that colour follows, with no need to touch hundreds of paths by hand.
           </Point>
           <Point icon="📄" title="Export figures that stay sharp">
             PNG, SVG and PDF. Vector output scales to any size, and asset credits can be
@@ -68,7 +68,7 @@ export default function WelcomeDialog({ onClose, onOpenHelp, onAddLibrary }) {
           <strong>A word on licensing.</strong> Everything here is free to use, including
           commercially. Most assets simply ask that you credit the artist, which Morphly
           writes for you at export. A small number are “share-alike”, which can require
-          your figure to be shared openly too — those are flagged with an orange{" "}
+          your figure to be shared openly too. Those are flagged with an orange{" "}
           <span className="licence-badge sa inline">SA</span> badge and a warning before you
           export.{" "}
           <button className="link" onClick={onOpenHelp}>

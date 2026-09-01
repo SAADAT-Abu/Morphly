@@ -31,6 +31,7 @@ import { useStore } from "../store";
 import { useSvgImage, useSvgImageFromText } from "../lib/useSvgImage";
 import { buildIsolationSvg, effectiveColorMap } from "../lib/svgPalette";
 import { computeSnap, pointsBounds } from "../lib/geometry";
+import CanvasScrollbars from "./CanvasScrollbars";
 
 const SNAP_THRESHOLD = 6; // canvas units, scaled by zoom at call time
 
@@ -273,6 +274,12 @@ export default function CanvasStage({ stageRef, onRequestTextEdit, onExternalDro
           x: pointer.x - mousePoint.x * newScale,
           y: pointer.y - mousePoint.y * newScale,
         });
+      } else if (e.evt.shiftKey) {
+        // Shift plus wheel scrolls sideways, the convention everywhere else.
+        // Without it a plain mouse, which only reports vertical delta, could
+        // never reach the left or right of a zoomed-in figure.
+        const amount = e.evt.deltaY || e.evt.deltaX;
+        setStagePos({ x: stagePos.x - amount, y: stagePos.y });
       } else {
         setStagePos({ x: stagePos.x - e.evt.deltaX, y: stagePos.y - e.evt.deltaY });
       }
@@ -419,6 +426,42 @@ export default function CanvasStage({ stageRef, onRequestTextEdit, onExternalDro
 
   const visibleElements = useMemo(() => elements.filter((el) => el.visible), [elements]);
 
+  /**
+   * Middle-button drag pans, as in most editors. It is handled here rather
+   * than through Konva's own dragging because that begins on mouse down,
+   * before a state change enabling it could take effect.
+   */
+  const panRef = useRef(null);
+
+  const handlePanStart = useCallback(
+    (e) => {
+      if (e.button !== 1) return;
+      e.preventDefault();
+      panRef.current = { x: e.clientX, y: e.clientY };
+    },
+    []
+  );
+
+  useEffect(() => {
+    const onMove = (e) => {
+      if (!panRef.current) return;
+      const dx = e.clientX - panRef.current.x;
+      const dy = e.clientY - panRef.current.y;
+      panRef.current = { x: e.clientX, y: e.clientY };
+      const { stagePos: current, setStagePos: set } = useStore.getState();
+      set({ x: current.x + dx, y: current.y + dy });
+    };
+    const onUp = () => {
+      panRef.current = null;
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+  }, []);
+
   /** Assets dragged out of the sidebar land where they were dropped. */
   const handleDrop = useCallback(
     (e) => {
@@ -450,6 +493,8 @@ export default function CanvasStage({ stageRef, onRequestTextEdit, onExternalDro
         }
       }}
       onDrop={handleDrop}
+      onMouseDown={handlePanStart}
+      onAuxClick={(e) => e.preventDefault()}
     >
       <Stage
         ref={stageRef}
@@ -560,6 +605,14 @@ export default function CanvasStage({ stageRef, onRequestTextEdit, onExternalDro
           )}
         </Layer>
       </Stage>
+
+      <CanvasScrollbars
+        size={size}
+        zoom={zoom}
+        stagePos={stagePos}
+        canvas={canvas}
+        setStagePos={setStagePos}
+      />
 
       <SpacebarPanHint onChange={setIsPanning} />
     </div>

@@ -499,3 +499,24 @@ table.credits-table td:last-child {
   text-align: center;
   padding: 4px;
 }
+
+/* ------------------------------------------------------- canvas scrollbars */
+
+.scrollbar {
+  position: absolute;
+  z-index: 10;
+  background: rgba(255, 255, 255, 0.04);
+}
+.scrollbar.x { cursor: default; }
+.scrollbar.y { cursor: default; }
+
+.scroll-thumb {
+  position: absolute;
+  background: #4a5265;
+  border-radius: 5px;
+  transition: background 120ms ease;
+}
+.scrollbar.x .scroll-thumb { top: 2px; bottom: 2px; }
+.scrollbar.y .scroll-thumb { left: 2px; right: 2px; }
+.scroll-thumb:hover { background: #5c657c; }
+.scroll-thumb.dragging { background: var(--accent); }

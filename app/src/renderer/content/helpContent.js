@@ -83,9 +83,11 @@ export const SHORTCUTS = [
     group: "View",
     items: [
       ["Ctrl + wheel", "Zoom"],
+      ["Wheel / trackpad", "Scroll up and down"],
+      ["Shift + wheel", "Scroll left and right"],
       ["Hold space + drag", "Pan"],
+      ["Middle-button drag", "Pan"],
       ["Ctrl + 0", "Fit to screen"],
-      ["Wheel / trackpad", "Scroll canvas"],
     ],
   },
   {
@@ -134,7 +136,9 @@ export const GETTING_STARTED = [
     title: "4. Build the figure",
     body:
       "Add rectangles, ellipses, triangles, lines, arrows and text from the toolbar. Drag to " +
-      "move, use the handles to resize and rotate. Pink guides appear as edges line up with " +
+      "move, use the handles to resize and rotate. Zoom with Ctrl and the wheel; when the " +
+      "figure is larger than the window, use the scrollbars, shift plus wheel for sideways, " +
+      "or hold space and drag. Pink guides appear as edges line up with " +
       "the page centre or with other elements. Select several things and press Ctrl+G to " +
       "group them, so they move and scale as one piece. The Layers panel handles stacking " +
       "order, renaming, hiding and locking.",

@@ -15,6 +15,8 @@ const TYPE_ICONS = {
   line: "╱",
   arrow: "↗",
   text: "T",
+  table: "▦",
+  image: "🖼",
 };
 
 export default function LayersPanel() {

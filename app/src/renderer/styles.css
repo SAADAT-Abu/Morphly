@@ -520,3 +520,71 @@ table.credits-table td:last-child {
 .scrollbar.y .scroll-thumb { left: 2px; right: 2px; }
 .scroll-thumb:hover { background: #5c657c; }
 .scroll-thumb.dragging { background: var(--accent); }
+
+/* Insert dropdown ---------------------------------------------------------- */
+.menu-host { position: relative; }
+.dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 40;
+  min-width: 180px;
+  padding: 4px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.dropdown button {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 6px 9px;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font-size: 12px;
+  text-align: left;
+}
+.dropdown button:hover { background: var(--accent-dim); }
+.dropdown-sep { height: 1px; background: var(--border); margin: 3px 0; }
+
+/* Table dialog ------------------------------------------------------------- */
+.table-modal { width: 340px; }
+.table-picker {
+  display: grid;
+  gap: 3px;
+  justify-content: start;
+  padding: 4px 0;
+}
+.picker-cell {
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  background: var(--panel-2);
+}
+.picker-cell.on { background: var(--accent); border-color: var(--accent); }
+
+/* Table and image property panels ------------------------------------------ */
+.table-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+.preset-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; margin-top: 8px; }
+.preset-row button, .table-buttons button { padding: 4px 0; font-size: 11px; }
+.preset-row button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+/* Table cell editor: no wrapping frame, so it sits inside the cell cleanly. */
+/* The cell editor sits inside the cell and takes the cell's own colours, so
+   editing looks like the finished table rather than a floating text box.
+   Background and top padding are set inline, from the element. */
+.text-overlay.cell-overlay {
+  padding-right: 0;
+  padding-bottom: 0;
+  padding-left: 0;
+  border-radius: 0;
+  box-shadow: inset 0 0 0 2px var(--accent);
+}

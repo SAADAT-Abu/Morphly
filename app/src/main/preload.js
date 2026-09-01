@@ -37,6 +37,9 @@ contextBridge.exposeInMainWorld("morphly", {
     "morphly-asset://asset/" +
     [source, ...relPath.split("/")].map(encodeURIComponent).join("/"),
 
+  /** Pick image files and read them back as data URLs. */
+  importImage: () => ipcRenderer.invoke("image:import"),
+
   // projects
   saveProject: (json, filePath) => ipcRenderer.invoke("project:save", { json, filePath }),
   openProject: () => ipcRenderer.invoke("project:open"),

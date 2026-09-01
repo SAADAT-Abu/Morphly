@@ -8,6 +8,7 @@
  */
 
 import { applyPalette, effectiveColorMap } from "./svgPalette";
+import { offsets, cellCorners, isHeaderCell } from "./tableLayout";
 
 const escapeXml = (s) =>
   String(s ?? "")
@@ -43,6 +44,116 @@ function arrowHeadPoints(tipX, tipY, angle, size) {
   return (
     `${tipX},${tipY} ${baseX - offX},${baseY + offY} ${baseX + offX},${baseY - offY}`
   );
+}
+
+/**
+ * Path for a rectangle with per-corner radii, clockwise from the top-left.
+ *
+ * SVG's <rect rx> rounds all four corners equally, but a table needs its outer
+ * corners rounded and its inner ones square, so cells are drawn as paths.
+ */
+function roundedRectPath(x, y, w, h, [tl, tr, br, bl]) {
+  if (!tl && !tr && !br && !bl) {
+    return `M${x},${y} h${w} v${h} h${-w} Z`;
+  }
+  // Never let a radius exceed half the shorter side, which would invert the arc.
+  const cap = Math.min(w, h) / 2;
+  const [a, b, c, d] = [tl, tr, br, bl].map((r) => Math.min(r, cap));
+  return (
+    `M${x + a},${y} h${w - a - b}` +
+    (b ? ` a${b},${b} 0 0 1 ${b},${b}` : "") +
+    ` v${h - b - c}` +
+    (c ? ` a${c},${c} 0 0 1 ${-c},${c}` : "") +
+    ` h${-(w - c - d)}` +
+    (d ? ` a${d},${d} 0 0 1 ${-d},${-d}` : "") +
+    ` v${-(h - d - a)}` +
+    (a ? ` a${a},${a} 0 0 1 ${a},${-a}` : "") +
+    " Z"
+  );
+}
+
+/**
+ * One table as SVG.
+ *
+ * Mirrors TableShape on the canvas exactly, cell by cell in the same order, so
+ * the export is a faithful copy rather than a second interpretation of the
+ * model. Cell text is emitted as real <text>, so it stays selectable and
+ * searchable in the exported figure.
+ */
+function tableToSvg(element) {
+  const xs = offsets(element.colWidths);
+  const ys = offsets(element.rowHeights);
+  const pad = element.padding ?? 6;
+  const parts = [];
+
+  for (let row = 0; row < element.rows; row += 1) {
+    for (let col = 0; col < element.cols; col += 1) {
+      const header = isHeaderCell(element, row, col);
+      const striped =
+        !header && element.stripeFill && (element.headerRow ? row % 2 === 0 : row % 2 === 1);
+      const fill = header ? element.headerFill : striped ? element.stripeFill : element.fill;
+      const w = element.colWidths[col];
+      const h = element.rowHeights[row];
+
+      parts.push(
+        `<path d="${roundedRectPath(xs[col], ys[row], w, h, cellCorners(element, row, col))}" ` +
+          `fill="${fill}"/>`
+      );
+
+      const text = element.cells[row]?.[col];
+      if (!text) continue;
+
+      const align = element.align ?? "left";
+      const anchor = align === "center" ? "middle" : align === "right" ? "end" : "start";
+      const tx =
+        align === "center"
+          ? xs[col] + w / 2
+          : align === "right"
+          ? xs[col] + w - pad
+          : xs[col] + pad;
+
+      // Centre the block of lines vertically inside the cell, then place each
+      // line on its own baseline, the same way the canvas does it.
+      const lines = String(text).split("\n");
+      const lineHeight = element.fontSize * 1.2;
+      const first = ys[row] + h / 2 - (lines.length * lineHeight) / 2 + element.fontSize * 0.95;
+      const tspans = lines
+        .map((line, i) => `<tspan x="${tx}" y="${first + i * lineHeight}">${escapeXml(line)}</tspan>`)
+        .join("");
+
+      parts.push(
+        `<text font-family="${escapeXml(element.fontFamily)}" font-size="${element.fontSize}" ` +
+          `font-weight="${header ? "bold" : "normal"}" ` +
+          `fill="${header ? element.headerTextColor : element.textColor}" ` +
+          `text-anchor="${anchor}" xml:space="preserve">${tspans}</text>`
+      );
+    }
+  }
+
+  if (element.showInnerLines !== false && element.strokeWidth > 0) {
+    for (let col = 1; col < element.cols; col += 1) {
+      parts.push(
+        `<line x1="${xs[col]}" y1="0" x2="${xs[col]}" y2="${element.height}" ` +
+          `stroke="${element.stroke}" stroke-width="${element.strokeWidth}"/>`
+      );
+    }
+    for (let row = 1; row < element.rows; row += 1) {
+      parts.push(
+        `<line x1="0" y1="${ys[row]}" x2="${element.width}" y2="${ys[row]}" ` +
+          `stroke="${element.stroke}" stroke-width="${element.strokeWidth}"/>`
+      );
+    }
+  }
+
+  if (element.strokeWidth > 0) {
+    const r = element.cornerRadius ?? 0;
+    parts.push(
+      `<path d="${roundedRectPath(0, 0, element.width, element.height, [r, r, r, r])}" ` +
+        `fill="none" stroke="${element.stroke}" stroke-width="${element.strokeWidth}"/>`
+    );
+  }
+
+  return parts.join("");
 }
 
 /** Konva wraps text internally; reuse its computed lines so the exported SVG
@@ -150,6 +261,34 @@ function elementToSvg(element, stage) {
         `<text font-family="${escapeXml(element.fontFamily)}" font-size="${element.fontSize}" ` +
         `font-weight="${weight}" font-style="${italic}" fill="${element.fill}" ` +
         `text-anchor="${anchor}" xml:space="preserve">${tspans}</text>`;
+      break;
+    }
+
+    case "table":
+      body = tableToSvg(element);
+      break;
+
+    case "image": {
+      // The data URL travels with the file, so the exported SVG stands alone
+      // rather than pointing at an image that may move or be renamed.
+      //
+      // Rounded corners go through a real <clipPath> rather than the CSS
+      // `clip-path: inset(... round ...)` shorthand, which Chromium honours but
+      // librsvg and Inkscape do not, so the radius would silently vanish
+      // wherever the figure is opened next.
+      let clip = "";
+      if (element.cornerRadius) {
+        const clipId = `clip-${element.id}`;
+        clip = ` clip-path="url(#${clipId})"`;
+        body +=
+          `<defs><clipPath id="${clipId}">` +
+          `<rect x="0" y="0" width="${element.width}" height="${element.height}" ` +
+          `rx="${element.cornerRadius}" ry="${element.cornerRadius}"/>` +
+          `</clipPath></defs>`;
+      }
+      body +=
+        `<image x="0" y="0" width="${element.width}" height="${element.height}"` +
+        `${clip} preserveAspectRatio="none" xlink:href="${element.src}" href="${element.src}"/>`;
       break;
     }
 

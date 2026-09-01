@@ -28,7 +28,12 @@ export default function Inspector() {
     <div className="panel inspector">
       <div className="panel-header">Properties</div>
 
-      {selected.length === 0 && <CanvasSettings canvas={canvas} setCanvas={setCanvas} />}
+      {selected.length === 0 && (
+        <>
+          <CanvasSettings canvas={canvas} setCanvas={setCanvas} />
+          <GridSettings />
+        </>
+      )}
 
       {selected.length > 0 && (
         <>
@@ -43,6 +48,10 @@ export default function Inspector() {
           {single && ["rect", "ellipse", "triangle", "line", "arrow"].includes(single.type) && (
             <ShapeFields element={single} />
           )}
+
+          {single && single.type === "table" && <TableFields element={single} />}
+
+          {single && single.type === "image" && <ImageFields element={single} />}
 
           {single && single.type === "asset" && <RecolorPanel element={single} />}
 
@@ -448,6 +457,312 @@ const ALIGN_ICONS = {
 // ---------------------------------------------------------------------------
 // Primitives
 // ---------------------------------------------------------------------------
+
+/**
+ * Grid controls.
+ *
+ * The grid is a drawing aid, not part of the figure: it is never exported and
+ * never saved, so it lives with the canvas settings rather than on any
+ * element. Snapping is opt-in because a grid is often wanted for eyeballing
+ * alignment without constraining where things can go.
+ */
+function GridSettings() {
+  const grid = useStore((s) => s.grid);
+  const setGrid = useStore((s) => s.setGrid);
+
+  const PRESETS = [10, 20, 25, 50, 100];
+
+  return (
+    <Section title="Grid">
+      <label className="check">
+        <input
+          type="checkbox"
+          checked={grid.visible}
+          onChange={(e) => setGrid({ visible: e.target.checked })}
+        />
+        Show grid
+      </label>
+
+      <div className="field-grid" style={{ marginTop: 8 }}>
+        <NumberField
+          label="Spacing (px)"
+          value={grid.size}
+          onChange={(v) => setGrid({ size: Math.max(5, Math.min(1000, v)) })}
+        />
+        <Field label="Colour">
+          <input
+            type="color"
+            value={grid.color}
+            onChange={(e) => setGrid({ color: e.target.value })}
+          />
+        </Field>
+      </div>
+
+      <div className="preset-row">
+        {PRESETS.map((size) => (
+          <button
+            key={size}
+            className={`ghost small${grid.size === size ? " active" : ""}`}
+            onClick={() => setGrid({ size, visible: true })}
+          >
+            {size}
+          </button>
+        ))}
+      </div>
+
+      <label className="check" style={{ marginTop: 8 }}>
+        <input
+          type="checkbox"
+          checked={grid.snap}
+          onChange={(e) => setGrid({ snap: e.target.checked })}
+        />
+        Snap elements to the grid
+      </label>
+
+      <p className="hint">
+        Every fifth line is drawn stronger, so a fine spacing is still countable.
+        The grid is a guide only: it never appears in an export.
+      </p>
+    </Section>
+  );
+}
+
+/** Everything about a table except its cell text, which is edited on canvas. */
+function TableFields({ element }) {
+  const updateElement = useStore((s) => s.updateElement);
+  const resizeTable = useStore((s) => s.resizeTable);
+  const setTableUniform = useStore((s) => s.setTableUniform);
+  const set = (patch) => updateElement(element.id, patch);
+
+  // Uniform sizes are shown as the average, so setting either field makes
+  // every column or row that size again.
+  const uniform = (list) =>
+    Math.round(list.reduce((a, b) => a + b, 0) / Math.max(1, list.length));
+
+  const FONTS = ["Helvetica", "Arial", "Georgia", "Times New Roman", "Courier New", "Verdana"];
+
+  return (
+    <>
+      <Section title={`Table (${element.rows} by ${element.cols})`}>
+        <p className="hint">Double-click any cell on the canvas to edit its text.</p>
+
+        <div className="table-buttons">
+          <button className="ghost small" onClick={() => resizeTable(element.id, "row", "add")}>
+            + Row
+          </button>
+          <button
+            className="ghost small"
+            onClick={() => resizeTable(element.id, "row", "remove")}
+            disabled={element.rows <= 1}
+          >
+            &minus; Row
+          </button>
+          <button className="ghost small" onClick={() => resizeTable(element.id, "col", "add")}>
+            + Column
+          </button>
+          <button
+            className="ghost small"
+            onClick={() => resizeTable(element.id, "col", "remove")}
+            disabled={element.cols <= 1}
+          >
+            &minus; Column
+          </button>
+        </div>
+
+        <div className="field-grid" style={{ marginTop: 8 }}>
+          <NumberField
+            label="Column width"
+            value={uniform(element.colWidths)}
+            onChange={(v) => setTableUniform(element.id, "col", v)}
+          />
+          <NumberField
+            label="Row height"
+            value={uniform(element.rowHeights)}
+            onChange={(v) => setTableUniform(element.id, "row", v)}
+          />
+        </div>
+        <p className="hint">
+          Setting either makes every column or row that size. Drag the corner
+          handles to scale the whole table instead.
+        </p>
+      </Section>
+
+      <Section title="Table style">
+        <div className="field-grid">
+          <NumberField
+            label="Corner radius"
+            value={element.cornerRadius ?? 0}
+            onChange={(v) => set({ cornerRadius: Math.max(0, v) })}
+          />
+          <NumberField
+            label="Cell padding"
+            value={element.padding ?? 6}
+            onChange={(v) => set({ padding: Math.max(0, v) })}
+          />
+          <NumberField
+            label="Border width"
+            value={element.strokeWidth}
+            onChange={(v) => set({ strokeWidth: Math.max(0, v) })}
+          />
+          <Field label="Border">
+            <input
+              type="color"
+              value={element.stroke}
+              onChange={(e) => set({ stroke: e.target.value })}
+            />
+          </Field>
+          <Field label="Cell fill">
+            <input
+              type="color"
+              value={element.fill}
+              onChange={(e) => set({ fill: e.target.value })}
+            />
+          </Field>
+          <Field label="Header fill">
+            <input
+              type="color"
+              value={element.headerFill}
+              onChange={(e) => set({ headerFill: e.target.value })}
+            />
+          </Field>
+        </div>
+
+        <label className="check" style={{ marginTop: 8 }}>
+          <input
+            type="checkbox"
+            checked={element.showInnerLines !== false}
+            onChange={(e) => set({ showInnerLines: e.target.checked })}
+          />
+          Draw lines between cells
+        </label>
+
+        <label className="check">
+          <input
+            type="checkbox"
+            checked={Boolean(element.stripeFill)}
+            onChange={(e) => set({ stripeFill: e.target.checked ? "#eef1f7" : "" })}
+          />
+          Shade alternate rows
+        </label>
+        {element.stripeFill ? (
+          <Field label="Shading colour">
+            <input
+              type="color"
+              value={element.stripeFill}
+              onChange={(e) => set({ stripeFill: e.target.value })}
+            />
+          </Field>
+        ) : null}
+      </Section>
+
+      <Section title="Headers">
+        <label className="check">
+          <input
+            type="checkbox"
+            checked={element.headerRow}
+            onChange={(e) => set({ headerRow: e.target.checked })}
+          />
+          First row is a header
+        </label>
+        <label className="check">
+          <input
+            type="checkbox"
+            checked={element.headerCol}
+            onChange={(e) => set({ headerCol: e.target.checked })}
+          />
+          First column is a header
+        </label>
+        <Field label="Header text">
+          <input
+            type="color"
+            value={element.headerTextColor}
+            onChange={(e) => set({ headerTextColor: e.target.value })}
+          />
+        </Field>
+      </Section>
+
+      <Section title="Cell text">
+        <div className="field-grid">
+          <Field label="Font">
+            <select
+              value={element.fontFamily}
+              onChange={(e) => set({ fontFamily: e.target.value })}
+            >
+              {FONTS.map((f) => (
+                <option key={f} value={f}>
+                  {f}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <NumberField
+            label="Size"
+            value={element.fontSize}
+            onChange={(v) => set({ fontSize: Math.max(4, v) })}
+          />
+          <Field label="Align">
+            <select value={element.align} onChange={(e) => set({ align: e.target.value })}>
+              <option value="left">Left</option>
+              <option value="center">Centre</option>
+              <option value="right">Right</option>
+            </select>
+          </Field>
+          <Field label="Colour">
+            <input
+              type="color"
+              value={element.textColor}
+              onChange={(e) => set({ textColor: e.target.value })}
+            />
+          </Field>
+        </div>
+      </Section>
+    </>
+  );
+}
+
+/** Imported bitmaps: proportions and rounded corners. */
+function ImageFields({ element }) {
+  const updateElement = useStore((s) => s.updateElement);
+  const set = (patch) => updateElement(element.id, patch);
+
+  const ratio = element.naturalWidth / element.naturalHeight;
+  const distorted =
+    Number.isFinite(ratio) && Math.abs(element.width / element.height - ratio) > 0.01;
+
+  return (
+    <Section title="Image">
+      <p className="hint">
+        {element.naturalWidth} by {element.naturalHeight} px in the source file.
+      </p>
+
+      <div className="field-grid">
+        <NumberField
+          label="Corner radius"
+          value={element.cornerRadius ?? 0}
+          onChange={(v) => set({ cornerRadius: Math.max(0, v) })}
+        />
+      </div>
+
+      {distorted && <p className="hint">This image is not at its original proportions.</p>}
+
+      <div className="table-buttons" style={{ marginTop: 8 }}>
+        <button
+          className="ghost small"
+          onClick={() => set({ height: element.width / ratio })}
+          disabled={!Number.isFinite(ratio)}
+        >
+          Restore proportions
+        </button>
+        <button
+          className="ghost small"
+          onClick={() => set({ width: element.naturalWidth, height: element.naturalHeight })}
+        >
+          Original size
+        </button>
+      </div>
+    </Section>
+  );
+}
 
 function Section({ title, children }) {
   return (

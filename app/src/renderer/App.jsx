@@ -8,18 +8,23 @@ import LayersPanel from "./components/LayersPanel";
 import ExportDialog from "./components/ExportDialog";
 import HelpDialog from "./components/HelpDialog";
 import WelcomeDialog from "./components/WelcomeDialog";
+import TableDialog from "./components/TableDialog";
 import { useStore } from "./store";
+import { cellBox, isHeaderCell } from "./lib/tableLayout";
 
 export default function App() {
   const stageRef = useRef(null);
   const canvasWrapRef = useRef(null);
 
   const [exportOpen, setExportOpen] = useState(false);
-  const [editingId, setEditingId] = useState(null);
+  /** { id, cell } while a text element, shape caption or table cell is being
+   *  edited inline; `cell` is { row, col } for tables and null otherwise. */
+  const [editing, setEditing] = useState(null);
   const [toast, setToast] = useState(null);
   /** null when closed, otherwise the tab to open Help on. */
   const [helpTab, setHelpTab] = useState(null);
   const [welcomeOpen, setWelcomeOpen] = useState(false);
+  const [tableDialogOpen, setTableDialogOpen] = useState(false);
 
   const store = useStore;
   const elements = useStore((s) => s.elements);
@@ -29,6 +34,8 @@ export default function App() {
   const library = useStore((s) => s.library);
 
   const addAsset = useStore((s) => s.addAsset);
+  const addImage = useStore((s) => s.addImage);
+  const addTable = useStore((s) => s.addTable);
   const setZoom = useStore((s) => s.setZoom);
   const setStagePos = useStore((s) => s.setStagePos);
   const loadDocument = useStore((s) => s.loadDocument);
@@ -85,6 +92,82 @@ export default function App() {
     },
     [library, placeAsset]
   );
+
+  // -- inserting images -----------------------------------------------------
+
+  /**
+   * Read an image file into the document.
+   *
+   * The file is stored as a data URL rather than a path, so a saved figure
+   * still renders after the original plot has been moved or renamed. Large
+   * images make for large .morphly files, which is the right trade for a
+   * figure that has to survive a submission cycle.
+   */
+  const addImageFromDataUrl = useCallback(
+    (src, name, at) =>
+      new Promise((resolve) => {
+        // Pixel dimensions are read here rather than in the main process: the
+        // renderer already has an image decoder, and the element needs the
+        // natural size to work out a sensible starting scale.
+        const probe = new window.Image();
+        probe.onload = () => {
+          addImage({
+            src,
+            naturalWidth: probe.naturalWidth || probe.width,
+            naturalHeight: probe.naturalHeight || probe.height,
+            name,
+            at,
+          });
+          resolve();
+        };
+        probe.onerror = () => {
+          flash(`${name} is not an image Morphly can read`);
+          resolve();
+        };
+        probe.src = src;
+      }),
+    [addImage, flash]
+  );
+
+  const placeImageFile = useCallback(
+    (file, at) =>
+      new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onerror = () => {
+          flash(`Could not read ${file.name}`);
+          resolve();
+        };
+        reader.onload = () =>
+          addImageFromDataUrl(String(reader.result), file.name, at).then(resolve);
+        reader.readAsDataURL(file);
+      }),
+    [addImageFromDataUrl, flash]
+  );
+
+  /** Files dragged onto the canvas from a file manager. */
+  const handleDropFiles = useCallback(
+    async (at, files) => {
+      // Several files dropped at once are offset slightly so they do not land
+      // exactly on top of each other.
+      for (const [i, file] of files.entries()) {
+        await placeImageFile(file, { x: at.x + i * 24, y: at.y + i * 24 });
+      }
+    },
+    [placeImageFile]
+  );
+
+  /** Insert > Image, via the main process file picker. */
+  const handleInsertImage = useCallback(async () => {
+    const res = await window.morphly.importImage();
+    if (res.canceled) return;
+    if (!res.ok) {
+      flash(`Could not import image: ${res.error}`);
+      return;
+    }
+    for (const image of res.images) {
+      await addImageFromDataUrl(image.dataUrl, image.name, null);
+    }
+  }, [addImageFromDataUrl, flash]);
 
   // -- fit to screen --------------------------------------------------------
 
@@ -202,6 +285,9 @@ export default function App() {
       } else if (e.key === "Delete" || e.key === "Backspace") {
         e.preventDefault();
         s.deleteSelected();
+      } else if (mod && e.key === "'") {
+        e.preventDefault();
+        s.toggleGrid();
       } else if (e.key === "F1") {
         e.preventDefault();
         setHelpTab("start");
@@ -239,6 +325,15 @@ export default function App() {
         case "saveAs": return handleSave(true);
         case "export": return setExportOpen(true);
         case "addLibrary": return addLibrary();
+        case "insertTable": return setTableDialogOpen(true);
+        case "insertImage": return handleInsertImage();
+        case "insertRect": return s.addShape("rect");
+        case "insertEllipse": return s.addShape("ellipse");
+        case "insertTriangle": return s.addShape("triangle");
+        case "insertLine": return s.addShape("line");
+        case "insertArrow": return s.addShape("arrow");
+        case "insertText": return s.addText();
+        case "toggleGrid": return s.toggleGrid();
         case "undo": return s.undo();
         case "redo": return s.redo();
         case "duplicate": return s.duplicateSelected();
@@ -258,7 +353,7 @@ export default function App() {
       }
     });
     return unsubscribe;
-  }, [store, handleNew, handleOpen, handleSave, fitToScreen, addLibrary]);
+  }, [store, handleNew, handleOpen, handleSave, fitToScreen, addLibrary, handleInsertImage]);
 
   // Warn before closing with unsaved work.
   useEffect(() => {
@@ -272,7 +367,7 @@ export default function App() {
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
   }, [store]);
 
-  const editingElement = elements.find((el) => el.id === editingId) ?? null;
+  const editingElement = editing ? elements.find((el) => el.id === editing.id) ?? null : null;
 
   return (
     <div className="app">
@@ -283,6 +378,8 @@ export default function App() {
         onExport={() => setExportOpen(true)}
         onFitToScreen={fitToScreen}
         onHelp={() => setHelpTab("start")}
+        onInsertTable={() => setTableDialogOpen(true)}
+        onInsertImage={handleInsertImage}
       />
 
       <div className="workspace">
@@ -291,16 +388,18 @@ export default function App() {
         <div className="canvas-wrap" ref={canvasWrapRef}>
           <CanvasStage
             stageRef={stageRef}
-            onRequestTextEdit={setEditingId}
+            onRequestTextEdit={(id, cell = null) => setEditing({ id, cell })}
             onExternalDrop={handleExternalDrop}
+            onDropFiles={handleDropFiles}
           />
 
           {editingElement && (
             <TextEditorOverlay
               element={editingElement}
+              cell={editing.cell}
               zoom={zoom}
               stagePos={stagePos}
-              onClose={() => setEditingId(null)}
+              onClose={() => setEditing(null)}
             />
           )}
         </div>
@@ -310,6 +409,16 @@ export default function App() {
           <LayersPanel />
         </div>
       </div>
+
+      {tableDialogOpen && (
+        <TableDialog
+          onClose={() => setTableDialogOpen(false)}
+          onInsert={(options) => {
+            addTable(options);
+            setTableDialogOpen(false);
+          }}
+        />
+      )}
 
       {exportOpen && <ExportDialog stageRef={stageRef} onClose={() => setExportOpen(false)} />}
 
@@ -334,19 +443,26 @@ export default function App() {
 }
 
 /**
- * Inline editing for both text elements and shape captions.
+ * Inline editing for text elements, shape captions and table cells.
  *
- * A textarea is overlaid on the canvas at the element's on-screen position and
- * scaled to match the zoom, so what you type looks like what you get. Shape
- * captions are centred inside the shape, matching how they are drawn.
+ * A textarea is overlaid on the canvas at the target's on-screen position and
+ * scaled to match the zoom, so what you type looks like what you get. The three
+ * cases differ only in which box they occupy and which field they write back
+ * to, so they share one component rather than three near-identical ones.
  */
-function TextEditorOverlay({ element, zoom, stagePos, onClose }) {
+function TextEditorOverlay({ element, cell, zoom, stagePos, onClose }) {
   const updateElement = useStore((s) => s.updateElement);
-  const isLabel = element.type !== "text";
+  const setTableCell = useStore((s) => s.setTableCell);
+
+  const isCell = element.type === "table" && cell;
+  const isLabel = !isCell && element.type !== "text";
   const field = isLabel ? "label" : "text";
 
+  const box = isCell ? cellBox(element, cell.row, cell.col) : null;
+  const initial = isCell ? element.cells[cell.row]?.[cell.col] ?? "" : element[field] ?? "";
+
   const ref = useRef(null);
-  const [value, setValue] = useState(element[field] ?? "");
+  const [value, setValue] = useState(initial);
 
   useEffect(() => {
     ref.current?.focus();
@@ -354,26 +470,45 @@ function TextEditorOverlay({ element, zoom, stagePos, onClose }) {
   }, []);
 
   const commitText = () => {
-    if (value !== (element[field] ?? "")) updateElement(element.id, { [field]: value });
+    if (value !== initial) {
+      if (isCell) setTableCell(element.id, cell.row, cell.col, value);
+      else updateElement(element.id, { [field]: value });
+    }
     onClose();
   };
 
-  const fontSize = (isLabel ? element.labelSize ?? 16 : element.fontSize) * zoom;
+  const fontSize =
+    (isCell ? element.fontSize : isLabel ? element.labelSize ?? 16 : element.fontSize) * zoom;
 
-  return (
-    <textarea
-      ref={ref}
-      className={`text-overlay${isLabel ? " label-overlay" : ""}`}
-      value={value}
-      placeholder={isLabel ? "Label" : ""}
-      onChange={(e) => setValue(e.target.value)}
-      onBlur={commitText}
-      onKeyDown={(e) => {
-        if (e.key === "Escape") onClose();
-        if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) commitText();
-        e.stopPropagation();
-      }}
-      style={{
+  const isHeader = isCell && isHeaderCell(element, cell.row, cell.col);
+  const pad = (element.padding ?? 6) * zoom;
+
+  // The editor paints the cell's own colours over the cell, rather than a
+  // neutral white box: a header cell has white text, which would be invisible
+  // on a pale editor background.
+  const cellFill = isCell ? (isHeader ? element.headerFill : element.fill) : null;
+  // A textarea cannot centre its text vertically, so the first line is pushed
+  // down to where Konva draws it.
+  const cellPadTop = isCell
+    ? Math.max(0, (box.height * zoom - element.fontSize * 1.2 * zoom) / 2)
+    : 0;
+
+  const style = isCell
+    ? {
+        left: stagePos.x + (element.x + box.x) * zoom + pad,
+        top: stagePos.y + (element.y + box.y) * zoom,
+        width: Math.max(10, box.width * zoom - pad * 2),
+        height: box.height * zoom,
+        paddingTop: cellPadTop,
+        background: cellFill,
+        fontSize,
+        fontFamily: element.fontFamily,
+        fontWeight: isHeader ? 700 : 400,
+        lineHeight: 1.2,
+        textAlign: element.align ?? "left",
+        color: isHeader ? element.headerTextColor : element.textColor,
+      }
+    : {
         left: stagePos.x + element.x * zoom,
         top: stagePos.y + element.y * zoom,
         width: element.width * zoom,
@@ -383,7 +518,28 @@ function TextEditorOverlay({ element, zoom, stagePos, onClose }) {
         lineHeight: isLabel ? 1.2 : element.lineHeight ?? 1.25,
         textAlign: isLabel ? "center" : element.align,
         color: isLabel ? element.labelColor ?? "#ffffff" : element.fill,
+      };
+
+  return (
+    <textarea
+      ref={ref}
+      className={`text-overlay${isLabel ? " label-overlay" : ""}${isCell ? " cell-overlay" : ""}`}
+      value={value}
+      placeholder={isLabel ? "Label" : ""}
+      onChange={(e) => setValue(e.target.value)}
+      onBlur={commitText}
+      onKeyDown={(e) => {
+        if (e.key === "Escape") onClose();
+        // Enter commits a cell (a table cell is one line in practice); text
+        // elements and captions keep Enter for a new line and commit on
+        // Ctrl+Enter instead.
+        if (e.key === "Enter" && (isCell || e.ctrlKey || e.metaKey)) {
+          e.preventDefault();
+          commitText();
+        }
+        e.stopPropagation();
       }}
+      style={style}
     />
   );
 }

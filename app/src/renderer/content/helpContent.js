@@ -60,6 +60,8 @@ export const SHORTCUTS = [
       ["L", "Line"],
       ["A", "Arrow"],
       ["T", "Text"],
+      ["Ctrl + Shift + T", "Insert a table"],
+      ["Ctrl + Shift + M", "Insert an image"],
     ],
   },
   {
@@ -75,6 +77,7 @@ export const SHORTCUTS = [
       ["Arrow keys", "Nudge 2 px"],
       ["Shift + arrows", "Nudge 20 px"],
       ["Double-click text", "Edit in place"],
+      ["Double-click a cell", "Edit that table cell"],
       ["Shift + click", "Add to selection"],
       ["Esc", "Deselect / back to Select tool"],
     ],
@@ -88,6 +91,7 @@ export const SHORTCUTS = [
       ["Hold space + drag", "Pan"],
       ["Middle-button drag", "Pan"],
       ["Ctrl + 0", "Fit to screen"],
+      ["Ctrl + apostrophe", "Show or hide the grid"],
     ],
   },
   {
@@ -144,7 +148,20 @@ export const GETTING_STARTED = [
       "order, renaming, hiding and locking.",
   },
   {
-    title: "5. Export",
+    title: "5. Add tables, plots and a grid",
+    body:
+      "Insert → Table draws a table you can size by pointing at the grid in the dialog. " +
+      "Double-click any cell on the canvas to type in it. The properties panel adds and " +
+      "removes rows and columns, sets column width and row height, and controls headers, " +
+      "shading, borders and rounded corners. Insert → Image brings in a plot, a " +
+      "micrograph or a photo as PNG, JPEG, GIF, WebP or BMP, and you can also drag image " +
+      "files straight onto the canvas from your file manager. Imported images are stored " +
+      "inside the .morphly file, so a saved figure still opens after the original file has " +
+      "moved. The grid button in the toolbar shows a grid at any spacing, with an option " +
+      "to snap elements to it. The grid is a guide only and never appears in an export.",
+  },
+  {
+    title: "6. Export",
     body:
       "PNG for a quick look, SVG if you want to keep editing in Illustrator or Inkscape, PDF " +
       "for submission. SVG and PDF stay true vector, so they scale to any size without going " +

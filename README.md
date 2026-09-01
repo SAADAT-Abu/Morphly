@@ -48,6 +48,16 @@ else's server.
   colour schemes; these collapse into one tile with a variant picker.
 - **Shapes and text**: rectangles, ellipses, triangles, lines and arrows
   (no head, single or double), plus text boxes with inline editing.
+- **Tables**: pick the size by pointing at a grid, then edit any cell by
+  double-clicking it on the canvas. Rows and columns can be added or removed at
+  any time, and headers, row shading, borders, cell padding and rounded corners
+  are all adjustable.
+- **Image import**: bring in plots, micrographs and photos as PNG, JPEG, GIF,
+  WebP or BMP, from the Insert menu or by dragging files onto the canvas.
+  Images are stored inside the .morphly file, so a saved figure still opens
+  after the original file has been moved or renamed.
+- **Grid**: a background grid at any spacing, with optional snapping. It is a
+  drawing aid only and never appears in an export.
 - **Figure-friendly canvas**: presets for single-column, double-column, slide
   and poster sizes; snapping guides; alignment tools; layers with lock and
   hide; undo/redo.
@@ -151,8 +161,9 @@ file. Both libraries can be mounted at once and are browsed together.
    the page, or drag it exactly where you want it.
 3. **Recolour**: select the illustration and edit the swatches in the Colours
    panel.
-4. **Build the figure**: add shapes, arrows and labels from the toolbar. Pink
-   guides appear as things line up.
+4. **Build the figure**: add shapes, arrows and labels from the toolbar, and
+   tables or images from the Insert menu. Pink guides appear as things line up,
+   and the grid button gives you a background grid to work against.
 5. **Export**: PNG for a quick look, SVG to keep editing elsewhere, PDF for
    submission. Leave *Append asset citations* ticked.
 

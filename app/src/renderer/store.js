@@ -49,6 +49,9 @@ export const useStore = create((set, get) => ({
    *  last choice so drawing several matching arrows doesn't mean re-setting
    *  it every time. */
   lastArrowHeads: "end",
+  /** Grid overlay. A drawing aid rather than part of the figure, so it lives
+   *  in view state: it is never exported, never saved and never undone. */
+  grid: { visible: false, size: 50, color: "#9aa4bd", snap: false },
   library: null,
   libraryError: null,
   /** Which colour part to highlight on canvas: { elementId, hex } or null.
@@ -185,6 +188,8 @@ export const useStore = create((set, get) => ({
   setHighlight: (highlight) => set({ highlight }),
 
   setTool: (activeTool) => set({ activeTool }),
+  setGrid: (patch) => set((s) => ({ grid: { ...s.grid, ...patch } })),
+  toggleGrid: () => set((s) => ({ grid: { ...s.grid, visible: !s.grid.visible } })),
   setZoom: (zoom) => set({ zoom: Math.min(4, Math.max(0.05, zoom)) }),
   setStagePos: (stagePos) => set({ stagePos }),
 
@@ -278,6 +283,101 @@ export const useStore = create((set, get) => ({
   },
 
   /**
+   * A table.
+   *
+   * Column widths and row heights are stored per column and per row rather
+   * than derived from a single cell size, so one column can be widened for
+   * long labels without disturbing the rest. `width` and `height` are kept as
+   * the sums of those lists, which lets tables use the same geometry, drag,
+   * snapping and alignment code as every other element.
+   */
+  addTable: ({ rows = 3, cols = 3, headerRow = true, at } = {}) => {
+    const { canvas } = get();
+    const colWidth = Math.round((canvas.width * 0.55) / cols);
+    const fontSize = Math.max(12, Math.round(canvas.height * 0.022));
+    const rowHeight = Math.round(fontSize * 2.4);
+
+    // Header cells are pre-filled so a new table reads as a table straight
+    // away; body cells start empty.
+    const cells = Array.from({ length: rows }, (_, r) =>
+      Array.from({ length: cols }, (_, c) =>
+        headerRow && r === 0 ? `Column ${c + 1}` : ""
+      )
+    );
+
+    const width = colWidth * cols;
+    const height = rowHeight * rows;
+
+    const element = get()._base({
+      type: "table",
+      name: "Table",
+      x: (at?.x ?? canvas.width / 2) - width / 2,
+      y: (at?.y ?? canvas.height / 2) - height / 2,
+      width,
+      height,
+      rows,
+      cols,
+      colWidths: Array(cols).fill(colWidth),
+      rowHeights: Array(rows).fill(rowHeight),
+      cells,
+      headerRow,
+      headerCol: false,
+      headerFill: "#2f4b7c",
+      headerTextColor: "#ffffff",
+      fill: "#ffffff",
+      stripeFill: "",
+      stroke: "#8b93a7",
+      strokeWidth: 1,
+      cornerRadius: 6,
+      showInnerLines: true,
+      fontSize,
+      fontFamily: "Helvetica",
+      textColor: "#111111",
+      align: "left",
+      padding: Math.round(fontSize * 0.5),
+    });
+
+    get().commit();
+    set((s) => ({ elements: [...s.elements, element], selectedIds: [element.id], activeTool: "select" }));
+    return element.id;
+  },
+
+  /**
+   * A bitmap image: a plot, a micrograph, a photo.
+   *
+   * `src` is a data URL rather than a file path, so a figure keeps working
+   * when it is saved, moved to another machine, or opened after the original
+   * file has been renamed. That makes .morphly files larger, which is the
+   * right trade for a figure that has to survive a submission cycle.
+   */
+  addImage: ({ src, naturalWidth, naturalHeight, name = "Image", at }) => {
+    const { canvas } = get();
+    // Fit into a sensible fraction of the page without ever upscaling a small
+    // plot beyond its own pixels.
+    const target = Math.min(canvas.width, canvas.height) * 0.45;
+    const scale = Math.min(1, target / Math.max(naturalWidth, naturalHeight));
+    const width = Math.round(naturalWidth * scale);
+    const height = Math.round(naturalHeight * scale);
+
+    const element = get()._base({
+      type: "image",
+      name,
+      x: (at?.x ?? canvas.width / 2) - width / 2,
+      y: (at?.y ?? canvas.height / 2) - height / 2,
+      width,
+      height,
+      src,
+      naturalWidth,
+      naturalHeight,
+      cornerRadius: 0,
+    });
+
+    get().commit();
+    set((s) => ({ elements: [...s.elements, element], selectedIds: [element.id] }));
+    return element.id;
+  },
+
+  /**
    * Place a BioArt asset. `svgSource` is the untouched file text; recolouring
    * is stored separately as `colorMap` so the original is always recoverable
    * and the user can reset any swatch.
@@ -345,6 +445,98 @@ export const useStore = create((set, get) => ({
     set((s) => ({
       elements: s.elements.map((el) => (el.id === id ? { ...el, heads } : el)),
       lastArrowHeads: heads,
+      dirty: true,
+    }));
+  },
+
+  /** Edit one table cell. */
+  setTableCell: (id, row, col, text) => {
+    get().commit();
+    set((s) => ({
+      elements: s.elements.map((el) => {
+        if (el.id !== id || el.type !== "table") return el;
+        const cells = el.cells.map((r) => [...r]);
+        if (!cells[row]) return el;
+        cells[row][col] = text;
+        return { ...el, cells };
+      }),
+      dirty: true,
+    }));
+  },
+
+  /**
+   * Add or remove a row or column.
+   *
+   * `where` is an index: rows and columns are inserted after it, or removed at
+   * it, so the buttons in the properties panel can act on the end of the table
+   * without needing a cell selection.
+   */
+  resizeTable: (id, what, action, where = null) => {
+    get().commit();
+    set((s) => ({
+      elements: s.elements.map((el) => {
+        if (el.id !== id || el.type !== "table") return el;
+        const next = { ...el, cells: el.cells.map((r) => [...r]) };
+
+        if (what === "row") {
+          if (action === "add") {
+            const at = where == null ? next.rows : where + 1;
+            const height = next.rowHeights[Math.min(at, next.rows - 1)] ?? 40;
+            next.cells.splice(at, 0, Array(next.cols).fill(""));
+            next.rowHeights = [...next.rowHeights];
+            next.rowHeights.splice(at, 0, height);
+            next.rows += 1;
+          } else {
+            // Never delete the last row: an empty table cannot be clicked to
+            // get back, so it would be a one-way trip.
+            if (next.rows <= 1) return el;
+            const at = where == null ? next.rows - 1 : where;
+            next.cells.splice(at, 1);
+            next.rowHeights = next.rowHeights.filter((_, i) => i !== at);
+            next.rows -= 1;
+          }
+        } else {
+          if (action === "add") {
+            const at = where == null ? next.cols : where + 1;
+            const width = next.colWidths[Math.min(at, next.cols - 1)] ?? 120;
+            next.cells = next.cells.map((r) => {
+              const copy = [...r];
+              copy.splice(at, 0, "");
+              return copy;
+            });
+            next.colWidths = [...next.colWidths];
+            next.colWidths.splice(at, 0, width);
+            next.cols += 1;
+          } else {
+            if (next.cols <= 1) return el;
+            const at = where == null ? next.cols - 1 : where;
+            next.cells = next.cells.map((r) => r.filter((_, i) => i !== at));
+            next.colWidths = next.colWidths.filter((_, i) => i !== at);
+            next.cols -= 1;
+          }
+        }
+
+        next.width = next.colWidths.reduce((a, b) => a + b, 0);
+        next.height = next.rowHeights.reduce((a, b) => a + b, 0);
+        return next;
+      }),
+      dirty: true,
+    }));
+  },
+
+  /** Set every column to the same width, or every row to the same height. */
+  setTableUniform: (id, what, value) => {
+    get().commit();
+    set((s) => ({
+      elements: s.elements.map((el) => {
+        if (el.id !== id || el.type !== "table") return el;
+        const next = { ...el };
+        if (what === "col") next.colWidths = Array(next.cols).fill(Math.max(20, value));
+        else next.rowHeights = Array(next.rows).fill(Math.max(14, value));
+        next.width = next.colWidths.reduce((a, b) => a + b, 0);
+        next.height = next.rowHeights.reduce((a, b) => a + b, 0);
+        return next;
+      }),
       dirty: true,
     }));
   },

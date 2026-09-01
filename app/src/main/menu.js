@@ -55,11 +55,29 @@ function buildMenu(getWindow) {
       ],
     },
     {
+      label: "&Insert",
+      submenu: [
+        { label: "Table…", accelerator: "CmdOrCtrl+Shift+T", click: send("insertTable") },
+        // Not Ctrl+Shift+I: Chromium claims that one for the developer tools,
+        // and it wins over an application accelerator.
+        { label: "Image…", accelerator: "CmdOrCtrl+Shift+M", click: send("insertImage") },
+        { type: "separator" },
+        { label: "Rectangle", click: send("insertRect") },
+        { label: "Ellipse", click: send("insertEllipse") },
+        { label: "Triangle", click: send("insertTriangle") },
+        { label: "Line", click: send("insertLine") },
+        { label: "Arrow", click: send("insertArrow") },
+        { label: "Text box", click: send("insertText") },
+      ],
+    },
+    {
       label: "&View",
       submenu: [
         { label: "Zoom in", accelerator: "CmdOrCtrl+Plus", click: send("zoomIn") },
         { label: "Zoom out", accelerator: "CmdOrCtrl+-", click: send("zoomOut") },
         { label: "Fit to screen", accelerator: "CmdOrCtrl+0", click: send("fit") },
+        { type: "separator" },
+        { label: "Show grid", accelerator: "CmdOrCtrl+'", click: send("toggleGrid") },
         { type: "separator" },
         { role: "togglefullscreen" },
         { role: "toggleDevTools" },

@@ -55,3 +55,31 @@ export function useSvgImage(svgSource, colorMap) {
 
   return useSvgImageFromText(recoloured);
 }
+
+/**
+ * Load an imported bitmap (a plot, a micrograph, a photo) from its data URL.
+ *
+ * Imported images are stored as data URLs rather than file paths, so this never
+ * touches the filesystem and the canvas cannot be tainted, which matters
+ * because PNG export reads pixels back out of it.
+ */
+export function useRasterImage(src) {
+  const [image, setImage] = useState(null);
+
+  useEffect(() => {
+    if (!src) {
+      setImage(null);
+      return;
+    }
+    let cancelled = false;
+    const img = new Image();
+    img.onload = () => !cancelled && setImage(img);
+    img.onerror = () => !cancelled && setImage(null);
+    img.src = src;
+    return () => {
+      cancelled = true;
+    };
+  }, [src]);
+
+  return image;
+}

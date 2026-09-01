@@ -28,7 +28,8 @@ import {
 } from "react-konva";
 
 import { useStore } from "../store";
-import { useSvgImage, useSvgImageFromText } from "../lib/useSvgImage";
+import { useSvgImage, useSvgImageFromText, useRasterImage } from "../lib/useSvgImage";
+import { offsets, cellAtPoint, cellCorners, isHeaderCell } from "../lib/tableLayout";
 import { buildIsolationSvg, effectiveColorMap } from "../lib/svgPalette";
 import { computeSnap, pointsBounds } from "../lib/geometry";
 import CanvasScrollbars from "./CanvasScrollbars";
@@ -80,6 +81,138 @@ function AssetShape({ element }) {
     );
   }
   return <KonvaImage image={image} width={element.width} height={element.height} />;
+}
+
+/**
+ * An imported bitmap. It is drawn at the element's own width and height rather
+ * than the file's pixel size, so resizing a plot behaves like resizing any
+ * other element.
+ */
+function ImageShape({ element }) {
+  const image = useRasterImage(element.src);
+  if (!image) {
+    return (
+      <Rect
+        width={element.width}
+        height={element.height}
+        fill="#e8eaf0"
+        stroke="#c3c8d4"
+        strokeWidth={1}
+        dash={[6, 4]}
+      />
+    );
+  }
+  return (
+    <KonvaImage
+      image={image}
+      width={element.width}
+      height={element.height}
+      cornerRadius={element.cornerRadius ?? 0}
+    />
+  );
+}
+
+/**
+ * A table, drawn cell by cell.
+ *
+ * Each cell is its own rectangle plus its own text, rather than one background
+ * with lines painted over it. That costs a few more nodes but makes header
+ * fills, striped rows and rounded outer corners fall out of the same loop, and
+ * it keeps what is drawn identical to what the SVG exporter emits.
+ */
+function TableShape({ element }) {
+  const xs = offsets(element.colWidths);
+  const ys = offsets(element.rowHeights);
+  const pad = element.padding ?? 6;
+
+  const cells = [];
+  for (let row = 0; row < element.rows; row += 1) {
+    for (let col = 0; col < element.cols; col += 1) {
+      const header = isHeaderCell(element, row, col);
+      const striped =
+        !header && element.stripeFill && (element.headerRow ? row % 2 === 0 : row % 2 === 1);
+      const fill = header ? element.headerFill : striped ? element.stripeFill : element.fill;
+      const width = element.colWidths[col];
+      const height = element.rowHeights[row];
+
+      cells.push(
+        <Rect
+          key={`bg-${row}-${col}`}
+          x={xs[col]}
+          y={ys[row]}
+          width={width}
+          height={height}
+          fill={fill}
+          cornerRadius={cellCorners(element, row, col)}
+        />
+      );
+
+      const text = element.cells[row]?.[col];
+      if (text) {
+        cells.push(
+          <KonvaText
+            key={`tx-${row}-${col}`}
+            x={xs[col] + pad}
+            y={ys[row]}
+            width={Math.max(1, width - pad * 2)}
+            height={height}
+            text={text}
+            align={element.align ?? "left"}
+            verticalAlign="middle"
+            fontSize={element.fontSize}
+            fontFamily={element.fontFamily}
+            fontStyle={header ? "bold" : "normal"}
+            fill={header ? element.headerTextColor : element.textColor}
+            listening={false}
+            wrap="word"
+          />
+        );
+      }
+    }
+  }
+
+  // Inner lines are drawn after every cell background so a header fill cannot
+  // paint over the rule below it.
+  const rules = [];
+  if (element.showInnerLines !== false && element.strokeWidth > 0) {
+    for (let col = 1; col < element.cols; col += 1) {
+      rules.push(
+        <Line
+          key={`v${col}`}
+          points={[xs[col], 0, xs[col], element.height]}
+          stroke={element.stroke}
+          strokeWidth={element.strokeWidth}
+        />
+      );
+    }
+    for (let row = 1; row < element.rows; row += 1) {
+      rules.push(
+        <Line
+          key={`h${row}`}
+          points={[0, ys[row], element.width, ys[row]]}
+          stroke={element.stroke}
+          strokeWidth={element.strokeWidth}
+        />
+      );
+    }
+  }
+
+  return (
+    <>
+      {cells}
+      {rules}
+      {element.strokeWidth > 0 && (
+        <Rect
+          width={element.width}
+          height={element.height}
+          stroke={element.stroke}
+          strokeWidth={element.strokeWidth}
+          cornerRadius={element.cornerRadius ?? 0}
+          listening={false}
+        />
+      )}
+    </>
+  );
 }
 
 function ElementShape({ element }) {
@@ -155,6 +288,10 @@ function ElementShape({ element }) {
           wrap="word"
         />
       );
+    case "image":
+      return <ImageShape element={element} />;
+    case "table":
+      return <TableShape element={element} />;
     case "asset":
       return <AssetShape element={element} />;
     default:
@@ -195,7 +332,7 @@ const LABELLABLE = ["rect", "ellipse", "triangle"];
 // Stage
 // ---------------------------------------------------------------------------
 
-export default function CanvasStage({ stageRef, onRequestTextEdit, onExternalDrop }) {
+export default function CanvasStage({ stageRef, onRequestTextEdit, onExternalDrop, onDropFiles }) {
   const elements = useStore((s) => s.elements);
   const canvas = useStore((s) => s.canvas);
   const selectedIds = useStore((s) => s.selectedIds);
@@ -203,6 +340,7 @@ export default function CanvasStage({ stageRef, onRequestTextEdit, onExternalDro
   const stagePos = useStore((s) => s.stagePos);
   const activeTool = useStore((s) => s.activeTool);
   const highlight = useStore((s) => s.highlight);
+  const grid = useStore((s) => s.grid);
 
   const selectWithGroups = useStore((s) => s.selectWithGroups);
   const toggleSelection = useStore((s) => s.toggleSelection);
@@ -339,6 +477,15 @@ export default function CanvasStage({ stageRef, onRequestTextEdit, onExternalDro
       const others = elements.filter((el) => !movingIds.has(el.id) && el.visible);
       const dragged = { ...element, x: node.x(), y: node.y() };
       const snap = computeSnap(dragged, others, canvas, SNAP_THRESHOLD / zoom);
+
+      // Snapping to the grid, when it is on, takes precedence over the element
+      // guides: a user who asked for a grid wants things on it.
+      if (grid.visible && grid.snap) {
+        snap.x = Math.round(snap.x / grid.size) * grid.size;
+        snap.y = Math.round(snap.y / grid.size) * grid.size;
+        snap.guides = { vertical: null, horizontal: null };
+      }
+
       node.x(snap.x);
       node.y(snap.y);
       setGuides(snap.guides);
@@ -355,7 +502,7 @@ export default function CanvasStage({ stageRef, onRequestTextEdit, onExternalDro
         }
       }
     },
-    [elements, canvas, zoom]
+    [elements, canvas, zoom, grid]
   );
 
   const handleDragEnd = useCallback(
@@ -410,6 +557,14 @@ export default function CanvasStage({ stageRef, onRequestTextEdit, onExternalDro
         const b = pointsBounds(patch.points);
         patch.width = b.width;
         patch.height = b.height;
+      } else if (element.type === "table") {
+        // Scale every column and row rather than the outer box, so the cells
+        // keep their relative proportions and the geometry stays consistent
+        // with width/height being their sums.
+        patch.colWidths = element.colWidths.map((w) => Math.max(20, w * scaleX));
+        patch.rowHeights = element.rowHeights.map((h) => Math.max(14, h * scaleY));
+        patch.width = patch.colWidths.reduce((a, b) => a + b, 0);
+        patch.height = patch.rowHeights.reduce((a, b) => a + b, 0);
       } else {
         patch.width = Math.max(4, (element.width ?? 0) * scaleX);
         patch.height = Math.max(4, (element.height ?? 0) * scaleY);
@@ -466,20 +621,31 @@ export default function CanvasStage({ stageRef, onRequestTextEdit, onExternalDro
   const handleDrop = useCallback(
     (e) => {
       e.preventDefault();
-      const raw = e.dataTransfer.getData("application/x-morphly-asset");
-      if (!raw) return;
       const rect = containerRef.current.getBoundingClientRect();
       const at = {
         x: (e.clientX - rect.left - stagePos.x) / zoom,
         y: (e.clientY - rect.top - stagePos.y) / zoom,
       };
+
+      // Image files dragged in from a file manager land where they are dropped,
+      // which is the fastest way to get a plot into a figure.
+      const files = [...(e.dataTransfer.files ?? [])].filter((f) =>
+        f.type.startsWith("image/")
+      );
+      if (files.length > 0) {
+        onDropFiles?.(at, files);
+        return;
+      }
+
+      const raw = e.dataTransfer.getData("application/x-morphly-asset");
+      if (!raw) return;
       try {
         onExternalDrop?.(at, JSON.parse(raw));
       } catch {
         /* malformed payload -- ignore rather than break the drop */
       }
     },
-    [stagePos, zoom, onExternalDrop]
+    [stagePos, zoom, onExternalDrop, onDropFiles]
   );
 
   return (
@@ -487,7 +653,10 @@ export default function CanvasStage({ stageRef, onRequestTextEdit, onExternalDro
       className="canvas-host"
       ref={containerRef}
       onDragOver={(e) => {
-        if (e.dataTransfer.types.includes("application/x-morphly-asset")) {
+        if (
+          e.dataTransfer.types.includes("application/x-morphly-asset") ||
+          e.dataTransfer.types.includes("Files")
+        ) {
           e.preventDefault();
           e.dataTransfer.dropEffect = "copy";
         }
@@ -530,6 +699,13 @@ export default function CanvasStage({ stageRef, onRequestTextEdit, onExternalDro
           />
         </Layer>
 
+        {/* Grid, above the page and below the artwork */}
+        {grid.visible && (
+          <Layer listening={false}>
+            <GridOverlay canvas={canvas} grid={grid} zoom={zoom} />
+          </Layer>
+        )}
+
         {/* Artwork */}
         <Layer>
           {visibleElements.map((element) => (
@@ -551,8 +727,21 @@ export default function CanvasStage({ stageRef, onRequestTextEdit, onExternalDro
                 if (e.evt.shiftKey) toggleSelection(element.id);
                 else if (!selectedIds.includes(element.id)) selectWithGroups([element.id]);
               }}
-              onDblClick={() => {
+              onDblClick={(e) => {
                 if (element.locked) return;
+                if (element.type === "table") {
+                  // Work out which cell was hit, in the table's own
+                  // coordinates, so double-click edits that cell rather than
+                  // the table as a whole.
+                  const pointer = e.target.getStage().getPointerPosition();
+                  const cell = cellAtPoint(
+                    element,
+                    (pointer.x - stagePos.x) / zoom - element.x,
+                    (pointer.y - stagePos.y) / zoom - element.y
+                  );
+                  if (cell) onRequestTextEdit(element.id, { row: cell.row, col: cell.col });
+                  return;
+                }
                 if (element.type === "text" || LABELLABLE.includes(element.type)) {
                   onRequestTextEdit(element.id);
                 }
@@ -617,6 +806,43 @@ export default function CanvasStage({ stageRef, onRequestTextEdit, onExternalDro
       <SpacebarPanHint onChange={setIsPanning} />
     </div>
   );
+}
+
+/**
+ * The grid overlay.
+ *
+ * Lines are drawn only across the page, not the infinite canvas, because the
+ * grid exists to place things within the figure. Line width is divided by the
+ * zoom so it stays hairline-thin at any magnification, and every fifth line is
+ * drawn stronger so a spacing of 10 is still countable.
+ */
+function GridOverlay({ canvas, grid, zoom }) {
+  const size = Math.max(2, grid.size);
+  const lines = [];
+
+  for (let x = size, i = 1; x < canvas.width; x += size, i += 1) {
+    lines.push(
+      <Line
+        key={`gx${i}`}
+        points={[x, 0, x, canvas.height]}
+        stroke={grid.color}
+        strokeWidth={(i % 5 === 0 ? 1.4 : 0.7) / zoom}
+        opacity={i % 5 === 0 ? 0.55 : 0.3}
+      />
+    );
+  }
+  for (let y = size, i = 1; y < canvas.height; y += size, i += 1) {
+    lines.push(
+      <Line
+        key={`gy${i}`}
+        points={[0, y, canvas.width, y]}
+        stroke={grid.color}
+        strokeWidth={(i % 5 === 0 ? 1.4 : 0.7) / zoom}
+        opacity={i % 5 === 0 ? 0.55 : 0.3}
+      />
+    );
+  }
+  return <>{lines}</>;
 }
 
 /**

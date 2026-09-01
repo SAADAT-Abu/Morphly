@@ -100,6 +100,58 @@ function registerIpc() {
     }
   });
 
+  // -- images --------------------------------------------------------------
+
+  /**
+   * Import one or more bitmaps (plots, micrographs, photos).
+   *
+   * The files come back as data URLs rather than paths, so the renderer never
+   * needs filesystem access and a saved figure keeps working after the source
+   * file has been moved or renamed. Pixel dimensions are read in the renderer,
+   * which already has an image decoder.
+   */
+  ipcMain.handle("image:import", async (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    const result = await dialog.showOpenDialog(win, {
+      title: "Import image",
+      properties: ["openFile", "multiSelections"],
+      filters: [
+        { name: "Images", extensions: ["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg"] },
+        { name: "All files", extensions: ["*"] },
+      ],
+    });
+    if (result.canceled || result.filePaths.length === 0) return { ok: false, canceled: true };
+
+    const MIME = {
+      ".png": "image/png",
+      ".jpg": "image/jpeg",
+      ".jpeg": "image/jpeg",
+      ".gif": "image/gif",
+      ".webp": "image/webp",
+      ".bmp": "image/bmp",
+      ".svg": "image/svg+xml",
+    };
+
+    try {
+      const images = [];
+      for (const filePath of result.filePaths) {
+        const ext = path.extname(filePath).toLowerCase();
+        const mime = MIME[ext];
+        if (!mime) {
+          return fail(`${path.basename(filePath)} is not an image type Morphly can read`);
+        }
+        const data = await fs.readFile(filePath);
+        images.push({
+          name: path.basename(filePath),
+          dataUrl: `data:${mime};base64,${data.toString("base64")}`,
+        });
+      }
+      return ok({ images });
+    } catch (err) {
+      return fail(err);
+    }
+  });
+
   // -- projects ------------------------------------------------------------
 
   ipcMain.handle("project:save", async (event, { json, filePath }) => {

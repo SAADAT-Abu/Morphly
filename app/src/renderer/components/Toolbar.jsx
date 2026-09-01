@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useStore } from "../store";
 import iconUrl from "../assets/icon.png";
 
@@ -16,6 +16,9 @@ const ICON = {
   line: <path d="M4.5 19.5 19.5 4.5" />,
   arrow: <path d="M4.5 19.5 19 5m0 0h-6.2M19 5v6.2" />,
   text: <path d="M5 5.5h14M12 5.5v13M8.8 18.5h6.4" />,
+  table: <path d="M3.5 5.5h17v13h-17zM3.5 10h17M3.5 14.5h17M9.5 5.5v13M15 5.5v13" />,
+  image: <path d="M3.5 5.5h17v13h-17zM3.5 15l4.5-4.5 4 4 3-2.5 5.5 4.5M15.5 9.5h.01" />,
+  grid: <path d="M3.5 3.5h17v17h-17zM9 3.5v17M15 3.5v17M3.5 9h17M3.5 15h17" />,
 };
 
 const TOOLS = [
@@ -48,7 +51,16 @@ function ToolIcon({ name }) {
   );
 }
 
-export default function Toolbar({ onNew, onOpen, onSave, onExport, onFitToScreen, onHelp }) {
+export default function Toolbar({
+  onNew,
+  onOpen,
+  onSave,
+  onExport,
+  onFitToScreen,
+  onHelp,
+  onInsertTable,
+  onInsertImage,
+}) {
   const activeTool = useStore((s) => s.activeTool);
   const setTool = useStore((s) => s.setTool);
   const undo = useStore((s) => s.undo);
@@ -62,6 +74,8 @@ export default function Toolbar({ onNew, onOpen, onSave, onExport, onFitToScreen
   const duplicateSelected = useStore((s) => s.duplicateSelected);
   const deleteSelected = useStore((s) => s.deleteSelected);
   const selectedIds = useStore((s) => s.selectedIds);
+  const grid = useStore((s) => s.grid);
+  const toggleGrid = useStore((s) => s.toggleGrid);
 
   const fileName = projectPath ? projectPath.split(/[/\\]/).pop() : "Untitled figure";
 
@@ -98,6 +112,20 @@ export default function Toolbar({ onNew, onOpen, onSave, onExport, onFitToScreen
       <div className="divider" />
 
       <div className="group">
+        <InsertMenu onInsertTable={onInsertTable} onInsertImage={onInsertImage} />
+        <button
+          className={`tool${grid.visible ? " active" : ""}`}
+          onClick={toggleGrid}
+          title="Show grid (Ctrl+apostrophe)"
+          aria-pressed={grid.visible}
+        >
+          <ToolIcon name="grid" />
+        </button>
+      </div>
+
+      <div className="divider" />
+
+      <div className="group">
         <button className="ghost" onClick={undo} disabled={past.length === 0} title="Undo (Ctrl+Z)">↶</button>
         <button className="ghost" onClick={redo} disabled={future.length === 0} title="Redo (Ctrl+Shift+Z)">↷</button>
         <button className="ghost" onClick={duplicateSelected} disabled={selectedIds.length === 0} title="Duplicate (Ctrl+D)">⧉</button>
@@ -122,6 +150,82 @@ export default function Toolbar({ onNew, onOpen, onSave, onExport, onFitToScreen
 
       <button className="ghost help-btn" onClick={onHelp} title="Help (F1)">?</button>
       <button className="primary" onClick={onExport}>Export…</button>
+    </div>
+  );
+}
+
+/**
+ * "Insert" dropdown.
+ *
+ * Tables and images are one-off insertions rather than modes you draw in, so
+ * they belong in a menu rather than as tool buttons: making them tools would
+ * imply you click the canvas to place them, which is not how either works.
+ */
+function InsertMenu({ onInsertTable, onInsertImage }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  const addShape = useStore((s) => s.addShape);
+  const addText = useStore((s) => s.addText);
+
+  // Close on a click anywhere else, and on Escape.
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e) => {
+      if (!ref.current?.contains(e.target)) setOpen(false);
+    };
+    const onKey = (e) => e.key === "Escape" && setOpen(false);
+    window.addEventListener("mousedown", onDown);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("mousedown", onDown);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  const run = (fn) => () => {
+    setOpen(false);
+    fn();
+  };
+
+  return (
+    <div className="menu-host" ref={ref}>
+      <button
+        className={`ghost${open ? " active" : ""}`}
+        onClick={() => setOpen((v) => !v)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+      >
+        Insert ▾
+      </button>
+      {open && (
+        <div className="dropdown" role="menu">
+          <button role="menuitem" onClick={run(onInsertTable)}>
+            <ToolIcon name="table" /> Table…
+          </button>
+          <button role="menuitem" onClick={run(onInsertImage)}>
+            <ToolIcon name="image" /> Image…
+          </button>
+          <div className="dropdown-sep" />
+          <button role="menuitem" onClick={run(() => addShape("rect"))}>
+            <ToolIcon name="rect" /> Rectangle
+          </button>
+          <button role="menuitem" onClick={run(() => addShape("ellipse"))}>
+            <ToolIcon name="ellipse" /> Ellipse
+          </button>
+          <button role="menuitem" onClick={run(() => addShape("triangle"))}>
+            <ToolIcon name="triangle" /> Triangle
+          </button>
+          <button role="menuitem" onClick={run(() => addShape("line"))}>
+            <ToolIcon name="line" /> Line
+          </button>
+          <button role="menuitem" onClick={run(() => addShape("arrow"))}>
+            <ToolIcon name="arrow" /> Arrow
+          </button>
+          <button role="menuitem" onClick={run(() => addText())}>
+            <ToolIcon name="text" /> Text
+          </button>
+        </div>
+      )}
     </div>
   );
 }

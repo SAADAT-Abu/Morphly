@@ -15,7 +15,7 @@
  * sure it stays inside the configured library folder.
  */
 
-const { app, BrowserWindow, protocol, net } = require("electron");
+const { app, BrowserWindow, dialog, ipcMain, protocol, net } = require("electron");
 const path = require("node:path");
 const { pathToFileURL } = require("node:url");
 
@@ -69,6 +69,61 @@ function registerAssetProtocol() {
 
 let mainWindow = null;
 
+/**
+ * Unsaved-changes state, mirrored from the renderer.
+ *
+ * The obvious way to guard a close is the renderer's `beforeunload` event, and
+ * that is what Morphly did. It does not work in Electron: returning a value
+ * from the handler cancels the close silently, with no prompt and no way for
+ * the user to proceed, so a figure with unsaved edits made the window refuse
+ * to close at all. The guard belongs in the main process, where a real dialog
+ * can be shown and the answer acted on.
+ */
+let documentDirty = false;
+/** Set once the user has answered the prompt, so the second close goes through. */
+let closeConfirmed = false;
+
+function registerCloseGuard(win) {
+  ipcMain.removeAllListeners("app:dirty");
+  ipcMain.on("app:dirty", (_event, dirty) => {
+    documentDirty = Boolean(dirty);
+  });
+
+  // The renderer calls this once it has finished saving, or when the user
+  // chose to discard, to let the close it interrupted go ahead.
+  ipcMain.removeHandler("app:close");
+  ipcMain.handle("app:close", () => {
+    closeConfirmed = true;
+    win.destroy();
+    return { ok: true };
+  });
+
+  win.on("close", (event) => {
+    if (closeConfirmed || !documentDirty) return;
+    event.preventDefault();
+
+    const choice = dialog.showMessageBoxSync(win, {
+      type: "question",
+      buttons: ["Save", "Discard", "Cancel"],
+      defaultId: 0,
+      cancelId: 2,
+      title: "Unsaved changes",
+      message: "Save changes to this figure before closing?",
+      detail: "Your figure has changes that have not been written to a file yet.",
+    });
+
+    if (choice === 0) {
+      // The renderer owns the document, so it does the saving and closes the
+      // window itself once the file is written. A cancelled save dialog simply
+      // leaves the window open.
+      win.webContents.send("menu:action", "saveAndClose");
+    } else if (choice === 1) {
+      closeConfirmed = true;
+      win.destroy();
+    }
+  });
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1600,
@@ -87,6 +142,7 @@ function createWindow() {
   });
 
   mainWindow.once("ready-to-show", () => mainWindow.show());
+  registerCloseGuard(mainWindow);
 
   if (isDev) {
     mainWindow.loadURL(DEV_SERVER_URL);

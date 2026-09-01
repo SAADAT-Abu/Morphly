@@ -40,6 +40,12 @@ contextBridge.exposeInMainWorld("morphly", {
   /** Pick image files and read them back as data URLs. */
   importImage: () => ipcRenderer.invoke("image:import"),
 
+  /** Tell the main process whether the figure has unsaved changes, so it can
+   *  prompt before the window closes. */
+  setDirty: (dirty) => ipcRenderer.send("app:dirty", dirty),
+  /** Close the window for real, after saving or discarding. */
+  closeWindow: () => ipcRenderer.invoke("app:close"),
+
   // projects
   saveProject: (json, filePath) => ipcRenderer.invoke("project:save", { json, filePath }),
   openProject: () => ipcRenderer.invoke("project:open"),

@@ -84,6 +84,10 @@ chmod +x Morphly-0.1.0.AppImage
 ./Morphly-0.1.0.AppImage
 ```
 
+Windows ships as an installer only. A portable build would unpack its entire
+payload to a temporary folder on every launch, and with the libraries inside
+that is close to a gigabyte of extraction before the window can appear.
+
 **The builds are not code-signed.** Morphly is a free academic project and
 Apple and Microsoft both charge for a signing certificate, so your operating
 system will warn you the first time you open the app. This is expected and

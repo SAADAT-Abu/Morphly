@@ -212,9 +212,10 @@ export default function App() {
       if (res.ok) {
         markSaved(res.filePath);
         flash(`Saved ${res.filePath.split(/[/\\]/).pop()}`);
-      } else if (!res.canceled) {
-        flash(`Save failed: ${res.error}`);
+        return true;
       }
+      if (!res.canceled) flash(`Save failed: ${res.error}`);
+      return false;
     },
     [store, markSaved, flash]
   );
@@ -323,6 +324,12 @@ export default function App() {
         case "open": return handleOpen();
         case "save": return handleSave(false);
         case "saveAs": return handleSave(true);
+        case "saveAndClose":
+          // Only close once the file is actually written: a cancelled save
+          // dialog should leave the window open, not lose the figure.
+          return handleSave(false).then((saved) => {
+            if (saved) window.morphly.closeWindow();
+          });
         case "export": return setExportOpen(true);
         case "addLibrary": return addLibrary();
         case "insertTable": return setTableDialogOpen(true);
@@ -349,16 +356,17 @@ export default function App() {
     return unsubscribe;
   }, [store, handleNew, handleOpen, handleSave, fitToScreen, addLibrary, handleInsertImage]);
 
-  // Warn before closing with unsaved work.
+  // Unsaved-changes guard.
+  //
+  // The main process owns the prompt, because a renderer `beforeunload` cannot
+  // show one in Electron: returning a value from it cancels the close outright,
+  // which left the window refusing to close with no explanation. Here the
+  // renderer only mirrors the dirty flag and does the saving when asked.
   useEffect(() => {
-    const onBeforeUnload = (e) => {
-      if (store.getState().dirty) {
-        e.preventDefault();
-        e.returnValue = "";
-      }
-    };
-    window.addEventListener("beforeunload", onBeforeUnload);
-    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+    window.morphly.setDirty(store.getState().dirty);
+    return store.subscribe((state, previous) => {
+      if (state.dirty !== previous.dirty) window.morphly.setDirty(state.dirty);
+    });
   }, [store]);
 
   const editingElement = editing ? elements.find((el) => el.id === editing.id) ?? null : null;

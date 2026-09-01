@@ -73,7 +73,7 @@ function registerIpc() {
       if (library.errors.some((e) => e.dir === dir)) {
         return fail(library.errors.find((e) => e.dir === dir).error);
       }
-      await writeSettings({ libraries: next });
+      await writeSettings({ libraries: next, librariesInitialised: true });
       return ok({ library });
     } catch (err) {
       return fail(err);
@@ -83,7 +83,9 @@ function registerIpc() {
   ipcMain.handle("library:remove", async (_event, key) => {
     const settings = await readSettings();
     const next = settings.libraries.filter((l) => l.key !== key);
-    await writeSettings({ libraries: next });
+    // librariesInitialised stops the next launch from silently re-mounting a
+    // bundled library the user has just removed.
+    await writeSettings({ libraries: next, librariesInitialised: true });
     if (next.length === 0) return { ok: false, error: "no-library-configured" };
     return ok({ library: await loadLibraries(next) });
   });

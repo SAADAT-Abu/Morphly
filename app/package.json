@@ -38,6 +38,18 @@
       "build/icon.*",
       "package.json"
     ],
+    "extraResources": [
+      {
+        "from": "../bioart_library",
+        "to": "libraries/bioart_library",
+        "filter": ["**/*"]
+      },
+      {
+        "from": "../bioicons_library",
+        "to": "libraries/bioicons_library",
+        "filter": ["**/*"]
+      }
+    ],
     "directories": {
       "output": "release"
     },

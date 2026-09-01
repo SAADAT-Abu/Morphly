@@ -28,10 +28,8 @@ jobs:
         include:
           - os: ubuntu-latest
             name: Linux
-            # deb is added here rather than in package.json, since it needs
-            # dpkg and would break local builds on non-Debian machines.
-            args: "--linux AppImage deb"
-            artifacts: "app/release/*.AppImage app/release/*.deb"
+            args: "--linux AppImage"
+            artifacts: "app/release/*.AppImage"
           - os: windows-latest
             name: Windows
             args: ""

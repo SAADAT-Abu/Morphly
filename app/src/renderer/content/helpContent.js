@@ -112,12 +112,12 @@ export const GETTING_STARTED = [
   {
     title: "1. Point Morphly at a library",
     body:
-      "Morphly does not bundle the artwork. It reads a library folder from your machine, " +
-      "which keeps the download small and lets each library be updated independently. " +
-      "Use File → Add asset library folder and pick the folder containing manifest.json. " +
-      "You can get a library either by downloading a prepared one, or by building it " +
-      "yourself with the scripts in scraper/. Both libraries can be mounted at once and " +
-      "are browsed together with a collection filter.",
+      "Installed builds ship with both libraries inside them and mount them on first " +
+      "launch, so there is nothing to set up: the sidebar is already full. To add another " +
+      "library, or a fresher copy of one, use File → Add asset library folder and pick the " +
+      "folder containing manifest.json. Any number of libraries can be mounted at once and " +
+      "are browsed together with a collection filter, and any of them can be removed again, " +
+      "including the ones that came with the app.",
   },
   {
     title: "2. Place artwork",

@@ -73,7 +73,7 @@ else's server.
 
 ### Download a build
 
-Installers for Linux (`.AppImage`, `.deb`), Windows (`.exe`) and macOS
+Installers for Linux (`.AppImage`), Windows (`.exe`) and macOS
 (`.dmg`) are built automatically for every tagged release and attached to the
 [GitHub releases page](https://github.com/SAADAT-Abu/Morphly/releases).
 
@@ -118,12 +118,15 @@ npm run dist     # output lands in app/release/
 
 ## Getting the asset libraries
 
-Morphly does **not** bundle the artwork. It reads a library folder from your
-machine, which keeps the download small and lets each library be updated
-independently.
+**The packaged builds already contain both libraries**, around 3,500
+illustrations in all, which is why an installer is roughly 450 MB. They are
+mounted automatically the first time you open the app, so it works offline
+straight away with nothing to download or configure.
 
-You can either download a prepared library (link to follow alongside the
-release), or build one yourself:
+You only need this section if you are running from source, or if you want to
+mount an extra library or a fresher copy of one. Morphly can read any number of
+library folders from anywhere on disk, and each can be removed independently of
+the bundled ones. To build one yourself:
 
 ```bash
 pip install -r scraper/requirements.txt
@@ -157,7 +160,8 @@ file. Both libraries can be mounted at once and are browsed together.
 
 ## Quick start
 
-1. **Add a library**: File → Add asset library folder.
+1. **Add a library**: already done in a packaged build, both libraries are
+   bundled. From source, use File → Add asset library folder.
 2. **Place artwork**: search the sidebar, then click a thumbnail to drop it on
    the page, or drag it exactly where you want it.
 3. **Recolour**: select the illustration and edit the swatches in the Colours

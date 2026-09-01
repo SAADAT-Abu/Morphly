@@ -27,10 +27,24 @@ export default function ExportDialog({ stageRef, onClose }) {
   const [message, setMessage] = useState(null);
 
   const citationList = citations();
-  const citationText =
-    includeCitations && citationList.length > 0
-      ? ["Illustrations from NIAID NIH BIOART Source:", ...citationList].join("\n")
-      : null;
+  const shareAlike = citationList.filter((c) => c.shareAlike);
+
+  // Group credits by collection so the footer reads as attribution rather
+  // than an undifferentiated list of strings.
+  const citationText = (() => {
+    if (!includeCitations || citationList.length === 0) return null;
+    const byCollection = new Map();
+    for (const c of citationList) {
+      if (!byCollection.has(c.collection)) byCollection.set(c.collection, []);
+      byCollection.get(c.collection).push(c.citation);
+    }
+    const lines = [];
+    for (const [collection, items] of byCollection) {
+      lines.push(`Illustrations from ${collection}:`);
+      lines.push(...items);
+    }
+    return lines.join("\n");
+  })();
 
   const run = async () => {
     setBusy(true);
@@ -130,14 +144,23 @@ export default function ExportDialog({ stageRef, onClose }) {
             onChange={(e) => setIncludeCitations(e.target.checked)}
             disabled={citationList.length === 0}
           />
-          Append BioArt citations
-          {citationList.length > 0 ? ` (${citationList.length})` : " (no BioArt assets used)"}
+          Append asset citations
+          {citationList.length > 0 ? ` (${citationList.length})` : " (no library assets used)"}
         </label>
 
         {citationText && format === "png" && (
           <p className="hint">
             Citations are drawn into SVG and PDF exports. For PNG, copy them from the
             properties panel instead.
+          </p>
+        )}
+
+        {shareAlike.length > 0 && (
+          <p className="warning">
+            <strong>{shareAlike.length} share-alike asset
+            {shareAlike.length === 1 ? "" : "s"} in this figure.</strong> Their licences
+            require derivative works to carry the same licence, which can extend to the
+            whole figure. Check this against where you intend to publish.
           </p>
         )}
 

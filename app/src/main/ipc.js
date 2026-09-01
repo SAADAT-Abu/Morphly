@@ -12,8 +12,8 @@ const { ipcMain, dialog, BrowserWindow } = require("electron");
 const fs = require("node:fs/promises");
 const path = require("node:path");
 
-const { readSettings, writeSettings } = require("./settings");
-const { loadLibrary, readSvg } = require("./library");
+const { readSettings, writeSettings, libraryKey, libraryDirFor } = require("./settings");
+const { loadLibraries, readSvg } = require("./library");
 
 const ok = (data) => ({ ok: true, ...data });
 const fail = (err) => ({ ok: false, error: String(err?.message ?? err) });
@@ -24,43 +24,59 @@ function registerIpc() {
 
   // -- library -------------------------------------------------------------
 
-  ipcMain.handle("library:pickFolder", async (event) => {
+  /** Load every configured library folder and merge them into one index. */
+  ipcMain.handle("library:load", async () => {
+    const { libraries } = await readSettings();
+    if (libraries.length === 0) return { ok: false, error: "no-library-configured" };
+    return ok({ library: await loadLibraries(libraries) });
+  });
+
+  /** Add a folder to the mounted set. Adding one already present is a no-op
+   *  rather than an error, so re-picking the same folder is harmless. */
+  ipcMain.handle("library:add", async (event) => {
     const win = BrowserWindow.fromWebContents(event.sender);
     const result = await dialog.showOpenDialog(win, {
-      title: "Select your BioArt library folder",
-      message: "Choose the folder containing manifest.json",
+      title: "Add an asset library folder",
+      message: "Choose a folder containing manifest.json",
       properties: ["openDirectory"],
     });
     if (result.canceled || result.filePaths.length === 0) return { ok: false, canceled: true };
 
     const dir = result.filePaths[0];
+    const settings = await readSettings();
+    const next = settings.libraries.some((l) => l.dir === dir)
+      ? settings.libraries
+      : [...settings.libraries, { key: libraryKey(dir), dir }];
+
     try {
-      const library = await loadLibrary(dir);
-      await writeSettings({ libraryDir: dir });
+      // Load before persisting, so a folder without a usable manifest is
+      // reported instead of being silently mounted as empty.
+      const library = await loadLibraries(next);
+      if (library.errors.some((e) => e.dir === dir)) {
+        return fail(library.errors.find((e) => e.dir === dir).error);
+      }
+      await writeSettings({ libraries: next });
       return ok({ library });
     } catch (err) {
       return fail(err);
     }
   });
 
-  /** Load the library remembered from last time, if it is still readable. */
-  ipcMain.handle("library:loadSaved", async () => {
-    const { libraryDir } = await readSettings();
-    if (!libraryDir) return { ok: false, error: "no-library-configured" };
-    try {
-      return ok({ library: await loadLibrary(libraryDir) });
-    } catch (err) {
-      return fail(err);
-    }
+  ipcMain.handle("library:remove", async (_event, key) => {
+    const settings = await readSettings();
+    const next = settings.libraries.filter((l) => l.key !== key);
+    await writeSettings({ libraries: next });
+    if (next.length === 0) return { ok: false, error: "no-library-configured" };
+    return ok({ library: await loadLibraries(next) });
   });
 
   /** Fetch one asset's SVG source. The renderer needs the text (not just an
    *  <img> URL) because recolouring rewrites the markup. */
-  ipcMain.handle("library:getSvg", async (_event, relPath) => {
-    const { libraryDir } = await readSettings();
-    if (!libraryDir) return fail("No library configured");
+  ipcMain.handle("library:getSvg", async (_event, { source, relPath }) => {
+    const dir = await libraryDirFor(source);
+    if (!dir) return fail("That asset's library is no longer configured");
     try {
-      return ok({ svg: await readSvg(libraryDir, relPath) });
+      return ok({ svg: await readSvg(dir, relPath) });
     } catch (err) {
       return fail(err);
     }

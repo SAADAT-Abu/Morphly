@@ -19,7 +19,7 @@ const { app, BrowserWindow, protocol, net } = require("electron");
 const path = require("node:path");
 const { pathToFileURL } = require("node:url");
 
-const { readSettings } = require("./settings");
+const { libraryDirFor } = require("./settings");
 const { safeResolve } = require("./library");
 const { registerIpc } = require("./ipc");
 
@@ -43,14 +43,18 @@ protocol.registerSchemesAsPrivileged([
 function registerAssetProtocol() {
   protocol.handle("morphly-asset", async (request) => {
     try {
-      const settings = await readSettings();
-      if (!settings.libraryDir) return new Response("No library configured", { status: 404 });
-
-      // morphly-asset://asset/<relpath> -- the host segment is ignored, the
-      // pathname carries the library-relative path.
+      // morphly-asset://asset/<libraryKey>/<relative path>
+      // The library key indirects through settings, so the renderer never
+      // learns or supplies an absolute filesystem path.
       const url = new URL(request.url);
-      const relPath = decodeURIComponent(url.pathname).replace(/^\/+/, "");
-      const abs = safeResolve(settings.libraryDir, relPath);
+      const segments = decodeURIComponent(url.pathname).replace(/^\/+/, "").split("/");
+      const key = segments.shift();
+      const relPath = segments.join("/");
+
+      const dir = await libraryDirFor(key);
+      if (!dir) return new Response("Unknown library", { status: 404 });
+
+      const abs = safeResolve(dir, relPath);
       return net.fetch(pathToFileURL(abs).toString());
     } catch (err) {
       return new Response(String(err.message ?? err), { status: 403 });

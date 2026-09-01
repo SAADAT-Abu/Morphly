@@ -12,15 +12,18 @@ contextBridge.exposeInMainWorld("morphly", {
   // settings
   getSettings: () => ipcRenderer.invoke("settings:get"),
 
-  // asset library
-  pickLibraryFolder: () => ipcRenderer.invoke("library:pickFolder"),
-  loadSavedLibrary: () => ipcRenderer.invoke("library:loadSaved"),
-  getSvg: (relPath) => ipcRenderer.invoke("library:getSvg", relPath),
+  // asset libraries (several can be mounted at once)
+  loadLibrary: () => ipcRenderer.invoke("library:load"),
+  addLibrary: () => ipcRenderer.invoke("library:add"),
+  removeLibrary: (key) => ipcRenderer.invoke("library:remove", key),
+  getSvg: (source, relPath) => ipcRenderer.invoke("library:getSvg", { source, relPath }),
 
   /** URL the <img> tags in the sidebar point at, served by the custom
-   *  protocol registered in main.js. */
-  assetUrl: (relPath) =>
-    "morphly-asset://asset/" + relPath.split("/").map(encodeURIComponent).join("/"),
+   *  protocol registered in main.js. The library key indirects through
+   *  settings so no absolute path is ever exposed to the renderer. */
+  assetUrl: (source, relPath) =>
+    "morphly-asset://asset/" +
+    [source, ...relPath.split("/")].map(encodeURIComponent).join("/"),
 
   // projects
   saveProject: (json, filePath) => ipcRenderer.invoke("project:save", { json, filePath }),

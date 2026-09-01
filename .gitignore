@@ -1,5 +1,8 @@
-# Scraped asset library — large, regenerate locally with scraper/bioart_scraper.py
+# Scraped asset libraries — large (>1.4 GB combined), regenerate locally with
+# the scripts in scraper/. Built installers go to Zenodo, not git.
 bioart_library/
+bioicons_library/
+*_library/
 
 # Python
 __pycache__/

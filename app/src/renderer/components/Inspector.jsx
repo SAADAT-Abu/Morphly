@@ -70,14 +70,31 @@ export default function Inspector() {
 // Recolouring
 // ---------------------------------------------------------------------------
 
+/**
+ * Most assets have a handful of colours, but a few are extreme -- one Bioicons
+ * illustration has 501 distinct colours across its shapes. Rendering every
+ * swatch there is useless (and slow), so the list is capped at the most-used
+ * colours, which are the ones that actually define how the artwork reads.
+ * The rest stay reachable behind a toggle.
+ */
+const SWATCH_CAP = 24;
+
 function RecolorPanel({ element }) {
   const setAssetColor = useStore((s) => s.setAssetColor);
   const resetAssetColors = useStore((s) => s.resetAssetColors);
+  const [showAll, setShowAll] = React.useState(false);
 
   // Palette is cached on the element at placement time; recompute defensively
   // for documents saved before the field existed.
   const palette = element.palette?.length ? element.palette : extractPalette(element.svgSource);
   const changed = Object.keys(element.colorMap ?? {}).length;
+
+  // Always keep colours the user has already changed visible, even if they
+  // fall outside the cap -- otherwise an edit could scroll out of reach.
+  const capped = showAll
+    ? palette
+    : palette.filter((p, i) => i < SWATCH_CAP || element.colorMap?.[p.hex]);
+  const hidden = palette.length - capped.length;
 
   if (palette.length === 0) {
     return (
@@ -91,10 +108,11 @@ function RecolorPanel({ element }) {
     <Section title={`Colours (${palette.length})`}>
       <p className="hint">
         Each swatch is one colour used across the whole illustration. Changing it
-        recolours every shape that uses it.
+        recolours every shape that uses it
+        {palette.length > SWATCH_CAP ? ", most-used first" : ""}.
       </p>
       <div className="swatch-list">
-        {palette.map(({ hex, count }) => {
+        {capped.map(({ hex, count }) => {
           const current = element.colorMap?.[hex] ?? hex;
           const isChanged = current !== hex;
           return (
@@ -122,6 +140,16 @@ function RecolorPanel({ element }) {
           );
         })}
       </div>
+      {hidden > 0 && (
+        <button className="ghost small" onClick={() => setShowAll(true)}>
+          Show {hidden} more colour{hidden === 1 ? "" : "s"}
+        </button>
+      )}
+      {showAll && palette.length > SWATCH_CAP && (
+        <button className="ghost small" onClick={() => setShowAll(false)}>
+          Show fewer
+        </button>
+      )}
       {changed > 0 && (
         <button className="ghost" onClick={() => resetAssetColors(element.id)}>
           Reset all {changed} change{changed === 1 ? "" : "s"}
@@ -135,8 +163,18 @@ function AttributionBlock({ element }) {
   if (!element.citation) return null;
   return (
     <Section title="Attribution">
+      {element.shareAlike && (
+        <p className="warning">
+          <strong>Share-alike.</strong> {element.license} requires derivative works to
+          carry the same licence — that can extend to this whole figure.
+        </p>
+      )}
       <p className="citation">{element.citation}</p>
-      {element.license && <p className="hint">Licence: {element.license}</p>}
+      <p className="hint">
+        {element.collection}
+        {element.license ? ` · ${element.license}` : ""}
+        {element.requiresAttribution === false ? " · attribution optional" : ""}
+      </p>
     </Section>
   );
 }

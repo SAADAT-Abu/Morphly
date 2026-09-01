@@ -216,8 +216,17 @@ export const useStore = create((set, get) => ({
       assetId: asset.id,
       variantGroupId: variant.groupId,
       svgPath: variant.svgPath,
+      source: asset.source,
+      // Attribution details are copied onto the element rather than looked up
+      // later, so a saved figure still knows what it owes even if the library
+      // folder is unmounted or moved.
+      collection: asset.collection,
+      creator: asset.creator,
       citation: asset.citation,
       license: asset.license,
+      licenseUrl: asset.licenseUrl,
+      requiresAttribution: asset.requiresAttribution,
+      shareAlike: asset.shareAlike,
       sourcePage: asset.sourcePage,
     });
 
@@ -418,15 +427,29 @@ export const useStore = create((set, get) => ({
 
   markSaved: (projectPath) => set({ projectPath, dirty: false }),
 
-  /** Citations for every distinct BioArt asset currently on the canvas. */
+  /**
+   * Attribution for every distinct asset currently on the canvas.
+   *
+   * Returns one record per asset, de-duplicated, plus the share-alike count.
+   * Share-alike is called out separately because it is an obligation on the
+   * whole figure, not just a credit line -- worth surfacing before export
+   * rather than discovering it at submission.
+   */
   citations: () => {
     const seen = new Map();
     for (const el of get().elements) {
-      if (el.type === "asset" && el.citation && !seen.has(el.assetId)) {
-        seen.set(el.assetId, el.citation);
-      }
+      if (el.type !== "asset" || !el.citation) continue;
+      if (seen.has(el.assetId)) continue;
+      seen.set(el.assetId, {
+        citation: el.citation,
+        collection: el.collection ?? "Assets",
+        license: el.license ?? null,
+        shareAlike: Boolean(el.shareAlike),
+      });
     }
-    return [...seen.values()].sort();
+    return [...seen.values()].sort(
+      (a, b) => a.collection.localeCompare(b.collection) || a.citation.localeCompare(b.citation)
+    );
   },
 }));
 

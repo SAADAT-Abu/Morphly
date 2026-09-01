@@ -1,19 +1,30 @@
 /**
- * The BioArt sidebar: browse, search and place assets from a scraped library.
+ * The asset sidebar: browse, search and place assets from one or more scraped
+ * libraries.
  *
- * Morphly points at a library folder rather than bundling one. ~2,000 SVGs
- * would bloat the installer, and the library is reproducible from the scraper
- * at any time, so the folder path is a setting instead.
+ * Morphly points at library folders rather than bundling them. Two producers
+ * exist -- NIH BioArt (scraper/bioart_scraper.py) and Bioicons
+ * (scraper/bioicons_fetcher.py) -- and both emit the same manifest format, so
+ * several can be mounted at once and browsed together.
  *
- * Entries with several file groups (colour/style variants of one illustration)
- * collapse into a single tile with a variant strip, rather than filling the
- * grid with near-identical thumbnails.
+ * Licence is shown on every tile because it genuinely differs between the two:
+ * BioArt is mostly Public Domain, while ~83% of Bioicons requires attribution
+ * and a few icons are share-alike. That is much easier to respect while
+ * choosing an asset than to reconstruct at submission time.
  */
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useStore } from "../store";
 
 const PAGE_SIZE = 90;
+
+/** Compact badge text; full detail goes in the tooltip. */
+function licenceBadge(asset) {
+  if (!asset.license) return null;
+  if (asset.shareAlike) return "SA";
+  if (!asset.requiresAttribution) return "PD";
+  return "BY";
+}
 
 export default function AssetLibrary({ onPlaceAsset }) {
   const library = useStore((s) => s.library);
@@ -23,15 +34,16 @@ export default function AssetLibrary({ onPlaceAsset }) {
 
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("All");
+  const [collection, setCollection] = useState("All");
   const [limit, setLimit] = useState(PAGE_SIZE);
   const [expandedId, setExpandedId] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [managing, setManaging] = useState(false);
 
-  // Try the remembered library folder on first mount.
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const res = await window.morphly.loadSavedLibrary();
+      const res = await window.morphly.loadLibrary();
       if (cancelled) return;
       if (res.ok) setLibrary(res.library);
       else if (res.error && res.error !== "no-library-configured") setLibraryError(res.error);
@@ -41,9 +53,9 @@ export default function AssetLibrary({ onPlaceAsset }) {
     };
   }, [setLibrary, setLibraryError]);
 
-  const pickFolder = async () => {
+  const addLibrary = async () => {
     setLoading(true);
-    const res = await window.morphly.pickLibraryFolder();
+    const res = await window.morphly.addLibrary();
     setLoading(false);
     if (res.ok) {
       setLibrary(res.library);
@@ -53,37 +65,43 @@ export default function AssetLibrary({ onPlaceAsset }) {
     }
   };
 
+  const removeLibrary = async (key) => {
+    const res = await window.morphly.removeLibrary(key);
+    if (res.ok) setLibrary(res.library);
+    else useStore.setState({ library: null });
+  };
+
   const filtered = useMemo(() => {
     if (!library) return [];
-    const q = query.trim().toLowerCase();
-    const terms = q.split(/\s+/).filter(Boolean);
+    const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
 
     return library.assets.filter((asset) => {
       if (category !== "All" && asset.category !== category) return false;
+      if (collection !== "All" && asset.collection !== collection) return false;
       if (terms.length === 0) return true;
-      // Match against title + keywords, requiring every term to appear
-      // somewhere -- so "green virus" narrows rather than widens.
-      const haystack = `${asset.title} ${asset.category} ${asset.keywords.join(" ")}`.toLowerCase();
+      // Every term must appear somewhere, so "green virus" narrows rather
+      // than widens.
+      const haystack =
+        `${asset.title} ${asset.category} ${asset.creator ?? ""} ${asset.keywords.join(" ")}`.toLowerCase();
       return terms.every((t) => haystack.includes(t));
     });
-  }, [library, query, category]);
+  }, [library, query, category, collection]);
 
-  useEffect(() => setLimit(PAGE_SIZE), [query, category]);
-
-  // -- empty / error states -------------------------------------------------
+  useEffect(() => setLimit(PAGE_SIZE), [query, category, collection]);
 
   if (!library) {
     return (
       <div className="panel library">
-        <div className="panel-header">BioArt library</div>
+        <div className="panel-header">Asset library</div>
         <div className="library-empty">
           <p>
-            Morphly reads the asset library produced by <code>bioart_scraper.py</code>.
-            Point it at the folder that contains <code>manifest.json</code>.
+            Morphly reads libraries produced by the scripts in <code>scraper/</code> —
+            NIH BioArt and Bioicons. Point it at a folder containing{" "}
+            <code>manifest.json</code>.
           </p>
           {libraryError && <p className="error">{libraryError}</p>}
-          <button className="primary" onClick={pickFolder} disabled={loading}>
-            {loading ? "Loading…" : "Choose library folder…"}
+          <button className="primary" onClick={addLibrary} disabled={loading}>
+            {loading ? "Loading…" : "Add library folder…"}
           </button>
         </div>
       </div>
@@ -93,31 +111,67 @@ export default function AssetLibrary({ onPlaceAsset }) {
   return (
     <div className="panel library">
       <div className="panel-header">
-        BioArt library
-        <button className="link" onClick={pickFolder} title={library.dir}>
-          change
+        Asset library
+        <button className="link" onClick={() => setManaging((v) => !v)}>
+          {managing ? "done" : "sources"}
         </button>
       </div>
+
+      {managing && (
+        <div className="source-manager">
+          {library.libraries.map((lib) => (
+            <div className="source-row" key={lib.key}>
+              <div className="source-info" title={lib.dir}>
+                <strong>{lib.collection}</strong>
+                <span>{lib.count.toLocaleString()} assets · {lib.label}</span>
+              </div>
+              <button className="link" onClick={() => removeLibrary(lib.key)}>
+                remove
+              </button>
+            </div>
+          ))}
+          {library.errors?.map((e) => (
+            <p className="error" key={e.dir}>{e.dir}: {e.error}</p>
+          ))}
+          <button className="ghost small" onClick={addLibrary} disabled={loading}>
+            {loading ? "Loading…" : "Add another folder…"}
+          </button>
+        </div>
+      )}
 
       <div className="library-controls">
         <input
           type="search"
-          placeholder="Search title and keywords…"
+          placeholder="Search title, keywords, creator…"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
-        <select value={category} onChange={(e) => setCategory(e.target.value)}>
-          <option>All</option>
-          {library.categories.map((c) => (
-            <option key={c}>{c}</option>
-          ))}
-        </select>
+        <div className="control-row">
+          {library.collections.length > 1 && (
+            <select value={collection} onChange={(e) => setCollection(e.target.value)}>
+              <option>All</option>
+              {library.collections.map((c) => (
+                <option key={c}>{c}</option>
+              ))}
+            </select>
+          )}
+          <select value={category} onChange={(e) => setCategory(e.target.value)}>
+            <option>All</option>
+            {library.categories.map((c) => (
+              <option key={c}>{c}</option>
+            ))}
+          </select>
+        </div>
       </div>
 
       <div className="library-count">
-        {filtered.length.toLocaleString()} of {library.stats.assets.toLocaleString()} assets
-        {" · "}
-        {library.stats.variants.toLocaleString()} variants
+        {filtered.length.toLocaleString()} of {library.stats.assets.toLocaleString()}
+        {library.stats.shareAlike > 0 && (
+          <span title="Share-alike icons can oblige your whole figure to carry the same licence">
+            {" · "}
+            {library.stats.shareAlike} share-alike
+          </span>
+        )}
       </div>
 
       <div className="asset-grid">
@@ -138,7 +192,9 @@ export default function AssetLibrary({ onPlaceAsset }) {
         </button>
       )}
 
-      {filtered.length === 0 && <div className="library-empty small">No assets match that search.</div>}
+      {filtered.length === 0 && (
+        <div className="library-empty small">No assets match that search.</div>
+      )}
     </div>
   );
 }
@@ -146,9 +202,9 @@ export default function AssetLibrary({ onPlaceAsset }) {
 function AssetTile({ asset, expanded, onToggle, onPlace }) {
   const primary = asset.variants[0];
   const hasVariants = asset.variants.length > 1;
+  const badge = licenceBadge(asset);
 
   const startDrag = (event, variant) => {
-    // The canvas reads this on drop to place the asset where it landed.
     event.dataTransfer.setData(
       "application/x-morphly-asset",
       JSON.stringify({ assetId: asset.id, groupId: variant.groupId })
@@ -156,16 +212,33 @@ function AssetTile({ asset, expanded, onToggle, onPlace }) {
     event.dataTransfer.effectAllowed = "copy";
   };
 
+  const tooltip =
+    `${asset.title}\n${asset.collection}` +
+    (asset.creator ? ` · ${asset.creator}` : "") +
+    (asset.license ? `\n${asset.license}` : "") +
+    (asset.shareAlike ? " — SHARE-ALIKE" : "") +
+    (hasVariants ? `\n${asset.variants.length} variants` : "") +
+    "\nClick to add, drag onto the canvas to place";
+
   return (
     <div className={`asset-tile${expanded ? " expanded" : ""}`}>
       <button
         className="asset-thumb"
-        title={`${asset.title}${hasVariants ? ` · ${asset.variants.length} variants` : ""}\nClick to add, drag onto the canvas to place`}
+        title={tooltip}
         draggable
         onDragStart={(e) => startDrag(e, primary)}
         onClick={() => onPlace(asset, primary)}
       >
-        <img src={window.morphly.assetUrl(primary.svgPath)} alt={asset.title} loading="lazy" />
+        <img
+          src={window.morphly.assetUrl(asset.source, primary.svgPath)}
+          alt={asset.title}
+          loading="lazy"
+        />
+        {badge && (
+          <span className={`licence-badge ${badge.toLowerCase()}`} title={asset.license}>
+            {badge}
+          </span>
+        )}
       </button>
 
       <div className="asset-label" title={asset.title}>
@@ -189,7 +262,11 @@ function AssetTile({ asset, expanded, onToggle, onPlace }) {
               onDragStart={(e) => startDrag(e, variant)}
               onClick={() => onPlace(asset, variant)}
             >
-              <img src={window.morphly.assetUrl(variant.svgPath)} alt={variant.caption} loading="lazy" />
+              <img
+                src={window.morphly.assetUrl(asset.source, variant.svgPath)}
+                alt={variant.caption}
+                loading="lazy"
+              />
             </button>
           ))}
         </div>

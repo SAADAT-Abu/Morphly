@@ -41,7 +41,7 @@ export default function App() {
    *  (not just a URL) because recolouring rewrites the markup. */
   const placeAsset = useCallback(
     async (asset, variant, at) => {
-      const res = await window.morphly.getSvg(variant.svgPath);
+      const res = await window.morphly.getSvg(asset.source, variant.svgPath);
       if (!res.ok) {
         flash(`Could not load asset: ${res.error}`);
         return;

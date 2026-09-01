@@ -279,3 +279,48 @@ input[type="range"] { padding: 0; }
 ::-webkit-scrollbar-thumb { background: #3a4050; border-radius: 5px; border: 2px solid var(--panel); }
 ::-webkit-scrollbar-thumb:hover { background: #4a5265; }
 ::-webkit-scrollbar-track { background: transparent; }
+
+/* ------------------------------------------------- multi-source libraries */
+
+.control-row { display: flex; gap: 6px; }
+.control-row select { flex: 1; min-width: 0; }
+
+.source-manager {
+  padding: 8px 12px 10px;
+  border-bottom: 1px solid var(--border);
+  display: flex; flex-direction: column; gap: 8px;
+  background: var(--panel-2);
+}
+.source-row { display: flex; align-items: center; gap: 8px; }
+.source-info { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.source-info strong { font-size: 12px; }
+.source-info span {
+  font-size: 11px; color: var(--text-dim);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* Licence badge on each thumbnail. PD is muted because it needs no action;
+   BY and especially SA are the ones worth noticing before you commit to an
+   asset. */
+.asset-thumb { position: relative; }
+.licence-badge {
+  position: absolute; top: 2px; right: 2px;
+  font-size: 9px; font-weight: 700; line-height: 1;
+  padding: 2px 3px; border-radius: 3px;
+  letter-spacing: 0.3px;
+}
+.licence-badge.pd { background: #d8dce6; color: #5a6172; }
+.licence-badge.by { background: #cfe0ff; color: #1f4a94; }
+.licence-badge.sa { background: #ffd8a8; color: #8a4b06; }
+
+.warning {
+  font-size: 11px;
+  line-height: 1.45;
+  background: #45331a;
+  border: 1px solid #7a5a22;
+  color: #ffd9a0;
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  margin: 0 0 8px;
+}
+.warning strong { color: #ffca7a; }

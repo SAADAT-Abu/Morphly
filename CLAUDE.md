@@ -21,8 +21,10 @@ as the asset panel.
 
 ## Architecture (3 phases)
 
-1. **Asset pipeline (Python)** — scrape BioArt into a local, categorized
-   library + JSON manifest. DONE (v2) — see `scraper/bioart_scraper.py`.
+1. **Asset pipelines (Python)** — build local, categorized libraries + JSON
+   manifests. DONE — `scraper/bioart_scraper.py` (NIH BioArt) and
+   `scraper/bioicons_fetcher.py` (Bioicons). Both emit the same manifest
+   format, and the editor mounts several libraries at once.
 2. **Editor shell (Electron + React + Konva)** — canvas editor with the
    BioArt manifest as a searchable/browsable sidebar, drag-drop onto
    canvas, shape/text tools, SVG recolor, export. BUILT (v0.1) — see `app/`.
@@ -31,7 +33,7 @@ as the asset panel.
 3. **Packaging (electron-builder)** — produce a real installable desktop
    app (.dmg / .exe / .AppImage). CONFIGURED, NOT YET BUILT.
 
-## Phase 1 — Asset pipeline (done, v1)
+## Phase 1 — NIH BioArt pipeline (done, v2)
 
 Script: `bioart_scraper.py` (Python, `requests` + `beautifulsoup4`).
 
@@ -126,6 +128,57 @@ SVGs don't already provide. The sidebar renders the SVGs directly. Use
 `--formats SVG,PNG,AI` if raster previews or Illustrator sources are ever
 needed.
 
+## Phase 1b — Bioicons (done)
+
+Second asset source: [Bioicons](https://bioicons.com) — 2,830 science icons,
+437 MB. Script: `scraper/bioicons_fetcher.py`.
+
+**No scraping needed.** Bioicons is a static Nuxt site backed entirely by a
+public GitHub repo (`duerrsimon/bioicons`, MIT). Every icon is a plain file in
+that repo, so the fetcher streams the repo tarball in **one request** and
+extracts only the icon SVGs. The repo also carries ~163 MB of draw.io stencil
+libraries; streaming with `tarfile` in `r|gz` mode reads past them without
+writing them to disk.
+
+**All metadata is in the path** — there is no separate index file to fetch:
+
+```
+static/icons/{license}/{Category}/{Author}/{Name}.svg
+```
+
+**Licensing — this differs sharply from BioArt and matters.** BioArt is mostly
+Public Domain; Bioicons mostly is not:
+
+```
+  1376  CC BY 3.0          885  CC BY 4.0        488  CC0 1.0
+    39  MIT                 35  CC BY-SA 4.0       4  CC BY-SA 3.0
+     3  BSD-3-Clause
+```
+
+**2,342 of 2,830 icons require attribution, and 39 are share-alike** — using
+one of those can oblige the *entire figure* to carry the same licence. That is
+exactly the kind of thing discovered at journal-submission time rather than at
+design time, so the manifest records `requires_attribution` and `share_alike`
+flags per icon and the editor surfaces them: a licence badge (PD / BY / SA) on
+every sidebar tile, a warning in the properties panel, and a warning in the
+export dialog.
+
+**Quality**: genuine vectors, no embedded rasters, no `ns0:` prefixes (unlike
+BioArt). Colours appear in both styles — Servier icons use `fill=` attributes,
+DBCLS/PacBio use CSS `fill:` inside `<style>` blocks — and the existing palette
+engine already handled both, so recolouring worked on Bioicons unchanged.
+
+**Size**: median icon is 27 KB but the mean is 155 KB; 83 icons exceed 1 MB and
+account for 130 MB of the 428 MB. The largest is 11.6 MB with 26,000 paths.
+`--max-bytes` skips outliers if the full set is too heavy. One Bioicons
+illustration has **501 distinct colours**, which is why the recolour panel caps
+its swatch list at the 24 most-used and hides the rest behind a toggle.
+
+**To run**:
+```bash
+python scraper/bioicons_fetcher.py --out ./bioicons_library
+```
+
 ## Phase 2 — Editor shell (BUILT, v0.1)
 
 **Stack decision CHANGED (2026-09-01): Konva, not Polotno.**
@@ -199,9 +252,11 @@ Verified: exported SVGs render correctly in librsvg, not just in the app.
 
 **Resolved open questions**:
 - Polotno's free tier — resolved above; not usable, switched to Konva.
-- Bundle the library vs. point at a folder — **points at a folder**. The path
-  is stored in the app's user-data settings, not in the project. Keeps the
-  installer small and lets the library be re-scraped independently.
+- Bundle the library vs. point at a folder — **points at folders**, plural.
+  Several libraries mount at once and are browsed as one merged index with a
+  collection filter. Paths live in the app's user-data settings, not in the
+  project. Keeps the installer small (the two libraries together exceed 1.4 GB)
+  and lets each be re-fetched independently.
 
 **To run**:
 ```bash
@@ -229,7 +284,8 @@ Not yet built or tested on any platform.
 ```
 Morphly/
   scraper/
-    bioart_scraper.py
+    bioart_scraper.py       <- NIH BioArt (per-entry page scrape)
+    bioicons_fetcher.py     <- Bioicons (single-request repo tarball)
     requirements.txt
   app/                      <- Electron + React + Konva editor
     src/
@@ -243,7 +299,8 @@ Morphly/
         components/         <- Toolbar, AssetLibrary, CanvasStage,
                                Inspector, LayersPanel, ExportDialog
     package.json
-  bioart_library/            <- output of scraper (gitignored — large, regenerate locally)
+  bioart_library/            <- ~1 GB, gitignored, regenerate locally
+  bioicons_library/          <- 437 MB, gitignored, regenerate locally
   CLAUDE.md
 ```
 
@@ -257,6 +314,7 @@ Morphly/
    source.~~ DONE — on Konva rather than Polotno, see Phase 2.
 4. ~~Get drag-drop-to-canvas working end to end.~~ DONE, along with recolour
    and PNG/SVG/PDF export.
-5. Let the full scrape finish, then exercise the app against the complete
-   ~2,000-entry library.
-6. Build and test installers (`npm run dist`).
+5. Let the BioArt scrape finish, then exercise the app against the complete
+   combined library.
+6. Build and test installers (`npm run dist`). Distribute builds via Zenodo —
+   they must not go into git.

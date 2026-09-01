@@ -73,6 +73,22 @@ import requests
 from bs4 import BeautifulSoup
 
 BASE = "https://bioart.niaid.nih.gov"
+
+# Field labels as they appear in the rendered page. Used to detect a field whose
+# value is empty, where the next line is another label rather than a value.
+FIELD_LABELS = {
+    "Licensing:",
+    "Category:",
+    "Keywords",
+    "Collection",
+    "Creator",
+    "Credit",
+    "Image Type",
+    "Illustration Software/Version",
+    "Description",
+    "Representation",
+    "File type",
+}
 HEADERS = {"User-Agent": "Mozilla/5.0 (research asset-library scraper; contact: local use only)"}
 
 # Formats offered by the site. SVG is the only one the editor needs: it
@@ -160,9 +176,18 @@ def parse_entry(html: str, entry_id: int) -> dict:
     text = soup.get_text("\n", strip=True)
 
     def grab_after(label):
-        # crude but effective given the flat text-node structure of this SSR page
+        # Crude but effective given the flat text-node structure of this SSR page.
+        # A field with no value renders as its label followed directly by the NEXT
+        # field's label, so a captured value that is itself a label means the
+        # field was empty. Without this check, entries that state no licence come
+        # out with a licence of "Category:".
         m = re.search(rf"{re.escape(label)}\n([^\n]+)", text)
-        return m.group(1).strip() if m else None
+        if not m:
+            return None
+        value = m.group(1).strip()
+        if value.endswith(":") or value in FIELD_LABELS:
+            return None
+        return value
 
     title = grab_after(f"BIOART-{entry_id:06d}")
     keywords = grab_after("Keywords")
@@ -275,6 +300,17 @@ def main():
         action="store_true",
         help="load existing manifest.json and skip entry ids already in it",
     )
+    ap.add_argument(
+        "--stop-after-misses",
+        type=int,
+        default=150,
+        help=(
+            "give up after this many consecutive ids return nothing (0 = never). "
+            "Entry ids are contiguous and currently end around 723, while the site "
+            "answers 500 rather than 404 beyond that, so without this a --end of "
+            "5000 spends thousands of pointless requests on empty ids."
+        ),
+    )
     args = ap.parse_args()
 
     formats = [f.strip().upper() for f in args.formats.split(",") if f.strip()]
@@ -294,20 +330,36 @@ def main():
 
     session = requests.Session()
     misses = 0
+    streak = 0  # consecutive ids that yielded nothing
 
     for entry_id in range(args.start, args.end + 1):
         if entry_id in done:
             continue
+
+        if args.stop_after_misses and streak >= args.stop_after_misses:
+            print(
+                f"\nStopping at id {entry_id}: {streak} consecutive ids returned "
+                f"nothing. Pass --stop-after-misses 0 to keep going."
+            )
+            break
+
         try:
             html = fetch_entry(entry_id, session)
         except requests.RequestException as e:
+            # The site answers 500 for ids that do not exist, so a request error
+            # counts towards the miss streak as well as being reported.
             print(f"[{entry_id}] request error: {e}")
+            misses += 1
+            streak += 1
             time.sleep(args.delay)
             continue
 
         if html is None:
             misses += 1
+            streak += 1
             continue  # 404, no such entry
+
+        streak = 0
 
         entry = parse_entry(html, entry_id)
         entry["local_files"] = download_files(entry, out_dir, session, formats)

@@ -1,0 +1,92 @@
+# Builds Morphly installers for Linux, Windows and macOS.
+#
+# Each platform is built on its own runner because the toolchains are not
+# portable: macOS packaging needs macOS, and Windows installers need Windows or
+# a wine setup. Building each on its native runner avoids both problems.
+#
+# Run it from the Actions tab (Run workflow), or push a tag like v0.1.0 to get
+# a draft release with every installer attached, ready to publish and to upload
+# to Zenodo.
+
+name: Build installers
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            name: Linux
+            # deb is added here rather than in package.json, since it needs
+            # dpkg and would break local builds on non-Debian machines.
+            args: "--linux AppImage deb"
+            artifacts: "app/release/*.AppImage app/release/*.deb"
+          - os: windows-latest
+            name: Windows
+            args: ""
+            artifacts: "app/release/*.exe"
+          - os: macos-latest
+            name: macOS
+            args: ""
+            artifacts: "app/release/*.dmg app/release/*.zip"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Install dependencies
+        working-directory: app
+        run: npm ci
+
+      # Newer npm versions can block package lifecycle scripts, which is how
+      # Electron fetches its platform binary. If that happened, fetch it here
+      # rather than failing later with a confusing packaging error.
+      - name: Ensure Electron binary is present
+        working-directory: app
+        shell: bash
+        run: |
+          if [ ! -f node_modules/electron/path.txt ]; then
+            echo "Electron binary missing; running its install script."
+            node node_modules/electron/install.js
+          fi
+
+      - name: Build installers
+        working-directory: app
+        # The builds are unsigned: there is no Apple Developer ID or Windows
+        # code-signing certificate. Users will see an OS warning on first run.
+        run: npm run dist -- ${{ matrix.args }}
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: morphly-${{ matrix.name }}
+          path: ${{ matrix.artifacts }}
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          files: ${{ matrix.artifacts }}
+          fail_on_unmatched_files: false

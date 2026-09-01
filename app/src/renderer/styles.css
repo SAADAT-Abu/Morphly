@@ -463,3 +463,33 @@ table.credits-table td:last-child {
 .seg-glyph { font-size: 14px; line-height: 1; }
 
 .byline { margin: 6px 0 0; font-size: 11px; color: var(--text-dim); }
+
+/* ----------------------------------------------- colour parts and groups */
+
+/* A colour part removed from the figure. Kept in the list, dimmed and struck
+   through, so it is obvious what was taken out and easy to put back. */
+.swatch-row.removed { opacity: 0.5; }
+.swatch-row.removed .swatch-hex { text-decoration: line-through; }
+.swatch-row:hover { background: var(--panel-2); border-radius: 4px; }
+.swatch-row { padding: 1px 3px; margin: 0 -3px; cursor: default; }
+
+.group-dot { color: var(--accent); font-size: 8px; margin-left: -2px; }
+
+/* -------------------------------------------------- right panel overflow */
+
+/* Grid and flex items default to min-width:auto, so a number input's intrinsic
+   width can push the panel wider than the rail and clip the right-hand column.
+   Pinning them to zero lets the inputs shrink to the column instead. */
+.field, .field-grid > *, .section, .swatch-row > * { min-width: 0; }
+.field input, .field select, .field textarea { width: 100%; max-width: 100%; }
+.inspector, .layers { overflow-x: hidden; }
+.swatch-hex { overflow: hidden; text-overflow: ellipsis; }
+
+/* Shape caption editing: transparent so the shape shows through, and centred
+   vertically to match how the caption is drawn on canvas. */
+.text-overlay.label-overlay {
+  background: rgba(0, 0, 0, 0.25);
+  display: flex;
+  text-align: center;
+  padding: 4px;
+}

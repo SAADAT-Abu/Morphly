@@ -190,6 +190,9 @@ export default function App() {
       } else if (mod && e.key.toLowerCase() === "d") {
         e.preventDefault();
         s.duplicateSelected();
+      } else if (mod && e.key.toLowerCase() === "g") {
+        e.preventDefault();
+        e.shiftKey ? s.ungroupSelected() : s.groupSelected();
       } else if (mod && e.key.toLowerCase() === "a") {
         e.preventDefault();
         s.selectAll();
@@ -211,15 +214,7 @@ export default function App() {
         const step = e.shiftKey ? 20 : 2;
         const dx = e.key === "ArrowLeft" ? -step : e.key === "ArrowRight" ? step : 0;
         const dy = e.key === "ArrowUp" ? -step : e.key === "ArrowDown" ? step : 0;
-        s.commit();
-        useStore.setState((prev) => ({
-          elements: prev.elements.map((el) =>
-            prev.selectedIds.includes(el.id) && !el.locked
-              ? { ...el, x: el.x + dx, y: el.y + dy }
-              : el
-          ),
-          dirty: true,
-        }));
+        s.nudgeSelected(dx, dy);
       } else if (!mod) {
         // Single-key tool switches, as in most editors.
         const map = { v: "select", r: "rect", o: "ellipse", l: "line", a: "arrow", t: "text" };
@@ -249,6 +244,8 @@ export default function App() {
         case "duplicate": return s.duplicateSelected();
         case "delete": return s.deleteSelected();
         case "selectAll": return s.selectAll();
+        case "group": return s.groupSelected();
+        case "ungroup": return s.ungroupSelected();
         case "zoomIn": return s.setZoom(s.zoom * 1.2);
         case "zoomOut": return s.setZoom(s.zoom / 1.2);
         case "fit": return fitToScreen();
@@ -337,14 +334,19 @@ export default function App() {
 }
 
 /**
- * Inline text editing. A textarea is overlaid on the canvas at the element's
- * on-screen position and scaled to match the zoom, so what you type looks like
- * what you get.
+ * Inline editing for both text elements and shape captions.
+ *
+ * A textarea is overlaid on the canvas at the element's on-screen position and
+ * scaled to match the zoom, so what you type looks like what you get. Shape
+ * captions are centred inside the shape, matching how they are drawn.
  */
 function TextEditorOverlay({ element, zoom, stagePos, onClose }) {
   const updateElement = useStore((s) => s.updateElement);
+  const isLabel = element.type !== "text";
+  const field = isLabel ? "label" : "text";
+
   const ref = useRef(null);
-  const [value, setValue] = useState(element.text);
+  const [value, setValue] = useState(element[field] ?? "");
 
   useEffect(() => {
     ref.current?.focus();
@@ -352,15 +354,18 @@ function TextEditorOverlay({ element, zoom, stagePos, onClose }) {
   }, []);
 
   const commitText = () => {
-    if (value !== element.text) updateElement(element.id, { text: value });
+    if (value !== (element[field] ?? "")) updateElement(element.id, { [field]: value });
     onClose();
   };
+
+  const fontSize = (isLabel ? element.labelSize ?? 16 : element.fontSize) * zoom;
 
   return (
     <textarea
       ref={ref}
-      className="text-overlay"
+      className={`text-overlay${isLabel ? " label-overlay" : ""}`}
       value={value}
+      placeholder={isLabel ? "Label" : ""}
       onChange={(e) => setValue(e.target.value)}
       onBlur={commitText}
       onKeyDown={(e) => {
@@ -372,11 +377,12 @@ function TextEditorOverlay({ element, zoom, stagePos, onClose }) {
         left: stagePos.x + element.x * zoom,
         top: stagePos.y + element.y * zoom,
         width: element.width * zoom,
-        fontSize: element.fontSize * zoom,
-        fontFamily: element.fontFamily,
-        lineHeight: element.lineHeight ?? 1.25,
-        textAlign: element.align,
-        color: element.fill,
+        height: isLabel ? element.height * zoom : undefined,
+        fontSize,
+        fontFamily: isLabel ? element.labelFont ?? "Helvetica" : element.fontFamily,
+        lineHeight: isLabel ? 1.2 : element.lineHeight ?? 1.25,
+        textAlign: isLabel ? "center" : element.align,
+        color: isLabel ? element.labelColor ?? "#ffffff" : element.fill,
       }}
     />
   );

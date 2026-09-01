@@ -20,11 +20,13 @@ const TYPE_ICONS = {
 export default function LayersPanel() {
   const elements = useStore((s) => s.elements);
   const selectedIds = useStore((s) => s.selectedIds);
-  const setSelection = useStore((s) => s.setSelection);
+  const selectWithGroups = useStore((s) => s.selectWithGroups);
   const toggleSelection = useStore((s) => s.toggleSelection);
   const updateElement = useStore((s) => s.updateElement);
   const reorder = useStore((s) => s.reorder);
   const moveElementToIndex = useStore((s) => s.moveElementToIndex);
+  const groupSelected = useStore((s) => s.groupSelected);
+  const ungroupSelected = useStore((s) => s.ungroupSelected);
 
   // Panel order is front-to-back.
   const ordered = [...elements].reverse();
@@ -57,9 +59,14 @@ export default function LayersPanel() {
               onDragStart={(e) => e.dataTransfer.setData("application/x-morphly-layer", el.id)}
               onDragOver={(e) => e.preventDefault()}
               onDrop={(e) => onDrop(e, panelIndex)}
-              onClick={(e) => (e.shiftKey ? toggleSelection(el.id) : setSelection([el.id]))}
+              onClick={(e) => (e.shiftKey ? toggleSelection(el.id) : selectWithGroups([el.id]))}
             >
               <span className="layer-icon">{TYPE_ICONS[el.type] ?? "?"}</span>
+              {el.groupId && (
+                <span className="group-dot" title="Part of a group">
+                  &#9679;
+                </span>
+              )}
 
               <input
                 className="layer-name"
@@ -93,6 +100,13 @@ export default function LayersPanel() {
           );
         })}
       </div>
+
+      {selectedIds.length > 1 && (
+        <div className="layer-actions">
+          <button className="ghost small" onClick={groupSelected}>Group</button>
+          <button className="ghost small" onClick={ungroupSelected}>Ungroup</button>
+        </div>
+      )}
 
       {selectedIds.length === 1 && (
         <div className="layer-actions">

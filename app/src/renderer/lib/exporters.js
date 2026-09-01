@@ -7,7 +7,7 @@
  * their own `ns0:` namespace declarations and their recoloured markup intact.
  */
 
-import { applyPalette, parseViewBox } from "./svgPalette";
+import { applyPalette, effectiveColorMap, parseViewBox } from "./svgPalette";
 
 const escapeXml = (s) =>
   String(s ?? "")
@@ -154,13 +154,36 @@ function elementToSvg(element, stage) {
     }
 
     case "asset": {
-      const recoloured = applyPalette(element.svgSource, element.colorMap ?? {});
+      // effectiveColorMap folds in hidden colour parts, so anything the user
+      // removed on canvas is absent from the export too.
+      const recoloured = applyPalette(element.svgSource, effectiveColorMap(element));
       body = sizedSvg(recoloured, element.width, element.height);
       break;
     }
 
     default:
       return "";
+  }
+
+  // Shapes can carry a centred caption; emit it after the shape so it sits on
+  // top, matching the canvas.
+  if (element.label && ["rect", "ellipse", "triangle"].includes(element.type)) {
+    const size = element.labelSize ?? 16;
+    const lines = String(element.label).split("\n");
+    const blockHeight = lines.length * size * 1.2;
+    // Centre the block vertically, then offset each line from its own baseline.
+    const firstBaseline = element.height / 2 - blockHeight / 2 + size * 0.95;
+    const tspans = lines
+      .map(
+        (line, i) =>
+          `<tspan x="${element.width / 2}" y="${firstBaseline + i * size * 1.2}">` +
+          `${escapeXml(line)}</tspan>`
+      )
+      .join("");
+    body +=
+      `<text font-family="${escapeXml(element.labelFont ?? "Helvetica")}" ` +
+      `font-size="${size}" fill="${element.labelColor ?? "#ffffff"}" ` +
+      `text-anchor="middle" xml:space="preserve">${tspans}</text>`;
   }
 
   return `${open}${body}</g>`;

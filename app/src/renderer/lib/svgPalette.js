@@ -190,3 +190,41 @@ export function ensureIntrinsicSize(svgText) {
 export function toDataUrl(svgText) {
   return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(ensureIntrinsicSize(svgText));
 }
+
+// ---------------------------------------------------------------------------
+// Colour-part isolation and hiding
+// ---------------------------------------------------------------------------
+
+/**
+ * The colour map actually used to draw an asset: the user's recolouring, plus
+ * any colour parts they have hidden, which are mapped to `transparent`.
+ *
+ * Kept in one place because the canvas, the highlight overlay and the
+ * exporters must all agree. If they drifted, a figure would export with parts
+ * the user had deleted, or vice versa.
+ */
+export function effectiveColorMap(element) {
+  const map = { ...(element.colorMap ?? {}) };
+  // `none` rather than `transparent`: it is SVG's canonical "do not paint"
+  // value and is honoured by every renderer, including whatever opens an
+  // exported file. `transparent` is not, and falls back to black in some.
+  for (const hex of element.hiddenColors ?? []) map[hex] = "none";
+  return map;
+}
+
+/**
+ * A version of the artwork showing ONLY the shapes that use `targetHex`,
+ * painted in `highlightHex`. Everything else becomes transparent.
+ *
+ * Drawn on top of the normal image, this answers the question the colour panel
+ * otherwise leaves unanswered: which part of the drawing does this swatch
+ * control? Working out that mapping by trial and error is painful on artwork
+ * with twenty colours and hundreds of shapes.
+ */
+export function buildIsolationSvg(svgText, palette, targetHex, highlightHex = "#ff2d95") {
+  const map = {};
+  for (const { hex } of palette) {
+    map[hex] = hex === targetHex ? highlightHex : "none";
+  }
+  return applyPalette(svgText, map);
+}

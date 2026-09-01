@@ -49,6 +49,9 @@ function buildMenu(getWindow) {
         { label: "Duplicate", accelerator: "CmdOrCtrl+D", click: send("duplicate") },
         { label: "Delete", accelerator: "Delete", click: send("delete") },
         { label: "Select all", accelerator: "CmdOrCtrl+A", click: send("selectAll") },
+        { type: "separator" },
+        { label: "Group", accelerator: "CmdOrCtrl+G", click: send("group") },
+        { label: "Ungroup", accelerator: "CmdOrCtrl+Shift+G", click: send("ungroup") },
       ],
     },
     {

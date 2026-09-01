@@ -69,6 +69,8 @@ export const SHORTCUTS = [
       ["Ctrl + Shift + Z", "Redo"],
       ["Ctrl + D", "Duplicate"],
       ["Ctrl + A", "Select all"],
+      ["Ctrl + G", "Group selection"],
+      ["Ctrl + Shift + G", "Ungroup"],
       ["Delete", "Delete selection"],
       ["Arrow keys", "Nudge 2 px"],
       ["Shift + arrows", "Nudge 20 px"],
@@ -121,17 +123,21 @@ export const GETTING_STARTED = [
     title: "3. Recolour it",
     body:
       "Select a placed illustration and the Colours panel lists every distinct colour in it. " +
-      "Change one swatch and every shape using that colour updates together, which is why " +
-      "recolouring a 500-shape illustration takes one click rather than five hundred. " +
-      "Nothing is destructive: the original file is untouched and every swatch has a reset.",
+      "Hover a swatch and Morphly highlights exactly which parts of the drawing it " +
+      "controls, so you do not have to guess. Change it and every shape using that colour " +
+      "updates together, which is why recolouring a 500-shape illustration takes one click " +
+      "rather than five hundred. The cross beside a swatch removes those parts from the " +
+      "figure entirely. Nothing is destructive: the original file is untouched and " +
+      "everything can be restored.",
   },
   {
     title: "4. Build the figure",
     body:
       "Add rectangles, ellipses, triangles, lines, arrows and text from the toolbar. Drag to " +
       "move, use the handles to resize and rotate. Pink guides appear as edges line up with " +
-      "the page centre or with other elements. The Layers panel handles stacking order, " +
-      "renaming, hiding and locking.",
+      "the page centre or with other elements. Select several things and press Ctrl+G to " +
+      "group them, so they move and scale as one piece. The Layers panel handles stacking " +
+      "order, renaming, hiding and locking.",
   },
   {
     title: "5. Export",

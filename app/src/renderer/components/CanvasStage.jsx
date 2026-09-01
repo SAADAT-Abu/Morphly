@@ -28,7 +28,8 @@ import {
 } from "react-konva";
 
 import { useStore } from "../store";
-import { useSvgImage } from "../lib/useSvgImage";
+import { useSvgImage, useSvgImageFromText } from "../lib/useSvgImage";
+import { buildIsolationSvg, effectiveColorMap } from "../lib/svgPalette";
 import { computeSnap, pointsBounds } from "../lib/geometry";
 
 const SNAP_THRESHOLD = 6; // canvas units, scaled by zoom at call time
@@ -37,8 +38,32 @@ const SNAP_THRESHOLD = 6; // canvas units, scaled by zoom at call time
 // One element
 // ---------------------------------------------------------------------------
 
+/**
+ * Paints only the shapes using one colour, in a vivid highlight, on top of the
+ * artwork. This is what makes the colour panel legible: on a drawing with
+ * twenty colours and hundreds of shapes, the swatch alone says nothing about
+ * which part it controls.
+ */
+function ColorHighlight({ element, hex }) {
+  const isolated = useMemo(
+    () => buildIsolationSvg(element.svgSource, element.palette ?? [], hex),
+    [element.svgSource, element.palette, hex]
+  );
+  const image = useSvgImageFromText(isolated);
+  if (!image) return null;
+  return (
+    <KonvaImage
+      image={image}
+      width={element.width}
+      height={element.height}
+      listening={false}
+      opacity={0.95}
+    />
+  );
+}
+
 function AssetShape({ element }) {
-  const image = useSvgImage(element.svgSource, element.colorMap);
+  const image = useSvgImage(element.svgSource, effectiveColorMap(element));
   if (!image) {
     // Placeholder while the SVG rasterises, so the element still has a
     // visible, selectable footprint.
@@ -136,6 +161,35 @@ function ElementShape({ element }) {
   }
 }
 
+/**
+ * Centred caption drawn inside a shape. Konva's verticalAlign needs an
+ * explicit height, so the label box matches the shape box exactly and the text
+ * sits in the middle of it whatever the shape is.
+ */
+function ShapeLabel({ element }) {
+  if (!element.label) return null;
+  return (
+    <KonvaText
+      text={element.label}
+      x={0}
+      y={0}
+      width={element.width}
+      height={element.height}
+      align="center"
+      verticalAlign="middle"
+      fontSize={element.labelSize ?? 16}
+      fontFamily={element.labelFont ?? "Helvetica"}
+      fill={element.labelColor ?? "#ffffff"}
+      listening={false}
+      wrap="word"
+      padding={4}
+    />
+  );
+}
+
+/** Shapes that can carry a centred caption. */
+const LABELLABLE = ["rect", "ellipse", "triangle"];
+
 // ---------------------------------------------------------------------------
 // Stage
 // ---------------------------------------------------------------------------
@@ -147,9 +201,11 @@ export default function CanvasStage({ stageRef, onRequestTextEdit, onExternalDro
   const zoom = useStore((s) => s.zoom);
   const stagePos = useStore((s) => s.stagePos);
   const activeTool = useStore((s) => s.activeTool);
+  const highlight = useStore((s) => s.highlight);
 
-  const setSelection = useStore((s) => s.setSelection);
+  const selectWithGroups = useStore((s) => s.selectWithGroups);
   const toggleSelection = useStore((s) => s.toggleSelection);
+  const nudgeSelected = useStore((s) => s.nudgeSelected);
   const clearSelection = useStore((s) => s.clearSelection);
   const updateElement = useStore((s) => s.updateElement);
   const setZoom = useStore((s) => s.setZoom);
@@ -165,6 +221,9 @@ export default function CanvasStage({ stageRef, onRequestTextEdit, onExternalDro
   const [size, setSize] = useState({ width: 800, height: 600 });
   const [guides, setGuides] = useState({ vertical: null, horizontal: null });
   const [isPanning, setIsPanning] = useState(false);
+  /** Positions of every selected element when a drag began, so a group can be
+   *  moved as one piece. */
+  const dragStartRef = useRef(null);
 
   // Keep the stage sized to its container.
   useEffect(() => {
@@ -247,15 +306,47 @@ export default function CanvasStage({ stageRef, onRequestTextEdit, onExternalDro
 
   // -- drag with snapping ---------------------------------------------------
 
+  const handleDragStart = useCallback(
+    (element) => {
+      commit();
+      // Record where everything started so companions can follow exactly,
+      // without accumulating rounding drift across many small moves.
+      const ids = selectedIds.includes(element.id) ? selectedIds : [element.id];
+      dragStartRef.current = {
+        origin: { x: element.x, y: element.y },
+        members: elements
+          .filter((el) => ids.includes(el.id) && el.id !== element.id && !el.locked)
+          .map((el) => ({ id: el.id, x: el.x, y: el.y })),
+      };
+    },
+    [commit, selectedIds, elements]
+  );
+
   const handleDragMove = useCallback(
     (e, element) => {
       const node = e.target;
-      const others = elements.filter((el) => el.id !== element.id && el.visible);
+      const start = dragStartRef.current;
+
+      // Snap against everything that isn't moving with us.
+      const movingIds = new Set([element.id, ...(start?.members ?? []).map((m) => m.id)]);
+      const others = elements.filter((el) => !movingIds.has(el.id) && el.visible);
       const dragged = { ...element, x: node.x(), y: node.y() };
       const snap = computeSnap(dragged, others, canvas, SNAP_THRESHOLD / zoom);
       node.x(snap.x);
       node.y(snap.y);
       setGuides(snap.guides);
+
+      if (start) {
+        const dx = snap.x - start.origin.x;
+        const dy = snap.y - start.origin.y;
+        for (const member of start.members) {
+          const companion = nodeRefs.current.get(member.id);
+          if (companion) {
+            companion.x(member.x + dx);
+            companion.y(member.y + dy);
+          }
+        }
+      }
     },
     [elements, canvas, zoom]
   );
@@ -263,7 +354,27 @@ export default function CanvasStage({ stageRef, onRequestTextEdit, onExternalDro
   const handleDragEnd = useCallback(
     (e, element) => {
       setGuides({ vertical: null, horizontal: null });
-      updateElement(element.id, { x: e.target.x(), y: e.target.y() });
+      const start = dragStartRef.current;
+      const x = e.target.x();
+      const y = e.target.y();
+
+      if (start && start.members.length > 0) {
+        // Commit the whole move in one update, without a second history entry
+        // (handleDragStart already pushed one).
+        const dx = x - start.origin.x;
+        const dy = y - start.origin.y;
+        useStore.setState((s) => ({
+          elements: s.elements.map((el) => {
+            if (el.id === element.id) return { ...el, x, y };
+            const member = start.members.find((m) => m.id === el.id);
+            return member ? { ...el, x: member.x + dx, y: member.y + dy } : el;
+          }),
+          dirty: true,
+        }));
+      } else {
+        updateElement(element.id, { x, y }, { commit: false });
+      }
+      dragStartRef.current = null;
     },
     [updateElement]
   );
@@ -393,18 +504,25 @@ export default function CanvasStage({ stageRef, onRequestTextEdit, onExternalDro
                 if (activeTool !== "select" || element.locked) return;
                 e.cancelBubble = true;
                 if (e.evt.shiftKey) toggleSelection(element.id);
-                else if (!selectedIds.includes(element.id)) setSelection([element.id]);
+                else if (!selectedIds.includes(element.id)) selectWithGroups([element.id]);
               }}
               onDblClick={() => {
-                if (element.type === "text" && !element.locked) onRequestTextEdit(element.id);
+                if (element.locked) return;
+                if (element.type === "text" || LABELLABLE.includes(element.type)) {
+                  onRequestTextEdit(element.id);
+                }
               }}
-              onDragStart={() => commit()}
+              onDragStart={() => handleDragStart(element)}
               onDragMove={(e) => handleDragMove(e, element)}
               onDragEnd={(e) => handleDragEnd(e, element)}
               onTransformStart={() => commit()}
               onTransformEnd={(e) => handleTransformEnd(e, element)}
             >
               <ElementShape element={element} />
+              {LABELLABLE.includes(element.type) && <ShapeLabel element={element} />}
+              {highlight?.elementId === element.id && element.type === "asset" && (
+                <ColorHighlight element={element} hex={highlight.hex} />
+              )}
             </Group>
           ))}
 

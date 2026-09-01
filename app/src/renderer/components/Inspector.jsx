@@ -82,19 +82,31 @@ const SWATCH_CAP = 24;
 function RecolorPanel({ element }) {
   const setAssetColor = useStore((s) => s.setAssetColor);
   const resetAssetColors = useStore((s) => s.resetAssetColors);
+  const toggleAssetColorHidden = useStore((s) => s.toggleAssetColorHidden);
+  const setHighlight = useStore((s) => s.setHighlight);
   const [showAll, setShowAll] = React.useState(false);
+
+  // Never leave a highlight painted on the canvas after the panel goes away,
+  // whether from deselecting, deleting, or switching to another element.
+  React.useEffect(() => {
+    setHighlight(null);
+    return () => setHighlight(null);
+  }, [element.id, setHighlight]);
 
   // Palette is cached on the element at placement time; recompute defensively
   // for documents saved before the field existed.
   const palette = element.palette?.length ? element.palette : extractPalette(element.svgSource);
   const changed = Object.keys(element.colorMap ?? {}).length;
+  const hidden = new Set(element.hiddenColors ?? []);
 
   // Always keep colours the user has already changed visible, even if they
   // fall outside the cap -- otherwise an edit could scroll out of reach.
   const capped = showAll
     ? palette
-    : palette.filter((p, i) => i < SWATCH_CAP || element.colorMap?.[p.hex]);
-  const hidden = palette.length - capped.length;
+    : palette.filter(
+        (p, i) => i < SWATCH_CAP || element.colorMap?.[p.hex] || hidden.has(p.hex)
+      );
+  const notShown = palette.length - capped.length;
 
   if (palette.length === 0) {
     return (
@@ -107,27 +119,35 @@ function RecolorPanel({ element }) {
   return (
     <Section title={`Colours (${palette.length})`}>
       <p className="hint">
-        Each swatch is one colour used across the whole illustration. Changing it
-        recolours every shape that uses it
-        {palette.length > SWATCH_CAP ? ", most-used first" : ""}.
+        Each swatch is one colour used across the whole illustration. Hover a row to
+        see which parts it controls, change it to recolour them, or use the eye to
+        remove them
+        {palette.length > SWATCH_CAP ? ". Most-used first" : ""}.
       </p>
       <div className="swatch-list">
         {capped.map(({ hex, count }) => {
           const current = element.colorMap?.[hex] ?? hex;
           const isChanged = current !== hex;
+          const isHidden = hidden.has(hex);
           return (
-            <div className={`swatch-row${isChanged ? " changed" : ""}`} key={hex}>
+            <div
+              className={`swatch-row${isChanged ? " changed" : ""}${isHidden ? " removed" : ""}`}
+              key={hex}
+              onMouseEnter={() => setHighlight({ elementId: element.id, hex })}
+              onMouseLeave={() => setHighlight(null)}
+            >
               <input
                 type="color"
                 value={current}
+                disabled={isHidden}
                 onChange={(e) => setAssetColor(element.id, hex, e.target.value)}
-                title={`${hex}${isChanged ? ` → ${current}` : ""}`}
+                title={`${hex}${isChanged ? ` changed to ${current}` : ""}`}
               />
               <span className="swatch-hex">{current}</span>
               <span className="swatch-count" title={`${count} rule(s) use this colour`}>
-                ×{count}
+                x{count}
               </span>
-              {isChanged && (
+              {isChanged && !isHidden && (
                 <button
                   className="link"
                   onClick={() => setAssetColor(element.id, hex, null)}
@@ -136,13 +156,20 @@ function RecolorPanel({ element }) {
                   reset
                 </button>
               )}
+              <button
+                className="icon"
+                onClick={() => toggleAssetColorHidden(element.id, hex)}
+                title={isHidden ? "Restore these parts" : "Remove these parts"}
+              >
+                {isHidden ? "\u{1F441}\u{200D}\u{1F5E8}" : "\u{2716}"}
+              </button>
             </div>
           );
         })}
       </div>
-      {hidden > 0 && (
+      {notShown > 0 && (
         <button className="ghost small" onClick={() => setShowAll(true)}>
-          Show {hidden} more colour{hidden === 1 ? "" : "s"}
+          Show {notShown} more colour{notShown === 1 ? "" : "s"}
         </button>
       )}
       {showAll && palette.length > SWATCH_CAP && (
@@ -150,9 +177,9 @@ function RecolorPanel({ element }) {
           Show fewer
         </button>
       )}
-      {changed > 0 && (
+      {(changed > 0 || hidden.size > 0) && (
         <button className="ghost" onClick={() => resetAssetColors(element.id)}>
-          Reset all {changed} change{changed === 1 ? "" : "s"}
+          Restore original artwork
         </button>
       )}
     </Section>
@@ -261,6 +288,7 @@ function ShapeFields({ element }) {
   const isLine = element.type === "line" || element.type === "arrow";
 
   return (
+    <>
     <Section title="Shape">
       {element.type === "arrow" && (
         <div className="segmented" role="group" aria-label="Arrow heads">
@@ -300,6 +328,49 @@ function ShapeFields({ element }) {
         )}
       </div>
     </Section>
+
+    {!isLine && (
+      <Section title="Label">
+        <textarea
+          className="text-input"
+          rows={2}
+          placeholder="Text inside the shape"
+          value={element.label ?? ""}
+          onChange={(e) => set({ label: e.target.value })}
+        />
+        {element.label ? (
+          <div className="field-grid">
+            <NumberField
+              label="Size"
+              value={element.labelSize ?? 16}
+              onChange={(v) => set({ labelSize: Math.max(4, v) })}
+            />
+            <Field label="Colour">
+              <input
+                type="color"
+                value={element.labelColor ?? "#ffffff"}
+                onChange={(e) => set({ labelColor: e.target.value })}
+              />
+            </Field>
+            <Field label="Font">
+              <select
+                value={element.labelFont ?? "Helvetica"}
+                onChange={(e) => set({ labelFont: e.target.value })}
+              >
+                {["Helvetica", "Arial", "Times New Roman", "Georgia", "Courier New", "Verdana"].map(
+                  (f) => (
+                    <option key={f}>{f}</option>
+                  )
+                )}
+              </select>
+            </Field>
+          </div>
+        ) : (
+          <p className="hint">Double-click the shape on the canvas to label it.</p>
+        )}
+      </Section>
+    )}
+    </>
   );
 }
 

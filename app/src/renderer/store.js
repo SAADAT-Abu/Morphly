@@ -11,6 +11,8 @@
 import { create } from "zustand";
 import { extractPalette, parseViewBox } from "./lib/svgPalette";
 
+let groupCounter = 0;
+
 let idCounter = 0;
 const nextId = () => `el_${Date.now().toString(36)}_${(idCounter++).toString(36)}`;
 
@@ -49,6 +51,9 @@ export const useStore = create((set, get) => ({
   lastArrowHeads: "end",
   library: null,
   libraryError: null,
+  /** Which colour part to highlight on canvas: { elementId, hex } or null.
+   *  Purely a view concern, so it is never saved or undone. */
+  highlight: null,
   projectPath: null,
   dirty: false,
 
@@ -98,15 +103,86 @@ export const useStore = create((set, get) => ({
 
   // -- selection -----------------------------------------------------------
   setSelection: (ids) => set({ selectedIds: ids }),
-  toggleSelection: (id) =>
-    set((s) => ({
-      selectedIds: s.selectedIds.includes(id)
-        ? s.selectedIds.filter((x) => x !== id)
-        : [...s.selectedIds, id],
-    })),
+
+  /**
+   * Expand a set of ids to include every member of any group they belong to.
+   * Selecting one member of a group selects the whole group, which is the
+   * behaviour that makes grouping worth having.
+   */
+  expandToGroups: (ids) => {
+    const { elements } = get();
+    const groups = new Set(
+      elements.filter((el) => ids.includes(el.id) && el.groupId).map((el) => el.groupId)
+    );
+    if (groups.size === 0) return ids;
+    const expanded = new Set(ids);
+    for (const el of elements) if (el.groupId && groups.has(el.groupId)) expanded.add(el.id);
+    return [...expanded];
+  },
+
+  selectWithGroups: (ids) => set({ selectedIds: get().expandToGroups(ids) }),
+
+  toggleSelection: (id) => {
+    const { selectedIds, expandToGroups } = get();
+    const members = expandToGroups([id]);
+    const alreadyIn = members.every((m) => selectedIds.includes(m));
+    set({
+      selectedIds: alreadyIn
+        ? selectedIds.filter((x) => !members.includes(x))
+        : [...new Set([...selectedIds, ...members])],
+    });
+  },
   selectAll: () =>
     set((s) => ({ selectedIds: s.elements.filter((e) => !e.locked && e.visible).map((e) => e.id) })),
   clearSelection: () => set({ selectedIds: [] }),
+
+  /** Group the current selection. Groups are flat: grouping elements that are
+   *  already in other groups merges them all into one, rather than nesting,
+   *  which keeps selection and z-order easy to reason about. */
+  groupSelected: () => {
+    const { selectedIds, elements } = get();
+    if (selectedIds.length < 2) return;
+    const groupId = `g_${Date.now().toString(36)}_${(groupCounter++).toString(36)}`;
+    get().commit();
+    set({
+      elements: elements.map((el) =>
+        selectedIds.includes(el.id) ? { ...el, groupId } : el
+      ),
+      dirty: true,
+    });
+  },
+
+  ungroupSelected: () => {
+    const { selectedIds, elements } = get();
+    const groups = new Set(
+      elements.filter((el) => selectedIds.includes(el.id) && el.groupId).map((el) => el.groupId)
+    );
+    if (groups.size === 0) return;
+    get().commit();
+    set({
+      elements: elements.map((el) =>
+        el.groupId && groups.has(el.groupId) ? { ...el, groupId: null } : el
+      ),
+      dirty: true,
+    });
+  },
+
+  /** Move every selected element by the same delta, for dragging a group or a
+   *  multi-selection as one piece. */
+  nudgeSelected: (dx, dy, { commit = true } = {}) => {
+    if (commit) get().commit();
+    const { selectedIds } = get();
+    set((s) => ({
+      elements: s.elements.map((el) =>
+        selectedIds.includes(el.id) && !el.locked
+          ? { ...el, x: el.x + dx, y: el.y + dy }
+          : el
+      ),
+      dirty: true,
+    }));
+  },
+
+  setHighlight: (highlight) => set({ highlight }),
 
   setTool: (activeTool) => set({ activeTool }),
   setZoom: (zoom) => set({ zoom: Math.min(4, Math.max(0.05, zoom)) }),
@@ -144,13 +220,23 @@ export const useStore = create((set, get) => ({
       strokeWidth: 2,
     };
 
+    // Boxes and circles in scientific figures are usually labelled, so shapes
+    // carry their own centred caption rather than needing a separate text
+    // element positioned on top and kept in sync by hand.
+    const labelled = {
+      label: "",
+      labelSize: Math.round(Math.min(canvas.width, canvas.height) * 0.028),
+      labelColor: "#ffffff",
+      labelFont: "Helvetica",
+    };
+
     let element;
     if (type === "rect") {
-      element = get()._base({ ...common, name: "Rectangle", width: size, height: size * 0.7, cornerRadius: 0 });
+      element = get()._base({ ...common, ...labelled, name: "Rectangle", width: size, height: size * 0.7, cornerRadius: 0 });
     } else if (type === "ellipse") {
-      element = get()._base({ ...common, name: "Ellipse", width: size, height: size });
+      element = get()._base({ ...common, ...labelled, name: "Ellipse", width: size, height: size });
     } else if (type === "triangle") {
-      element = get()._base({ ...common, name: "Triangle", width: size, height: size });
+      element = get()._base({ ...common, ...labelled, name: "Triangle", width: size, height: size });
     } else if (type === "line" || type === "arrow") {
       element = get()._base({
         ...common,
@@ -217,6 +303,7 @@ export const useStore = create((set, get) => ({
       height,
       svgSource,
       colorMap: {},
+      hiddenColors: [],
       palette: extractPalette(svgSource),
       assetId: asset.id,
       variantGroupId: variant.groupId,
@@ -290,7 +377,29 @@ export const useStore = create((set, get) => ({
   resetAssetColors: (id) => {
     get().commit();
     set((s) => ({
-      elements: s.elements.map((el) => (el.id === id ? { ...el, colorMap: {} } : el)),
+      elements: s.elements.map((el) =>
+        el.id === id ? { ...el, colorMap: {}, hiddenColors: [] } : el
+      ),
+      dirty: true,
+    }));
+  },
+
+  /**
+   * Hide or restore every shape drawn in one colour.
+   *
+   * This is how "delete part of a vector" works. Hidden colours are stored as
+   * a list and applied as `fill: none` at draw time, so removal is reversible
+   * and the original file is never altered.
+   */
+  toggleAssetColorHidden: (id, hex) => {
+    get().commit();
+    set((s) => ({
+      elements: s.elements.map((el) => {
+        if (el.id !== id || el.type !== "asset") return el;
+        const hidden = new Set(el.hiddenColors ?? []);
+        hidden.has(hex) ? hidden.delete(hex) : hidden.add(hex);
+        return { ...el, hiddenColors: [...hidden] };
+      }),
       dirty: true,
     }));
   },
@@ -310,9 +419,28 @@ export const useStore = create((set, get) => ({
     const { selectedIds, elements } = get();
     if (selectedIds.length === 0) return;
     get().commit();
+    // Duplicating a group should produce a new group, not silently add the
+    // copies to the original one and not scatter them as loose elements.
+    const remap = new Map();
     const copies = elements
       .filter((el) => selectedIds.includes(el.id))
-      .map((el) => ({ ...el, id: nextId(), x: el.x + 24, y: el.y + 24, name: `${el.name} copy` }));
+      .map((el) => {
+        let groupId = null;
+        if (el.groupId) {
+          if (!remap.has(el.groupId)) {
+            remap.set(el.groupId, `g_${Date.now().toString(36)}_${(groupCounter++).toString(36)}`);
+          }
+          groupId = remap.get(el.groupId);
+        }
+        return {
+          ...el,
+          id: nextId(),
+          x: el.x + 24,
+          y: el.y + 24,
+          name: `${el.name} copy`,
+          groupId,
+        };
+      });
     set((s) => ({
       elements: [...s.elements, ...copies],
       selectedIds: copies.map((c) => c.id),

@@ -17,6 +17,9 @@ app/out/
 dist/
 release/
 
+# Project brief for Claude Code — local working notes, not part of the release
+CLAUDE.md
+
 # OS / editor
 .DS_Store
 Thumbs.db

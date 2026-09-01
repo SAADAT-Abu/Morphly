@@ -1,0 +1,21 @@
+# Scraped asset library — large, regenerate locally with scraper/bioart_scraper.py
+bioart_library/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Node / Electron
+node_modules/
+app/dist/
+app/out/
+dist/
+release/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

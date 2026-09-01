@@ -63,7 +63,9 @@ async function readSettings() {
   try {
     raw = JSON.parse(await fs.readFile(settingsPath(), "utf8"));
   } catch {
-    return { ...DEFAULTS };
+    // No settings file yet, or an unreadable one: fall through on defaults so
+    // a first run still picks up the libraries the build ships with.
+    raw = {};
   }
 
   const settings = { ...DEFAULTS, ...raw };

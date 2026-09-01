@@ -22,12 +22,14 @@ as the asset panel.
 ## Architecture (3 phases)
 
 1. **Asset pipeline (Python)** — scrape BioArt into a local, categorized
-   library + JSON manifest. DONE (v1) — see `bioart_scraper.py`.
-2. **Editor shell (Electron + React + Polotno)** — canvas editor with the
+   library + JSON manifest. DONE (v2) — see `scraper/bioart_scraper.py`.
+2. **Editor shell (Electron + React + Konva)** — canvas editor with the
    BioArt manifest as a searchable/browsable sidebar, drag-drop onto
-   canvas, shape/text tools, SVG recolor, export. NOT STARTED.
+   canvas, shape/text tools, SVG recolor, export. BUILT (v0.1) — see `app/`.
+   Note: Konva, not Polotno; Polotno turned out to require a paid
+   subscription for any production use.
 3. **Packaging (electron-builder)** — produce a real installable desktop
-   app (.dmg / .exe / .AppImage). NOT STARTED.
+   app (.dmg / .exe / .AppImage). CONFIGURED, NOT YET BUILT.
 
 ## Phase 1 — Asset pipeline (done, v1)
 
@@ -124,51 +126,103 @@ SVGs don't already provide. The sidebar renders the SVGs directly. Use
 `--formats SVG,PNG,AI` if raster previews or Illustrator sources are ever
 needed.
 
-## Phase 2 — Editor shell (to build)
+## Phase 2 — Editor shell (BUILT, v0.1)
 
-**Stack decision**: Electron (desktop, per user preference) + React +
-[Polotno](https://polotno.com) as the canvas engine, rather than building
-a canvas editor from scratch or forking Excalidraw/tldraw (those are
-diagram/whiteboard-first; Polotno is a Canva-style design editor and is
-the closer match to BioRender's actual feature set — layers, shapes, text,
-image placement, export).
+**Stack decision CHANGED (2026-09-01): Konva, not Polotno.**
 
-**Core features to implement**:
-- Electron shell wrapping a React renderer running Polotno's `<Workspace>`
-  canvas.
-- Left sidebar: reads `manifest.json` from Phase 1, groups assets by
-  `category`, with a search box filtering on `title` + `keywords`.
-- Drag-from-sidebar → `store.activePage.addElement()` (Polotno API) to
-  place an asset on canvas.
-- Shape tools (rect, circle, line, arrow) and text boxes — Polotno ships
-  these natively, just needs toolbar wiring.
-- SVG recolor panel: **measured on a 26-file sample — BioArt SVGs are
-  overwhelmingly multi-color** (1/2/3/5/6/13/14/15/21 distinct hex colors;
-  median ~5, and 25–500 shape elements each). A single fill swap is not
-  enough. Build a **palette-swap panel**: parse the SVG, collect its
-  distinct `fill`/`stroke` values into a swatch list, and let the user remap
-  each one — that keeps shading and outlines intact, which per-path controls
-  at 500 shapes would not.
-- Export: PNG/SVG/PDF via Polotno's built-in export, with an option to
-  auto-append the citation string(s) for any BioArt assets used in the
-  figure.
-- Layer panel, undo/redo, alignment guides — check what Polotno provides
-  out of the box before building custom.
+The brief said to check Polotno's licensing before committing to it. Checked —
+`polotno@4.11.0`'s LICENSE.md reads:
 
-**Not yet decided / to figure out during build**:
-- Whether to bundle the BioArt library inside the app or point at a local
-  folder path the user configures (bundling ~2,000 SVGs could bloat the
-  installer; a "point at your scraped folder" setting may be simpler for
-  v1).
-- Whether Polotno's free tier covers everything needed or if any features
-  require their paid SDK key — check before committing to it as the base.
-- How to present multi-variant entries in the sidebar (see file-group note
-  in Phase 1).
+> You can use this package for evaluation, development, and testing for 60
+> days. After 60 days, all use requires a valid Polotno subscription.
+> Production use requires a valid Polotno subscription at any time. Production
+> use is use of this package in a live product, service, or internal tool,
+> including a tool that only your own employees use.
 
-## Phase 3 — Packaging (to build)
+A paid dependency defeats the project's whole premise — Morphly exists because
+BioRender is proprietary and paid. So the canvas is built on **Konva +
+react-konva (MIT)**, which is the engine Polotno itself is built on. What we
+give up is Polotno's ready-made toolbar/layer scaffolding; what was always
+going to be custom — the BioArt sidebar and the palette recolour — is
+unaffected.
 
-`electron-builder` config to produce `.dmg` (mac) / `.exe` (Windows) /
-`.AppImage` (Linux) installers.
+**Stack**: Electron 38 + React 19 + react-konva (Konva 10) + Zustand 5, bundled
+by Vite 7. Plain JavaScript, no TypeScript.
+
+**What works**:
+- Asset sidebar reading `manifest.json`, with search over title + keywords
+  (all terms must match, so "green virus" narrows), category filter, and
+  paged rendering so 2,000 assets don't all mount at once.
+- Multi-variant entries collapse to one tile with an expandable variant strip.
+- Click a thumbnail to place centred, or drag it onto the canvas to drop it
+  under the cursor.
+- Shapes: rectangle (corner radius), ellipse, triangle, line, arrow. Text with
+  font/size/style/alignment/colour and double-click inline editing.
+- **SVG palette recolour** — see the recolour note below.
+- Select / move / resize / rotate, multi-select, snapping guides against the
+  canvas centre, canvas edges and other elements' edges.
+- Layers panel: reorder by drag, rename, hide, lock, z-order buttons.
+- Undo/redo (snapshot-based, 100 steps), duplicate, delete, arrow-key nudge,
+  align to canvas or to selection.
+- Zoom/pan (Ctrl+wheel to zoom, space-drag to pan, Ctrl+0 to fit).
+- Save/open `.morphly` project files (JSON).
+- Export PNG (1×/2×/4×, optional transparency), **SVG and PDF as true
+  vectors**, with optional auto-appended BioArt citations.
+- Keyboard shortcuts: V/R/O/L/A/T tools, Ctrl+Z/Y, Ctrl+S/O/N/D/A, Ctrl+0,
+  Delete, Escape.
+
+**How the recolour works** (the measured design, now implemented): BioArt SVGs
+carry ~5 distinct colours on average (up to 21) across 25–500 shapes, and
+crucially **most colours live in CSS rules inside a `<style>` block**, not on
+`fill=` attributes:
+
+```
+.cls-2, .cls-3 { fill: #c5f8f6; }
+.cls-3, .cls-4 { stroke: #465b5a; stroke-width: 2.19px; }
+```
+
+An attribute-only recolour would silently miss most of the artwork.
+`src/renderer/lib/svgPalette.js` handles both the attribute and the CSS
+declaration form, skips `none` / `url(#...)` / gradients, and is careful not to
+match `stroke-width` or `stroke-miterlimit`. Colour normalisation goes through
+a canvas 2D context, so named colours and `rgb()` work without a lookup table.
+
+Recolouring is **non-destructive**: the element stores the untouched SVG text
+plus a `{ fromColour: toColour }` map applied at render time, so every swatch
+can be reset and the source is never lost.
+
+Every BioArt SVG uses `ns0:`-prefixed element names, which is why the recolour
+is textual rather than DOM-based — a serialise/reparse round trip tends to
+mangle those prefixes. For the same reason SVG export inlines assets as nested
+`<svg>` elements, which keeps each file's own namespace declarations intact.
+Verified: exported SVGs render correctly in librsvg, not just in the app.
+
+**Resolved open questions**:
+- Polotno's free tier — resolved above; not usable, switched to Konva.
+- Bundle the library vs. point at a folder — **points at a folder**. The path
+  is stored in the app's user-data settings, not in the project. Keeps the
+  installer small and lets the library be re-scraped independently.
+
+**To run**:
+```bash
+cd app
+npm install
+npm run dev          # Vite dev server + Electron
+npm start            # production build, then Electron
+```
+On first launch, choose the folder containing `manifest.json`.
+
+**Known gaps / next up**:
+- PNG export does not draw the citation footer (SVG and PDF do); the dialog
+  says so rather than silently dropping it.
+- Rotation is ignored when computing snapping/alignment boxes.
+- No grouping of elements, and no image import beyond the BioArt library.
+
+## Phase 3 — Packaging (config in place, not yet exercised)
+
+`electron-builder` is configured in `app/package.json` for `.AppImage`
+(Linux), `.exe`/NSIS (Windows) and `.dmg` (mac). Run `npm run dist` in `app/`.
+Not yet built or tested on any platform.
 
 ## Repo layout (current)
 
@@ -177,10 +231,17 @@ Morphly/
   scraper/
     bioart_scraper.py
     requirements.txt
-  app/                      <- Electron + React + Polotno (empty scaffold)
+  app/                      <- Electron + React + Konva editor
     src/
-      main/                 <- Electron main process
-      renderer/             <- React app (canvas, sidebar, toolbar)
+      main/                 <- main.js (window + morphly-asset:// protocol),
+                               ipc.js, library.js, settings.js, preload.js
+      renderer/
+        App.jsx             <- layout, shortcuts, save/open, text overlay
+        store.js            <- Zustand document + history
+        lib/                <- svgPalette.js (recolour), exporters.js,
+                               geometry.js (snapping), useSvgImage.js
+        components/         <- Toolbar, AssetLibrary, CanvasStage,
+                               Inspector, LayersPanel, ExportDialog
     package.json
   bioart_library/            <- output of scraper (gitignored — large, regenerate locally)
   CLAUDE.md
@@ -192,7 +253,10 @@ Morphly/
    vectors confirmed.
 2. ~~DevTools network check on BioArt's real download flow.~~ DONE — see
    `filemapping` note above; scraper v2 pulls true SVGs.
-3. Scaffold the Electron + React + Polotno shell, wire in the manifest as
-   the sidebar asset source.
-4. Get basic drag-drop-to-canvas working end to end before adding recolor/
-   export polish.
+3. ~~Scaffold the editor shell and wire in the manifest as the sidebar asset
+   source.~~ DONE — on Konva rather than Polotno, see Phase 2.
+4. ~~Get drag-drop-to-canvas working end to end.~~ DONE, along with recolour
+   and PNG/SVG/PDF export.
+5. Let the full scrape finish, then exercise the app against the complete
+   ~2,000-entry library.
+6. Build and test installers (`npm run dist`).

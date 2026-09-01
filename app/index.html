@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- The renderer only ever loads its own bundle plus morphly-asset:// and
+         data: images, so the policy can stay tight. -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; img-src 'self' data: blob: morphly-asset:; style-src 'self' 'unsafe-inline'; script-src 'self'"
+    />
+    <title>Morphly</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/renderer/main.jsx"></script>
+  </body>
+</html>

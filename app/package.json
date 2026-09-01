@@ -1,0 +1,41 @@
+{
+  "name": "morphly",
+  "productName": "Morphly",
+  "version": "0.1.0",
+  "description": "A free, offline scientific figure editor built on the NIH BioArt Source library",
+  "author": "Abu Saadat",
+  "license": "MIT",
+  "main": "src/main/main.js",
+  "scripts": {
+    "dev": "concurrently -k -n vite,electron -c cyan,magenta \"npm:dev:renderer\" \"npm:dev:electron\"",
+    "dev:renderer": "vite",
+    "dev:electron": "wait-on tcp:5173 && electron .",
+    "build": "vite build",
+    "start": "npm run build && electron .",
+    "dist": "npm run build && electron-builder"
+  },
+  "dependencies": {
+    "konva": "^10.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-konva": "^19.0.0",
+    "zustand": "^5.0.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^5.0.0",
+    "concurrently": "^9.0.0",
+    "electron": "^38.0.0",
+    "electron-builder": "^26.0.0",
+    "vite": "^7.0.0",
+    "wait-on": "^8.0.0"
+  },
+  "build": {
+    "appId": "com.abusaadat.morphly",
+    "productName": "Morphly",
+    "files": ["src/main/**/*", "dist/**/*", "package.json"],
+    "directories": { "output": "release" },
+    "linux": { "target": ["AppImage"], "category": "Science" },
+    "win": { "target": ["nsis"] },
+    "mac": { "target": ["dmg"], "category": "public.app-category.graphics-design" }
+  }
+}

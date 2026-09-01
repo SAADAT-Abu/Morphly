@@ -17,6 +17,8 @@ const DEFAULTS = {
   /** [{ key, dir }] -- several libraries can be mounted at once. */
   libraries: [],
   recentProjects: [],
+  /** Welcome screen shows until the user opts out of it. */
+  showWelcome: true,
 };
 
 const settingsPath = () => path.join(app.getPath("userData"), "settings.json");

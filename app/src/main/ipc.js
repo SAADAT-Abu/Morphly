@@ -21,6 +21,9 @@ const fail = (err) => ({ ok: false, error: String(err?.message ?? err) });
 function registerIpc() {
   // -- settings ------------------------------------------------------------
   ipcMain.handle("settings:get", async () => ok({ settings: await readSettings() }));
+  ipcMain.handle("settings:set", async (_event, patch) =>
+    ok({ settings: await writeSettings(patch) })
+  );
 
   // -- library -------------------------------------------------------------
 

@@ -6,6 +6,8 @@ import CanvasStage from "./components/CanvasStage";
 import Inspector from "./components/Inspector";
 import LayersPanel from "./components/LayersPanel";
 import ExportDialog from "./components/ExportDialog";
+import HelpDialog from "./components/HelpDialog";
+import WelcomeDialog from "./components/WelcomeDialog";
 import { useStore } from "./store";
 
 export default function App() {
@@ -15,6 +17,9 @@ export default function App() {
   const [exportOpen, setExportOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [toast, setToast] = useState(null);
+  /** null when closed, otherwise the tab to open Help on. */
+  const [helpTab, setHelpTab] = useState(null);
+  const [welcomeOpen, setWelcomeOpen] = useState(false);
 
   const store = useStore;
   const elements = useStore((s) => s.elements);
@@ -27,12 +32,29 @@ export default function App() {
   const setZoom = useStore((s) => s.setZoom);
   const setStagePos = useStore((s) => s.setStagePos);
   const loadDocument = useStore((s) => s.loadDocument);
+  const addLibrary = useStore((s) => s.addLibrary);
   const newDocument = useStore((s) => s.newDocument);
   const markSaved = useStore((s) => s.markSaved);
 
   const flash = useCallback((text) => {
     setToast(text);
     window.setTimeout(() => setToast(null), 3200);
+  }, []);
+
+  // Welcome screen on first launch, until the user opts out.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await window.morphly.getSettings();
+        if (!cancelled && res.ok && res.settings.showWelcome !== false) setWelcomeOpen(true);
+      } catch {
+        /* if settings can't be read, just don't show it */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // -- placing assets -------------------------------------------------------
@@ -177,6 +199,9 @@ export default function App() {
       } else if (e.key === "Delete" || e.key === "Backspace") {
         e.preventDefault();
         s.deleteSelected();
+      } else if (e.key === "F1") {
+        e.preventDefault();
+        setHelpTab("start");
       } else if (e.key === "Escape") {
         s.clearSelection();
         s.setTool("select");
@@ -207,6 +232,37 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [store, handleSave, handleOpen, handleNew, fitToScreen]);
 
+  // Menu items are dispatched here rather than acting in the main process, so
+  // each command has exactly one implementation shared with its shortcut.
+  useEffect(() => {
+    const unsubscribe = window.morphly.onMenuAction((action) => {
+      const s = store.getState();
+      switch (action) {
+        case "new": return handleNew();
+        case "open": return handleOpen();
+        case "save": return handleSave(false);
+        case "saveAs": return handleSave(true);
+        case "export": return setExportOpen(true);
+        case "addLibrary": return addLibrary();
+        case "undo": return s.undo();
+        case "redo": return s.redo();
+        case "duplicate": return s.duplicateSelected();
+        case "delete": return s.deleteSelected();
+        case "selectAll": return s.selectAll();
+        case "zoomIn": return s.setZoom(s.zoom * 1.2);
+        case "zoomOut": return s.setZoom(s.zoom / 1.2);
+        case "fit": return fitToScreen();
+        case "welcome": return setWelcomeOpen(true);
+        case "help": return setHelpTab("start");
+        case "help:licensing": return setHelpTab("licensing");
+        case "help:shortcuts": return setHelpTab("shortcuts");
+        case "help:about": return setHelpTab("about");
+        default: return undefined;
+      }
+    });
+    return unsubscribe;
+  }, [store, handleNew, handleOpen, handleSave, fitToScreen, addLibrary]);
+
   // Warn before closing with unsaved work.
   useEffect(() => {
     const onBeforeUnload = (e) => {
@@ -229,6 +285,7 @@ export default function App() {
         onSave={handleSave}
         onExport={() => setExportOpen(true)}
         onFitToScreen={fitToScreen}
+        onHelp={() => setHelpTab("start")}
       />
 
       <div className="workspace">
@@ -258,6 +315,22 @@ export default function App() {
       </div>
 
       {exportOpen && <ExportDialog stageRef={stageRef} onClose={() => setExportOpen(false)} />}
+
+      {helpTab && <HelpDialog initialTab={helpTab} onClose={() => setHelpTab(null)} />}
+
+      {welcomeOpen && (
+        <WelcomeDialog
+          onClose={() => setWelcomeOpen(false)}
+          onOpenHelp={() => {
+            setWelcomeOpen(false);
+            setHelpTab("licensing");
+          }}
+          onAddLibrary={async () => {
+            const res = await addLibrary();
+            if (res.ok) setWelcomeOpen(false);
+          }}
+        />
+      )}
       {toast && <div className="toast">{toast}</div>}
     </div>
   );

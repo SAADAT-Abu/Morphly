@@ -11,6 +11,15 @@ const { contextBridge, ipcRenderer } = require("electron");
 contextBridge.exposeInMainWorld("morphly", {
   // settings
   getSettings: () => ipcRenderer.invoke("settings:get"),
+  setSettings: (patch) => ipcRenderer.invoke("settings:set", patch),
+
+  /** Menu items are routed to the renderer, which owns the editor state.
+   *  Returns an unsubscribe function. */
+  onMenuAction: (callback) => {
+    const handler = (_event, action) => callback(action);
+    ipcRenderer.on("menu:action", handler);
+    return () => ipcRenderer.removeListener("menu:action", handler);
+  },
 
   // asset libraries (several can be mounted at once)
   loadLibrary: () => ipcRenderer.invoke("library:load"),

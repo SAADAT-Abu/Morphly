@@ -53,16 +53,12 @@ export default function AssetLibrary({ onPlaceAsset }) {
     };
   }, [setLibrary, setLibraryError]);
 
+  const addLibraryAction = useStore((s) => s.addLibrary);
+
   const addLibrary = async () => {
     setLoading(true);
-    const res = await window.morphly.addLibrary();
+    await addLibraryAction();
     setLoading(false);
-    if (res.ok) {
-      setLibrary(res.library);
-      setLibraryError(null);
-    } else if (!res.canceled) {
-      setLibraryError(res.error);
-    }
   };
 
   const removeLibrary = async (key) => {

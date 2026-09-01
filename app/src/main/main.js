@@ -22,6 +22,7 @@ const { pathToFileURL } = require("node:url");
 const { libraryDirFor } = require("./settings");
 const { safeResolve } = require("./library");
 const { registerIpc } = require("./ipc");
+const { buildMenu } = require("./menu");
 
 const isDev = !app.isPackaged;
 const DEV_SERVER_URL = "http://localhost:5173";
@@ -97,6 +98,7 @@ app.whenReady().then(() => {
   registerAssetProtocol();
   registerIpc();
   createWindow();
+  buildMenu(() => mainWindow);
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

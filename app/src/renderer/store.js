@@ -401,6 +401,15 @@ export const useStore = create((set, get) => ({
   setLibrary: (library) => set({ library, libraryError: null }),
   setLibraryError: (libraryError) => set({ libraryError, library: null }),
 
+  /** Prompt for a library folder and mount it. Shared by the sidebar, the
+   *  File menu and the welcome screen so there is one implementation. */
+  addLibrary: async () => {
+    const res = await window.morphly.addLibrary();
+    if (res.ok) set({ library: res.library, libraryError: null });
+    else if (!res.canceled) set({ libraryError: res.error });
+    return res;
+  },
+
   // -- document load/replace ----------------------------------------------
 
   loadDocument: (doc, projectPath = null) =>

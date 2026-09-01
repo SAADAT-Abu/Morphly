@@ -11,7 +11,7 @@ const TOOLS = [
   ["text", "Text", "T"],
 ];
 
-export default function Toolbar({ onNew, onOpen, onSave, onExport, onFitToScreen }) {
+export default function Toolbar({ onNew, onOpen, onSave, onExport, onFitToScreen, onHelp }) {
   const activeTool = useStore((s) => s.activeTool);
   const setTool = useStore((s) => s.setTool);
   const undo = useStore((s) => s.undo);
@@ -81,6 +81,7 @@ export default function Toolbar({ onNew, onOpen, onSave, onExport, onFitToScreen
         {dirty && <span className="dot" title="Unsaved changes">•</span>}
       </div>
 
+      <button className="ghost help-btn" onClick={onHelp} title="Help (F1)">?</button>
       <button className="primary" onClick={onExport}>Export…</button>
     </div>
   );

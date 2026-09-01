@@ -222,7 +222,19 @@ by Vite 7. Plain JavaScript, no TypeScript.
 - Export PNG (1×/2×/4×, optional transparency), **SVG and PDF as true
   vectors**, with optional auto-appended BioArt citations.
 - Keyboard shortcuts: V/R/O/L/A/T tools, Ctrl+Z/Y, Ctrl+S/O/N/D/A, Ctrl+0,
-  Delete, Escape.
+  Delete, Escape, F1 for help.
+- Native application menu (File/Edit/View/Help). Menu items dispatch named
+  actions to the renderer rather than acting in the main process, so each
+  command has one implementation shared with its keyboard shortcut.
+- Help window with four tabs: Getting started, Licensing, Shortcuts, About.
+  The Licensing tab explains the PD/BY/SA tiers in plain language and shows
+  live counts from the mounted libraries, so it never goes stale against what
+  is actually loaded.
+- Welcome screen on first launch, with a "don't show again" preference and
+  always reachable from Help. It adapts when no library is mounted, offering
+  the folder picker as the primary action instead of a dead button.
+- Help text lives in `src/renderer/content/helpContent.js` so the welcome
+  screen and help window cannot drift apart.
 
 **How the recolour works** (the measured design, now implemented): BioArt SVGs
 carry ~5 distinct colours on average (up to 21) across 25–500 shapes, and

@@ -62,8 +62,30 @@ else's server.
 
 ### Download a build
 
-> **Coming soon.** Packaged installers (`.AppImage`, `.exe`, `.dmg`) will be
-> published on Zenodo with a citable DOI. The link will appear here.
+Installers for Linux (`.AppImage`, `.deb`), Windows (`.exe`) and macOS
+(`.dmg`) are built automatically for every tagged release and attached to the
+[GitHub releases page](https://github.com/SAADAT-Abu/Morphly/releases).
+
+On Linux, mark the AppImage executable and run it:
+
+```bash
+chmod +x Morphly-0.1.0.AppImage
+./Morphly-0.1.0.AppImage
+```
+
+**The builds are not code-signed.** Morphly is a free academic project and
+Apple and Microsoft both charge for a signing certificate, so your operating
+system will warn you the first time you open the app. This is expected and
+does not mean anything is wrong with the download.
+
+- **macOS**: right-click the app and choose Open, then confirm. Double
+  clicking alone will be blocked by Gatekeeper.
+- **Windows**: SmartScreen shows a blue "Windows protected your PC" screen.
+  Click "More info", then "Run anyway".
+- **Linux**: no warning, the AppImage just needs the executable bit above.
+
+> A Zenodo archive with a citable DOI will be added here once the first
+> release is published.
 
 ### Run from source
 

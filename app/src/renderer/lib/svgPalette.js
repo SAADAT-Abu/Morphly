@@ -164,25 +164,64 @@ export function applyPalette(svgText, colorMap) {
 // Geometry + rasterisation helpers
 // ---------------------------------------------------------------------------
 
-/** Pull the intrinsic size out of a viewBox (BioArt files carry no width/height). */
+/** Pull the viewBox out of an SVG, if it has one. */
 export function parseViewBox(svgText) {
   const m = /viewBox\s*=\s*["']\s*([-\d.eE]+)[\s,]+([-\d.eE]+)[\s,]+([-\d.eE]+)[\s,]+([-\d.eE]+)\s*["']/.exec(
     svgText ?? ""
   );
-  if (!m) return { x: 0, y: 0, width: 512, height: 512 };
-  return { x: +m[1], y: +m[2], width: +m[3] || 512, height: +m[4] || 512 };
+  if (!m) return null;
+  return { x: +m[1], y: +m[2], width: +m[3] || 0, height: +m[4] || 0 };
+}
+
+/** Read a width/height attribute off the root <svg>, if present. */
+function rootLength(svgText, name) {
+  const root = /<(?:\w+:)?svg\b[^>]*>/i.exec(svgText ?? "");
+  if (!root) return null;
+  const m = new RegExp(`\\s${name}\\s*=\\s*["']([^"']+)["']`, "i").exec(root[0]);
+  if (!m) return null;
+  const raw = m[1].trim();
+  // Percentages are relative to a viewport we do not have, so they carry no
+  // intrinsic size and we fall back to the viewBox.
+  if (raw.endsWith("%")) return null;
+  const value = parseFloat(raw);
+  return Number.isFinite(value) && value > 0 ? value : null;
 }
 
 /**
- * Give the root <svg> explicit width/height. Without an intrinsic size, an SVG
- * loaded into an <img> renders at a browser default rather than its true
- * aspect ratio, which would distort every asset placed on the canvas.
+ * The size an asset should be drawn at, and therefore its aspect ratio.
+ *
+ * The author's own width/height wins when they are absolute lengths. Some
+ * files pair those with a viewBox of a completely different shape (one flask
+ * icon declares 350x500 against a viewBox of 880.8x532.8), and in those the
+ * declared size is what makes the drawing appear correctly; substituting the
+ * viewBox dimensions crops the artwork. Only when width/height are missing or
+ * percentage-based does the viewBox decide.
+ */
+export function intrinsicSize(svgText) {
+  const width = rootLength(svgText, "width");
+  const height = rootLength(svgText, "height");
+  if (width && height) return { width, height };
+
+  const box = parseViewBox(svgText);
+  if (box && box.width > 0 && box.height > 0) {
+    return { width: box.width, height: box.height };
+  }
+  return { width: 512, height: 512 };
+}
+
+/**
+ * Guarantee the root <svg> has an explicit size, so it rasterises at its true
+ * aspect ratio inside an <img> rather than at a browser default.
+ *
+ * Existing absolute width/height are left exactly as the author wrote them.
  */
 export function ensureIntrinsicSize(svgText) {
-  const box = parseViewBox(svgText);
+  if (rootLength(svgText, "width") && rootLength(svgText, "height")) return svgText;
+
+  const { width, height } = intrinsicSize(svgText);
   return svgText.replace(/<(\w+:)?svg\b([^>]*)>/i, (match, prefix, attrs) => {
-    let next = attrs.replace(/\s(width|height)\s*=\s*["'][^"']*["']/gi, "");
-    return `<${prefix ?? ""}svg${next} width="${box.width}" height="${box.height}">`;
+    const cleaned = attrs.replace(/\s(width|height)\s*=\s*["'][^"']*["']/gi, "");
+    return `<${prefix ?? ""}svg${cleaned} width="${width}" height="${height}">`;
   });
 }
 

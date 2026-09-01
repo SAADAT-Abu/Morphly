@@ -81,12 +81,17 @@ input[type="range"] { padding: 0; }
 .toolbar .group { display: flex; align-items: center; gap: 4px; }
 .toolbar .divider { width: 1px; align-self: stretch; background: var(--border); margin: 0 4px; }
 .toolbar .spacer { flex: 1; }
+/* Fixed box with the icon centred by the grid, so every tool sits identically
+   regardless of what it draws. */
 .tool {
   width: 30px; height: 28px;
+  padding: 0;
   background: var(--panel-2);
   border-color: var(--border);
-  font-size: 14px;
+  display: grid;
+  place-items: center;
 }
+.tool svg { display: block; }
 .tool:hover { background: #333846; }
 .tool.active { background: var(--accent); border-color: var(--accent); color: #fff; }
 .zoom-label { min-width: 46px; text-align: center; color: var(--text-dim); font-variant-numeric: tabular-nums; }
@@ -207,6 +212,7 @@ input[type="range"] { padding: 0; }
 .text-input { width: 100%; resize: vertical; }
 
 .align-row { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; }
+.align-row button { display: grid; place-items: center; height: 26px; padding: 0; font-size: 14px; line-height: 1; }
 
 /* swatches */
 .swatch-list { display: flex; flex-direction: column; gap: 5px; margin-top: 4px; }

@@ -7,7 +7,7 @@
  * their own `ns0:` namespace declarations and their recoloured markup intact.
  */
 
-import { applyPalette, effectiveColorMap, parseViewBox } from "./svgPalette";
+import { applyPalette, effectiveColorMap } from "./svgPalette";
 
 const escapeXml = (s) =>
   String(s ?? "")

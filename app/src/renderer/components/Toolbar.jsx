@@ -2,15 +2,51 @@ import React from "react";
 import { useStore } from "../store";
 import iconUrl from "../assets/icon.png";
 
+/**
+ * Tool icons are inline SVG on a shared 24x24 grid rather than Unicode glyphs.
+ * Glyphs like the box, circle and triangle characters carry different advance
+ * widths and sit on different baselines in every font, so they cannot be made
+ * to line up inside equally sized buttons; drawn paths can.
+ */
+const ICON = {
+  select: <path d="M6 3l12 9-5.2.9L15 18.4l-2.3 1-2.2-4.6L6.8 18z" />,
+  rect: <rect x="3.5" y="6.5" width="17" height="11" rx="1.5" />,
+  ellipse: <ellipse cx="12" cy="12" rx="8.5" ry="6.5" />,
+  triangle: <path d="M12 4.5 20.5 19h-17z" />,
+  line: <path d="M4.5 19.5 19.5 4.5" />,
+  arrow: <path d="M4.5 19.5 19 5m0 0h-6.2M19 5v6.2" />,
+  text: <path d="M5 5.5h14M12 5.5v13M8.8 18.5h6.4" />,
+};
+
 const TOOLS = [
-  ["select", "Select", "⬉"],
-  ["rect", "Rectangle", "▭"],
-  ["ellipse", "Ellipse", "◯"],
-  ["triangle", "Triangle", "△"],
-  ["line", "Line", "╱"],
-  ["arrow", "Arrow", "↗"],
-  ["text", "Text", "T"],
+  ["select", "Select (V)"],
+  ["rect", "Rectangle (R)"],
+  ["ellipse", "Ellipse (O)"],
+  ["triangle", "Triangle"],
+  ["line", "Line (L)"],
+  ["arrow", "Arrow (A)"],
+  ["text", "Text (T)"],
 ];
+
+function ToolIcon({ name }) {
+  // `select` is a filled cursor; the rest read better as outlines.
+  const filled = name === "select" || name === "triangle";
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="18"
+      height="18"
+      fill={filled ? "currentColor" : "none"}
+      stroke="currentColor"
+      strokeWidth={filled ? 0 : 1.7}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {ICON[name]}
+    </svg>
+  );
+}
 
 export default function Toolbar({ onNew, onOpen, onSave, onExport, onFitToScreen, onHelp }) {
   const activeTool = useStore((s) => s.activeTool);
@@ -45,14 +81,16 @@ export default function Toolbar({ onNew, onOpen, onSave, onExport, onFitToScreen
       <div className="divider" />
 
       <div className="group tools">
-        {TOOLS.map(([tool, label, icon]) => (
+        {TOOLS.map(([tool, label]) => (
           <button
             key={tool}
             className={`tool${activeTool === tool ? " active" : ""}`}
             title={label}
+            aria-label={label}
+            aria-pressed={activeTool === tool}
             onClick={() => setTool(tool)}
           >
-            {icon}
+            <ToolIcon name={tool} />
           </button>
         ))}
       </div>

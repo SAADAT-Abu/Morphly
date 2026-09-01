@@ -9,7 +9,7 @@
  */
 
 import { create } from "zustand";
-import { extractPalette, parseViewBox } from "./lib/svgPalette";
+import { extractPalette, intrinsicSize } from "./lib/svgPalette";
 
 let groupCounter = 0;
 
@@ -284,7 +284,7 @@ export const useStore = create((set, get) => ({
    */
   addAsset: ({ asset, variant, svgSource, at }) => {
     const { canvas } = get();
-    const box = parseViewBox(svgSource);
+    const box = intrinsicSize(svgSource);
     // Scale so a placed asset occupies a sensible fraction of the canvas
     // regardless of its native viewBox units.
     const target = Math.min(canvas.width, canvas.height) * 0.28;

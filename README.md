@@ -73,9 +73,18 @@ else's server.
 
 ### Download a build
 
-Installers for Linux (`.AppImage`), Windows (`.exe`) and macOS
-(`.dmg`) are built automatically for every tagged release and attached to the
-[GitHub releases page](https://github.com/SAADAT-Abu/Morphly/releases).
+Version 0.1.0 is archived on Zenodo with a citable DOI. **Both builds already
+contain the full illustration libraries**, around 3,500 icons, so there is
+nothing else to download and Morphly works offline the moment you open it.
+
+| Platform | Download | Size |
+| --- | --- | --- |
+| Linux | [Morphly-0.1.0.AppImage](https://zenodo.org/records/22238249/files/Morphly-0.1.0.AppImage?download=1) | 465 MB |
+| Windows | [Morphly Setup 0.1.0.exe](https://zenodo.org/records/22238249/files/Morphly%20Setup%200.1.0.exe?download=1) | 406 MB |
+
+Both files, with their checksums, are on the
+[Zenodo record](https://doi.org/10.5281/zenodo.22238249). macOS is not built
+yet: it needs a macOS machine, and a `.dmg` will be added to a later release.
 
 On Linux, mark the AppImage executable and run it:
 
@@ -99,8 +108,6 @@ does not mean anything is wrong with the download.
   Click "More info", then "Run anyway".
 - **Linux**: no warning, the AppImage just needs the executable bit above.
 
-> A Zenodo archive with a citable DOI will be added here once the first
-> release is published.
 
 ### Run from source
 
@@ -247,7 +254,15 @@ useful with your OS, what you did, and what happened instead.
 
 ## Citing Morphly
 
-> A Zenodo DOI will be minted with the first packaged release and added here.
+If Morphly helped make a figure in your work, please cite the archived
+release:
+
+> Saadat, A. (2026). *Morphly: a free desktop editor for scientific figures*
+> (version 0.1.0) [Software]. Zenodo. https://doi.org/10.5281/zenodo.22238249
+
+To cite whichever version is current rather than this one, use the concept DOI
+[10.5281/zenodo.22238248](https://doi.org/10.5281/zenodo.22238248), which always
+resolves to the latest release.
 
 Illustrations should be cited to their original libraries, not to Morphly.
 Ticking *Append asset citations* on export produces correctly formatted credits

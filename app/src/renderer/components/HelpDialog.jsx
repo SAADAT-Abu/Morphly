@@ -230,6 +230,9 @@ function About() {
           >
             Report a bug / request a feature
           </button>
+          <button className="ghost small" onClick={() => window.morphly.openExternal(LINKS.zenodo)}>
+            Cite Morphly (Zenodo)
+          </button>
         </div>
       </section>
 

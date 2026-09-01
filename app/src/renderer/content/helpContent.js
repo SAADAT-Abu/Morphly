@@ -190,6 +190,8 @@ export const AUTHOR = {
 export const LINKS = {
   repo: "https://github.com/SAADAT-Abu/Morphly",
   issues: "https://github.com/SAADAT-Abu/Morphly/issues",
+  /** Concept DOI: always resolves to the most recent archived release. */
+  zenodo: "https://doi.org/10.5281/zenodo.22238248",
 };
 
 export const MORPHLY_LICENSE = "MIT";

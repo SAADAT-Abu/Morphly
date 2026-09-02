@@ -43,6 +43,8 @@ contextBridge.exposeInMainWorld("morphly", {
   /** Tell the main process whether the figure has unsaved changes, so it can
    *  prompt before the window closes. */
   setDirty: (dirty) => ipcRenderer.send("app:dirty", dirty),
+  /** Ask, in a native dialog, whether unsaved changes may be thrown away. */
+  confirmDiscard: () => ipcRenderer.invoke("app:confirmDiscard"),
   /** Close the window for real, after saving or discarding. */
   closeWindow: () => ipcRenderer.invoke("app:close"),
 

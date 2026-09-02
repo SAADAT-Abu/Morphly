@@ -236,8 +236,15 @@ export default function App() {
     }
   }, [loadDocument, flash]);
 
-  const handleNew = useCallback(() => {
-    if (store.getState().dirty && !window.confirm("Discard unsaved changes?")) return;
+  const handleNew = useCallback(async () => {
+    // The prompt is a main-process dialog, not window.confirm. Chromium's own
+    // dialogs block the renderer until they are answered, and in this window
+    // one comes up invisible: the app then looks alive but ignores every
+    // click, which is indistinguishable from a hang.
+    if (store.getState().dirty) {
+      const res = await window.morphly.confirmDiscard();
+      if (!res.discard) return;
+    }
     newDocument();
   }, [store, newDocument]);
 
@@ -355,6 +362,7 @@ export default function App() {
     });
     return unsubscribe;
   }, [store, handleNew, handleOpen, handleSave, fitToScreen, addLibrary, handleInsertImage]);
+
 
   // Unsaved-changes guard.
   //

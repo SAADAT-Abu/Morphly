@@ -78,7 +78,7 @@ else's server.
 ### Download a build
 
 The current release is **0.2.0**, which adds figure tabs and fixes a freeze
-when starting a new figure. **Both builds already contain the full
+when starting a new figure. **Every build already contains the full
 illustration libraries**, around 3,500 icons, so there is nothing else to
 download and Morphly works offline the moment you open it.
 
@@ -86,8 +86,16 @@ download and Morphly works offline the moment you open it.
 | --- | --- | --- |
 | Linux | [Morphly-0.2.0.AppImage](https://zenodo.org/records/22251152/files/Morphly-0.2.0.AppImage?download=1) | 465 MB |
 | Windows | [Morphly Setup 0.2.0.exe](https://zenodo.org/records/22251152/files/Morphly%20Setup%200.2.0.exe?download=1) | 406 MB |
+| macOS, Apple Silicon | [Morphly-0.2.0-arm64.dmg](https://zenodo.org/records/22251152/files/Morphly-0.2.0-arm64.dmg?download=1) | 453 MB |
+| macOS, Intel | [Morphly-0.2.0.dmg](https://zenodo.org/records/22251152/files/Morphly-0.2.0.dmg?download=1) | 458 MB |
 
-Both files, with their checksums, are on the
+**Which Mac do you have?** Click the Apple menu and choose *About This Mac*.
+If it says **Chip: Apple M1, M2, M3** or similar, take the **arm64** file. If
+it says **Processor: Intel**, take the other one. Every Mac sold since late
+2020 is Apple Silicon. The two files look almost identical in name and size,
+and the wrong one will not run, so it is worth the ten seconds to check.
+
+All files, with their checksums, are on the
 [Zenodo record](https://doi.org/10.5281/zenodo.22251152). The concept DOI
 [10.5281/zenodo.22238248](https://doi.org/10.5281/zenodo.22238248) always
 resolves to the newest release, whichever that is. Version 0.1.0 remains
@@ -101,6 +109,8 @@ On Linux, mark the AppImage executable and run it:
 chmod +x Morphly-0.2.0.AppImage
 ./Morphly-0.2.0.AppImage
 ```
+
+On macOS, open the .dmg and drag Morphly to your Applications folder.
 
 Windows ships as an installer only. A portable build would unpack its entire
 payload to a temporary folder on every launch, and with the libraries inside

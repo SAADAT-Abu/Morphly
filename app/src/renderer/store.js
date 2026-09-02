@@ -13,6 +13,9 @@ import { extractPalette, intrinsicSize } from "./lib/svgPalette";
 
 let groupCounter = 0;
 
+let pageCounter = 0;
+const nextPageId = () => `pg_${Date.now().toString(36)}_${(pageCounter++).toString(36)}`;
+
 let idCounter = 0;
 const nextId = () => `el_${Date.now().toString(36)}_${(idCounter++).toString(36)}`;
 
@@ -29,16 +32,40 @@ export const CANVAS_PRESETS = [
 
 const DEFAULT_CANVAS = { ...CANVAS_PRESETS[1], background: "#ffffff" };
 
+/**
+ * A document holds several pages, one per figure, shown as tabs.
+ *
+ * Only the active page is live: its elements and canvas sit at the top level of
+ * the store, exactly where they were before pages existed, so every action that
+ * edits a figure stays unchanged. The other pages are parked in `pages` and
+ * swapped in and out on a tab click. Undo history belongs to the page you are
+ * on and is cleared when you switch, which keeps "undo" meaning what you just
+ * did on the figure in front of you rather than something on another tab.
+ */
+const makePage = (name, canvas = DEFAULT_CANVAS, elements = []) => ({
+  id: nextPageId(),
+  name,
+  canvas: { ...canvas },
+  elements,
+});
+
 /** Fields that make up a saved document -- everything else is view state. */
 const documentSlice = (state) => ({
   elements: state.elements,
   canvas: state.canvas,
 });
 
+const INITIAL_PAGE = makePage("Figure 1");
+
 export const useStore = create((set, get) => ({
   // -- document ------------------------------------------------------------
+  /** The active page's contents, live. */
   elements: [],
   canvas: { ...DEFAULT_CANVAS },
+  /** Every page, including a possibly stale copy of the active one. Read them
+   *  through allPages(), which refreshes the active entry first. */
+  pages: [INITIAL_PAGE],
+  activePageId: INITIAL_PAGE.id,
 
   // -- view state (never saved, never undone) ------------------------------
   selectedIds: [],
@@ -745,29 +772,203 @@ export const useStore = create((set, get) => ({
     return res;
   },
 
+  // -- pages ---------------------------------------------------------------
+
+  /** Fold the live elements and canvas back into the active page's entry. */
+  _syncActivePage: () =>
+    set((s) => ({
+      pages: s.pages.map((p) =>
+        p.id === s.activePageId ? { ...p, canvas: s.canvas, elements: s.elements } : p
+      ),
+    })),
+
+  /** Every page with the active one up to date. Use this for saving. */
+  allPages: () => {
+    const { pages, activePageId, canvas, elements } = get();
+    return pages.map((p) =>
+      p.id === activePageId ? { ...p, canvas, elements } : p
+    );
+  },
+
+  setActivePage: (id) => {
+    const { activePageId, pages } = get();
+    if (id === activePageId) return;
+    const target = pages.find((p) => p.id === id);
+    if (!target) return;
+
+    get()._syncActivePage();
+    set({
+      elements: target.elements,
+      canvas: { ...DEFAULT_CANVAS, ...target.canvas },
+      activePageId: id,
+      selectedIds: [],
+      highlight: null,
+      // History is per page: undoing on one figure should never reach back
+      // into edits made on another.
+      past: [],
+      future: [],
+    });
+  },
+
+  /** Add an empty page after the active one, matching its page size. */
+  addPage: () => {
+    get()._syncActivePage();
+    const { pages, activePageId, canvas } = get();
+    const page = makePage(`Figure ${pages.length + 1}`, canvas, []);
+    const at = pages.findIndex((p) => p.id === activePageId) + 1;
+    const next = [...pages];
+    next.splice(at, 0, page);
+    set({
+      pages: next,
+      activePageId: page.id,
+      elements: [],
+      canvas: { ...canvas },
+      selectedIds: [],
+      highlight: null,
+      past: [],
+      future: [],
+      dirty: true,
+    });
+    return page.id;
+  },
+
+  /** Copy a page, contents and all, and switch to the copy. */
+  duplicatePage: (id) => {
+    get()._syncActivePage();
+    const pages = get().allPages();
+    const source = pages.find((p) => p.id === (id ?? get().activePageId));
+    if (!source) return;
+    // Fresh element ids, so the two pages cannot alias each other.
+    const copy = {
+      ...makePage(`${source.name} copy`, source.canvas, []),
+      elements: source.elements.map((el) => ({ ...el, id: nextId() })),
+    };
+    const at = pages.findIndex((p) => p.id === source.id) + 1;
+    const next = [...pages];
+    next.splice(at, 0, copy);
+    set({
+      pages: next,
+      activePageId: copy.id,
+      elements: copy.elements,
+      canvas: { ...copy.canvas },
+      selectedIds: [],
+      highlight: null,
+      past: [],
+      future: [],
+      dirty: true,
+    });
+    return copy.id;
+  },
+
+  renamePage: (id, name) =>
+    set((s) => ({
+      pages: s.pages.map((p) => (p.id === id ? { ...p, name } : p)),
+      dirty: true,
+    })),
+
+  /** Remove a page. The last one is never removed: a document with no pages
+   *  has nothing to click on to get back. */
+  deletePage: (id) => {
+    get()._syncActivePage();
+    const { pages, activePageId } = get();
+    if (pages.length <= 1) return;
+    const index = pages.findIndex((p) => p.id === id);
+    if (index === -1) return;
+
+    const next = pages.filter((p) => p.id !== id);
+    if (id !== activePageId) {
+      set({ pages: next, dirty: true });
+      return;
+    }
+    // Deleting the page you are on lands you on its neighbour.
+    const target = next[Math.min(index, next.length - 1)];
+    set({
+      pages: next,
+      activePageId: target.id,
+      elements: target.elements,
+      canvas: { ...DEFAULT_CANVAS, ...target.canvas },
+      selectedIds: [],
+      highlight: null,
+      past: [],
+      future: [],
+      dirty: true,
+    });
+  },
+
+  movePage: (id, toIndex) => {
+    const pages = get().allPages();
+    const from = pages.findIndex((p) => p.id === id);
+    if (from === -1 || from === toIndex) return;
+    const next = [...pages];
+    const [moved] = next.splice(from, 1);
+    next.splice(Math.max(0, Math.min(next.length, toIndex)), 0, moved);
+    set({ pages: next, dirty: true });
+  },
+
+  /** Step to the next or previous tab, for Ctrl+PageDown / Ctrl+PageUp. */
+  stepPage: (delta) => {
+    const { pages, activePageId } = get();
+    const index = pages.findIndex((p) => p.id === activePageId);
+    const target = pages[(index + delta + pages.length) % pages.length];
+    if (target) get().setActivePage(target.id);
+  },
+
   // -- document load/replace ----------------------------------------------
 
-  loadDocument: (doc, projectPath = null) =>
+  /**
+   * Load a saved figure.
+   *
+   * Files written before pages existed carry a single `elements` / `canvas`
+   * pair at the top level; those open as a one-page document, so older figures
+   * keep working untouched.
+   */
+  loadDocument: (doc, projectPath = null) => {
+    const pages =
+      Array.isArray(doc.pages) && doc.pages.length > 0
+        ? doc.pages.map((p, i) => ({
+            id: p.id ?? nextPageId(),
+            name: p.name ?? `Figure ${i + 1}`,
+            canvas: { ...DEFAULT_CANVAS, ...(p.canvas ?? {}) },
+            elements: p.elements ?? [],
+          }))
+        : [
+            {
+              ...makePage("Figure 1"),
+              canvas: { ...DEFAULT_CANVAS, ...(doc.canvas ?? {}) },
+              elements: doc.elements ?? [],
+            },
+          ];
+
+    const active = pages.find((p) => p.id === doc.activePageId) ?? pages[0];
     set({
-      elements: doc.elements ?? [],
-      canvas: { ...DEFAULT_CANVAS, ...(doc.canvas ?? {}) },
+      pages,
+      activePageId: active.id,
+      elements: active.elements,
+      canvas: active.canvas,
       selectedIds: [],
+      highlight: null,
       past: [],
       future: [],
       projectPath,
       dirty: false,
-    }),
+    });
+  },
 
-  newDocument: () =>
+  newDocument: () => {
+    const page = makePage("Figure 1");
     set({
+      pages: [page],
+      activePageId: page.id,
       elements: [],
       canvas: { ...DEFAULT_CANVAS },
       selectedIds: [],
+      highlight: null,
       past: [],
       future: [],
       projectPath: null,
       dirty: false,
-    }),
+    });
+  },
 
   markSaved: (projectPath) => set({ projectPath, dirty: false }),
 

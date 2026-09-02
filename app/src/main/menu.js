@@ -55,6 +55,16 @@ function buildMenu(getWindow) {
       ],
     },
     {
+      label: "&Page",
+      submenu: [
+        { label: "New figure page", accelerator: "CmdOrCtrl+Shift+P", click: send("pageNew") },
+        { label: "Duplicate this page", click: send("pageDuplicate") },
+        { type: "separator" },
+        { label: "Next page", accelerator: "CmdOrCtrl+PageDown", click: send("pageNext") },
+        { label: "Previous page", accelerator: "CmdOrCtrl+PageUp", click: send("pagePrev") },
+      ],
+    },
+    {
       label: "&Insert",
       submenu: [
         { label: "Table…", accelerator: "CmdOrCtrl+Shift+T", click: send("insertTable") },

@@ -162,16 +162,16 @@ function registerIpc() {
    * an invisible one leaves the whole window unresponsive to clicks while
    * still repainting, which reads as a hang rather than as a prompt.
    */
-  ipcMain.handle("app:confirmDiscard", async (event) => {
+  ipcMain.handle("app:confirmDiscard", async (event, options = {}) => {
     const win = BrowserWindow.fromWebContents(event.sender);
     const choice = dialog.showMessageBoxSync(win, {
       type: "question",
-      buttons: ["Discard", "Cancel"],
+      buttons: [options.confirmLabel ?? "Discard", "Cancel"],
       defaultId: 1,
       cancelId: 1,
-      title: "Unsaved changes",
-      message: "Discard unsaved changes to this figure?",
-      detail: "The current figure has changes that have not been saved.",
+      title: options.title ?? "Unsaved changes",
+      message: options.message ?? "Discard unsaved changes to this figure?",
+      detail: options.detail ?? "The current figure has changes that have not been saved.",
     });
     return ok({ discard: choice === 0 });
   });

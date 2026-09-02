@@ -58,6 +58,10 @@ else's server.
   after the original file has been moved or renamed.
 - **Grid**: a background grid at any spacing, with optional snapping. It is a
   drawing aid only and never appears in an export.
+- **Several figures in one file**: tabs above the canvas hold one page per
+  figure, each with its own canvas size and undo history. Rename by
+  double-clicking, drag to reorder, duplicate a page to start from an existing
+  figure. Export works on the page you are on.
 - **Figure-friendly canvas**: presets for single-column, double-column, slide
   and poster sizes; snapping guides; alignment tools; layers with lock and
   hide; undo/redo. Drag a band across empty space to select several elements

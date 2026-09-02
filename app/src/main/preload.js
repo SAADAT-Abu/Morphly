@@ -44,7 +44,7 @@ contextBridge.exposeInMainWorld("morphly", {
    *  prompt before the window closes. */
   setDirty: (dirty) => ipcRenderer.send("app:dirty", dirty),
   /** Ask, in a native dialog, whether unsaved changes may be thrown away. */
-  confirmDiscard: () => ipcRenderer.invoke("app:confirmDiscard"),
+  confirmDiscard: (options) => ipcRenderer.invoke("app:confirmDiscard", options),
   /** Close the window for real, after saving or discarding. */
   closeWindow: () => ipcRenderer.invoke("app:close"),
 

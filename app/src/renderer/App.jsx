@@ -5,6 +5,7 @@ import AssetLibrary from "./components/AssetLibrary";
 import CanvasStage from "./components/CanvasStage";
 import Inspector from "./components/Inspector";
 import LayersPanel from "./components/LayersPanel";
+import PageTabs from "./components/PageTabs";
 import ExportDialog from "./components/ExportDialog";
 import HelpDialog from "./components/HelpDialog";
 import WelcomeDialog from "./components/WelcomeDialog";
@@ -199,11 +200,14 @@ export default function App() {
   const handleSave = useCallback(
     async (saveAs) => {
       const state = store.getState();
+      // Version 2 carries every page. Version 1 files, which held a single
+      // canvas and element list, still open: loadDocument wraps them as a
+      // one-page document.
       const doc = {
         format: "morphly-figure",
-        version: 1,
-        canvas: state.canvas,
-        elements: state.elements,
+        version: 2,
+        pages: state.allPages(),
+        activePageId: state.activePageId,
       };
       const res = await window.morphly.saveProject(
         JSON.stringify(doc, null, 2),
@@ -287,6 +291,9 @@ export default function App() {
       } else if (mod && e.key.toLowerCase() === "a") {
         e.preventDefault();
         s.selectAll();
+      } else if (mod && (e.key === "PageDown" || e.key === "PageUp")) {
+        e.preventDefault();
+        s.stepPage(e.key === "PageDown" ? 1 : -1);
       } else if (mod && e.key === "0") {
         e.preventDefault();
         fitToScreen();
@@ -339,6 +346,10 @@ export default function App() {
           });
         case "export": return setExportOpen(true);
         case "addLibrary": return addLibrary();
+        case "pageNew": return s.addPage();
+        case "pageDuplicate": return s.duplicatePage();
+        case "pageNext": return s.stepPage(1);
+        case "pagePrev": return s.stepPage(-1);
         case "insertTable": return setTableDialogOpen(true);
         case "insertImage": return handleInsertImage();
         case "toggleGrid": return s.toggleGrid();
@@ -395,7 +406,10 @@ export default function App() {
       <div className="workspace">
         <AssetLibrary onPlaceAsset={(asset, variant) => placeAsset(asset, variant)} />
 
-        <div className="canvas-wrap" ref={canvasWrapRef}>
+        <div className="canvas-column">
+          <PageTabs />
+
+          <div className="canvas-wrap" ref={canvasWrapRef}>
           <CanvasStage
             stageRef={stageRef}
             onRequestTextEdit={(id, cell = null) => setEditing({ id, cell })}
@@ -411,7 +425,8 @@ export default function App() {
               stagePos={stagePos}
               onClose={() => setEditing(null)}
             />
-          )}
+            )}
+          </div>
         </div>
 
         <div className="right-rail">

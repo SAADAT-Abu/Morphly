@@ -588,3 +588,73 @@ table.credits-table td:last-child {
   border-radius: 0;
   box-shadow: inset 0 0 0 2px var(--accent);
 }
+
+/* Page tabs ---------------------------------------------------------------- */
+.canvas-column { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.canvas-column .canvas-wrap { flex: 1; min-height: 0; }
+
+.page-tabs {
+  display: flex;
+  align-items: stretch;
+  gap: 3px;
+  padding: 5px 8px 0;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  overflow-y: hidden;
+  flex: 0 0 auto;
+}
+.page-tab {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 8px;
+  max-width: 220px;
+  border: 1px solid var(--border);
+  border-bottom: none;
+  border-radius: var(--radius) var(--radius) 0 0;
+  background: var(--panel-2);
+  color: var(--text-dim);
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: default;
+  user-select: none;
+}
+.page-tab:hover { color: var(--text); }
+.page-tab.active {
+  background: #14161a;
+  color: var(--text);
+  border-color: var(--accent);
+}
+.page-name { overflow: hidden; text-overflow: ellipsis; }
+.page-tab.renaming {
+  width: 160px;
+  padding: 5px 8px;
+  font-size: 12px;
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+/* Per-tab buttons stay quiet until the tab is hovered, so a row of tabs reads
+   as names rather than as a row of icons. */
+.page-action {
+  padding: 0 3px;
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  font-size: 12px;
+  line-height: 1;
+  opacity: 0;
+}
+.page-tab:hover .page-action, .page-tab.active .page-action { opacity: 0.75; }
+.page-action:hover { opacity: 1; color: var(--text); }
+.page-add {
+  padding: 0 10px;
+  margin-left: 2px;
+  align-self: center;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-dim);
+  font-size: 15px;
+  line-height: 1;
+}
+.page-add:hover { color: var(--text); border-color: var(--accent); }

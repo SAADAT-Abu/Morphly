@@ -62,6 +62,7 @@ export const SHORTCUTS = [
       ["T", "Text"],
       ["Ctrl + Shift + T", "Insert a table"],
       ["Ctrl + Shift + M", "Insert an image"],
+      ["Ctrl + Shift + P", "New figure page"],
     ],
   },
   {
@@ -94,6 +95,8 @@ export const SHORTCUTS = [
       ["Middle-button drag", "Pan"],
       ["Ctrl + 0", "Fit to screen"],
       ["Ctrl + apostrophe", "Show or hide the grid"],
+      ["Ctrl + PageDown", "Next figure page"],
+      ["Ctrl + PageUp", "Previous figure page"],
     ],
   },
   {
@@ -166,7 +169,19 @@ export const GETTING_STARTED = [
       "to snap elements to it. The grid is a guide only and never appears in an export.",
   },
   {
-    title: "6. Export",
+    title: "6. Keep several figures in one document",
+    body:
+      "The tabs above the canvas are pages, one per figure. A paper's figures are " +
+      "usually built together, so they live in a single .morphly file: add a page with " +
+      "the + button, double-click a tab to rename it, drag tabs to reorder them, and use " +
+      "the copy button on a tab to start a new figure from an existing one. Each page has " +
+      "its own canvas size and its own undo history, so undo always means what you just " +
+      "did on the figure in front of you. Export works on the page you are looking at, so " +
+      "each figure is exported as its own file. Figures saved before pages existed open " +
+      "as a single-page document.",
+  },
+  {
+    title: "7. Export",
     body:
       "PNG for a quick look, SVG if you want to keep editing in Illustrator or Inkscape, PDF " +
       "for submission. SVG and PDF stay true vector, so they scale to any size without going " +

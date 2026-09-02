@@ -77,23 +77,29 @@ else's server.
 
 ### Download a build
 
-Version 0.1.0 is archived on Zenodo with a citable DOI. **Both builds already
-contain the full illustration libraries**, around 3,500 icons, so there is
-nothing else to download and Morphly works offline the moment you open it.
+The current release is **0.2.0**, which adds figure tabs and fixes a freeze
+when starting a new figure. **Both builds already contain the full
+illustration libraries**, around 3,500 icons, so there is nothing else to
+download and Morphly works offline the moment you open it.
 
 | Platform | Download | Size |
 | --- | --- | --- |
-| Linux | [Morphly-0.1.0.AppImage](https://zenodo.org/records/22238249/files/Morphly-0.1.0.AppImage?download=1) | 465 MB |
-| Windows | [Morphly Setup 0.1.0.exe](https://zenodo.org/records/22238249/files/Morphly%20Setup%200.1.0.exe?download=1) | 406 MB |
+| Linux | [Morphly-0.2.0.AppImage](https://zenodo.org/records/22251152/files/Morphly-0.2.0.AppImage?download=1) | 465 MB |
+| Windows | [Morphly Setup 0.2.0.exe](https://zenodo.org/records/22251152/files/Morphly%20Setup%200.2.0.exe?download=1) | 406 MB |
 
 Both files, with their checksums, are on the
-[Zenodo record](https://doi.org/10.5281/zenodo.22238249). 
+[Zenodo record](https://doi.org/10.5281/zenodo.22251152). The concept DOI
+[10.5281/zenodo.22238248](https://doi.org/10.5281/zenodo.22238248) always
+resolves to the newest release, whichever that is. Version 0.1.0 remains
+archived at [10.5281/zenodo.22238249](https://doi.org/10.5281/zenodo.22238249)
+but freezes when you start a new figure with unsaved work, so 0.2.0 is the one
+to use. 
 
 On Linux, mark the AppImage executable and run it:
 
 ```bash
-chmod +x Morphly-0.1.0.AppImage
-./Morphly-0.1.0.AppImage
+chmod +x Morphly-0.2.0.AppImage
+./Morphly-0.2.0.AppImage
 ```
 
 Windows ships as an installer only. A portable build would unpack its entire
@@ -261,7 +267,7 @@ If Morphly helped make a figure in your work, please cite the archived
 release:
 
 > Saadat, A. (2026). *Morphly: a free desktop editor for scientific figures*
-> (version 0.1.0) [Software]. Zenodo. https://doi.org/10.5281/zenodo.22238249
+> (version 0.2.0) [Software]. Zenodo. https://doi.org/10.5281/zenodo.22251152
 
 To cite whichever version is current rather than this one, use the concept DOI
 [10.5281/zenodo.22238248](https://doi.org/10.5281/zenodo.22238248), which always

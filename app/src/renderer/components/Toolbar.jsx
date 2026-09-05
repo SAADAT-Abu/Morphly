@@ -24,6 +24,9 @@ const ICON = {
   ),
   image: <path d="M3.5 5.5h17v13h-17zM3.5 15l4.5-4.5 4 4 3-2.5 5.5 4.5M15.5 9.5h.01" />,
   grid: <path d="M8 3v18M16 3v18M3 8h18M3 16h18" />,
+  // A droplet, not a page: a page outline reads as the image button, and these
+  // two sit next to each other.
+  canvas: <path d="M12 3.4c3.6 4.1 5.6 6.6 5.6 9.1a5.6 5.6 0 1 1-11.2 0c0-2.5 2-5 5.6-9.1z" />,
 };
 
 const TOOLS = [
@@ -84,6 +87,8 @@ export default function Toolbar({
   const elements = useStore((s) => s.elements);
   const grid = useStore((s) => s.grid);
   const toggleGrid = useStore((s) => s.toggleGrid);
+  const canvas = useStore((s) => s.canvas);
+  const setCanvas = useStore((s) => s.setCanvas);
 
   // Ungroup is only meaningful when something in the selection is grouped.
   const hasGroup = elements.some((el) => selectedIds.includes(el.id) && el.groupId);
@@ -147,6 +152,21 @@ export default function Toolbar({
         >
           <ToolIcon name="grid" />
         </button>
+
+        {/* Page colour. It is in the toolbar as well as the properties panel
+            because the panel only shows canvas settings when nothing is
+            selected, which is exactly when you are least likely to be looking
+            at it. */}
+        <label className="canvas-color" title="Page background colour">
+          <ToolIcon name="canvas" />
+          <input
+            type="color"
+            value={canvas.background}
+            onChange={(e) => setCanvas({ background: e.target.value })}
+            aria-label="Page background colour"
+          />
+          <span className="swatch" style={{ background: canvas.background }} />
+        </label>
       </div>
 
       <div className="divider" />

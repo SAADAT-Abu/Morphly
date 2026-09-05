@@ -116,12 +116,13 @@ export const GETTING_STARTED = [
   {
     title: "1. Point Morphly at a library",
     body:
-      "Installed builds ship with both libraries inside them and mount them on first " +
-      "launch, so there is nothing to set up: the sidebar is already full. To add another " +
-      "library, or a fresher copy of one, use File → Add asset library folder and pick the " +
-      "folder containing manifest.json. Any number of libraries can be mounted at once and " +
-      "are browsed together with a collection filter, and any of them can be removed again, " +
-      "including the ones that came with the app.",
+      "Morphly ships with NIH BioArt inside it and mounts it on first launch, so there is " +
+      "nothing to set up: the sidebar is already full. More libraries are available as Art " +
+      "Packs, downloaded from the Art Store in the sidebar header when you want them, which " +
+      "keeps the installer small and lets new packs appear without reinstalling Morphly. " +
+      "You can also point Morphly at any folder containing a manifest.json, with File → Add " +
+      "asset library folder. Everything mounted is browsed together with a collection " +
+      "filter, and anything can be removed again, including what came with the app.",
   },
   {
     title: "2. Place artwork",
@@ -183,7 +184,18 @@ export const GETTING_STARTED = [
       "as a single-page document.",
   },
   {
-    title: "7. Export",
+    title: "7. Art Packs",
+    body:
+      "The Art Store, in the sidebar header, lists illustration libraries you can add. Each " +
+      "card says how many illustrations the pack holds, which subjects it covers, how large " +
+      "the download is, and what its licences oblige: how many icons need a credit, and how " +
+      "many are share-alike, which can require the whole figure to be shared under the same " +
+      "licence. Packs are downloaded from Zenodo, checked against a published checksum, and " +
+      "can be removed again at any time. Figures you have already made keep working after a " +
+      "pack is removed, because each element carries its own copy of the artwork.",
+  },
+  {
+    title: "8. Export",
     body:
       "PNG for a quick look, SVG if you want to keep editing in Illustrator or Inkscape, PDF " +
       "for submission. SVG and PDF stay true vector, so they scale to any size without going " +

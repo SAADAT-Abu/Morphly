@@ -8,13 +8,15 @@
  * the IPC boundary, so the UI can show a message instead of a dead promise.
  */
 
-const { ipcMain, dialog, BrowserWindow, shell } = require("electron");
+const { ipcMain, dialog, BrowserWindow, shell, net } = require("electron");
 const fs = require("node:fs/promises");
+const fsSync = require("node:fs");
 const path = require("node:path");
 
 const { readSettings, writeSettings, libraryKey, libraryDirFor } = require("./settings");
 const { loadLibraries, readSvg } = require("./library");
 const { checkForUpdate } = require("./updates");
+const artpacks = require("./artpacks");
 
 const ok = (data) => ({ ok: true, ...data });
 const fail = (err) => ({ ok: false, error: String(err?.message ?? err) });
@@ -45,9 +47,26 @@ function registerIpc() {
 
   /** Load every configured library folder and merge them into one index. */
   ipcMain.handle("library:load", async () => {
-    const { libraries } = await readSettings();
-    if (libraries.length === 0) return { ok: false, error: "no-library-configured" };
-    return ok({ library: await loadLibraries(libraries) });
+    const settings = await readSettings();
+
+    // A mounted folder can disappear: an Art Pack removed by hand, a scraped
+    // library deleted, or an upgrade where a library that used to ship inside
+    // the app no longer does. Drop those rather than reporting a load error
+    // for a folder the user cannot see any more, and say which went.
+    const present = [];
+    const dropped = [];
+    for (const entry of settings.libraries) {
+      if (fsSync.existsSync(path.join(entry.dir, "manifest.json"))) present.push(entry);
+      else dropped.push(entry);
+    }
+    if (dropped.length > 0) {
+      await writeSettings({ libraries: present, librariesInitialised: true });
+    }
+
+    if (present.length === 0) {
+      return { ok: false, error: "no-library-configured", dropped };
+    }
+    return ok({ library: await loadLibraries(present), dropped });
   });
 
   /** Add a folder to the mounted set. Adding one already present is a no-op
@@ -108,6 +127,96 @@ function registerIpc() {
   ipcMain.handle("updates:check", async (_event, { force = false } = {}) => {
     const settings = await readSettings();
     return checkForUpdate({ settings, writeSettings, force });
+  });
+
+  // -- art packs -----------------------------------------------------------
+
+  /**
+   * The catalogue of downloadable libraries.
+   *
+   * Fetched from the repository so packs can be published without releasing a
+   * new Morphly, and falling back to the copy inside the app so the store still
+   * lists something when there is no network. Installed state is merged in
+   * here rather than in the renderer, since only the main process can see the
+   * filesystem.
+   */
+  ipcMain.handle("artpacks:catalogue", async () => {
+    const settings = await readSettings();
+    const url =
+      settings.artPackCatalogueUrl ??
+      "https://raw.githubusercontent.com/SAADAT-Abu/Morphly/main/art-packs.json";
+
+    let catalogue = null;
+    let offline = false;
+    try {
+      artpacks.assertAllowedUrl(url);
+      const response = await net.fetch(url, { headers: { Accept: "application/json" } });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      catalogue = await response.json();
+    } catch {
+      offline = true;
+      try {
+        catalogue = JSON.parse(
+          await fs.readFile(path.join(__dirname, "art-packs.fallback.json"), "utf8")
+        );
+      } catch (err) {
+        return fail(err);
+      }
+    }
+
+    const installed = await artpacks.listInstalled(settings);
+    const byId = new Map(installed.map((p) => [p.id, p]));
+    const packs = (catalogue.packs ?? []).map((pack) => ({
+      ...pack,
+      installed: byId.has(pack.id),
+      installedVersion: byId.get(pack.id)?.version ?? null,
+    }));
+
+    // A pack installed from a catalogue that no longer lists it should still be
+    // visible, or it could never be removed from inside the app.
+    for (const pack of installed) {
+      if (!packs.some((p) => p.id === pack.id)) {
+        packs.push({ ...pack, installed: true, installedVersion: pack.version, orphaned: true });
+      }
+    }
+
+    return ok({ packs, offline, root: artpacks.packsRoot(settings) });
+  });
+
+  /** Download, verify and mount one pack. Progress goes to the renderer as it
+   *  runs, because these are hundreds of megabytes. */
+  ipcMain.handle("artpacks:install", async (event, entry) => {
+    const settings = await readSettings();
+    try {
+      const { dir } = await artpacks.installPack(entry, {
+        settings,
+        onProgress: (progress) =>
+          event.sender.send("artpacks:progress", { id: entry.id, ...progress }),
+      });
+
+      const next = settings.libraries.some((l) => l.dir === dir)
+        ? settings.libraries
+        : [...settings.libraries, { key: libraryKey(dir), dir, packId: entry.id }];
+      await writeSettings({ libraries: next, librariesInitialised: true });
+      return ok({ library: await loadLibraries(next), dir });
+    } catch (err) {
+      return fail(err);
+    }
+  });
+
+  /** Remove a pack and unmount it. Figures already made keep rendering: an
+   *  element carries its own SVG source. */
+  ipcMain.handle("artpacks:remove", async (_event, id) => {
+    const settings = await readSettings();
+    try {
+      const { dir } = await artpacks.removePack(id, { settings });
+      const next = settings.libraries.filter((l) => l.dir !== dir && l.packId !== id);
+      await writeSettings({ libraries: next, librariesInitialised: true });
+      const library = next.length > 0 ? await loadLibraries(next) : null;
+      return ok({ library });
+    } catch (err) {
+      return fail(err);
+    }
   });
 
   // -- images --------------------------------------------------------------

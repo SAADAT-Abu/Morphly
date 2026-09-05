@@ -50,6 +50,17 @@ contextBridge.exposeInMainWorld("morphly", {
   /** Close the window for real, after saving or discarding. */
   closeWindow: () => ipcRenderer.invoke("app:close"),
 
+  // art packs
+  artPackCatalogue: () => ipcRenderer.invoke("artpacks:catalogue"),
+  installArtPack: (entry) => ipcRenderer.invoke("artpacks:install", entry),
+  removeArtPack: (id) => ipcRenderer.invoke("artpacks:remove", id),
+  /** Progress while a pack downloads and unpacks. Returns an unsubscribe. */
+  onArtPackProgress: (callback) => {
+    const handler = (_event, payload) => callback(payload);
+    ipcRenderer.on("artpacks:progress", handler);
+    return () => ipcRenderer.removeListener("artpacks:progress", handler);
+  },
+
   // projects
   saveProject: (json, filePath) => ipcRenderer.invoke("project:save", { json, filePath }),
   openProject: () => ipcRenderer.invoke("project:open"),

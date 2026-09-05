@@ -26,7 +26,7 @@ function licenceBadge(asset) {
   return "BY";
 }
 
-export default function AssetLibrary({ onPlaceAsset }) {
+export default function AssetLibrary({ onPlaceAsset, onOpenStore, onNotice }) {
   const library = useStore((s) => s.library);
   const libraryError = useStore((s) => s.libraryError);
   const setLibrary = useStore((s) => s.setLibrary);
@@ -47,11 +47,20 @@ export default function AssetLibrary({ onPlaceAsset }) {
       if (cancelled) return;
       if (res.ok) setLibrary(res.library);
       else if (res.error && res.error !== "no-library-configured") setLibraryError(res.error);
+
+      // An upgrade can leave a library pointing at a folder that no longer
+      // exists, most obviously Bioicons, which used to ship inside the app and
+      // is now an Art Pack. The main process unmounts those; say so once,
+      // rather than leaving someone to wonder where their icons went.
+      if (res.dropped?.length > 0) {
+        const names = res.dropped.map((d) => d.dir.split(/[/\\]/).pop()).join(", ");
+        onNotice?.(`${names} is no longer on disk and was unmounted. The Art Store can add it back.`);
+      }
     })();
     return () => {
       cancelled = true;
     };
-  }, [setLibrary, setLibraryError]);
+  }, [setLibrary, setLibraryError, onNotice]);
 
   const addLibraryAction = useStore((s) => s.addLibrary);
 
@@ -96,8 +105,11 @@ export default function AssetLibrary({ onPlaceAsset }) {
             <code>manifest.json</code>.
           </p>
           {libraryError && <p className="error">{libraryError}</p>}
-          <button className="primary" onClick={addLibrary} disabled={loading}>
-            {loading ? "Loading…" : "Add library folder…"}
+          <button className="primary" onClick={onOpenStore}>
+            Open the Art Store
+          </button>
+          <button className="ghost" onClick={addLibrary} disabled={loading}>
+            {loading ? "Loading…" : "Add a library folder…"}
           </button>
         </div>
       </div>
@@ -108,9 +120,14 @@ export default function AssetLibrary({ onPlaceAsset }) {
     <div className="panel library">
       <div className="panel-header">
         Asset library
-        <button className="link" onClick={() => setManaging((v) => !v)}>
-          {managing ? "done" : "sources"}
-        </button>
+        <span className="header-actions">
+          <button className="link" onClick={onOpenStore}>
+            Art Store
+          </button>
+          <button className="link" onClick={() => setManaging((v) => !v)}>
+            {managing ? "done" : "sources"}
+          </button>
+        </span>
       </div>
 
       {managing && (

@@ -10,6 +10,7 @@ import ExportDialog from "./components/ExportDialog";
 import HelpDialog from "./components/HelpDialog";
 import WelcomeDialog from "./components/WelcomeDialog";
 import TableDialog from "./components/TableDialog";
+import ArtStore from "./components/ArtStore";
 import { useStore } from "./store";
 import { cellBox, isHeaderCell } from "./lib/tableLayout";
 
@@ -26,6 +27,7 @@ export default function App() {
   const [helpTab, setHelpTab] = useState(null);
   const [welcomeOpen, setWelcomeOpen] = useState(false);
   const [tableDialogOpen, setTableDialogOpen] = useState(false);
+  const [storeOpen, setStoreOpen] = useState(false);
   /** { latest, url } when Zenodo has a newer release than this build. */
   const [update, setUpdate] = useState(null);
 
@@ -43,6 +45,8 @@ export default function App() {
   const setStagePos = useStore((s) => s.setStagePos);
   const loadDocument = useStore((s) => s.loadDocument);
   const addLibrary = useStore((s) => s.addLibrary);
+  const setLibrary = useStore((s) => s.setLibrary);
+  const setLibraryError = useStore((s) => s.setLibraryError);
   const newDocument = useStore((s) => s.newDocument);
   const markSaved = useStore((s) => s.markSaved);
 
@@ -384,6 +388,7 @@ export default function App() {
           });
         case "export": return setExportOpen(true);
         case "addLibrary": return addLibrary();
+        case "artStore": return setStoreOpen(true);
         case "pageNew": return s.addPage();
         case "pageDuplicate": return s.duplicatePage();
         case "pageRename": return s.requestRename();
@@ -444,7 +449,11 @@ export default function App() {
       />
 
       <div className="workspace">
-        <AssetLibrary onPlaceAsset={(asset, variant) => placeAsset(asset, variant)} />
+        <AssetLibrary
+          onPlaceAsset={(asset, variant) => placeAsset(asset, variant)}
+          onOpenStore={() => setStoreOpen(true)}
+          onNotice={flash}
+        />
 
         <div className="canvas-column">
           <PageTabs />
@@ -474,6 +483,16 @@ export default function App() {
           <LayersPanel />
         </div>
       </div>
+
+      {storeOpen && (
+        <ArtStore
+          onClose={() => setStoreOpen(false)}
+          onLibraryChange={(library) =>
+            library ? setLibrary(library) : setLibraryError("no-library-configured")
+          }
+          flash={flash}
+        />
+      )}
 
       {tableDialogOpen && (
         <TableDialog

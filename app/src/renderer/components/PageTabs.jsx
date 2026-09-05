@@ -11,6 +11,44 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useStore } from "../store";
 
+
+/**
+ * Tab icons are drawn, not typed.
+ *
+ * The pencil, copy and cross characters sit on different baselines and carry
+ * different advance widths in every font, so as glyphs they never align inside
+ * equally sized buttons. Paths on a shared 16x16 grid do.
+ */
+const TAB_ICON = {
+  rename: <path d="M11.2 2.9 13.1 4.8 5.6 12.3 3 13l0.7-2.6z" />,
+  duplicate: (
+    <>
+      <rect x="5.6" y="5.6" width="7.4" height="7.4" rx="1.2" />
+      <path d="M10.4 3.2H3.6a0.6 0.6 0 0 0-0.6 0.6v6.8" />
+    </>
+  ),
+  close: <path d="M4.4 4.4 11.6 11.6M11.6 4.4 4.4 11.6" />,
+  add: <path d="M8 3.4v9.2M3.4 8h9.2" />,
+};
+
+function TabIcon({ name }) {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      width="13"
+      height="13"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {TAB_ICON[name]}
+    </svg>
+  );
+}
+
 export default function PageTabs() {
   const pages = useStore((s) => s.pages);
   const activePageId = useStore((s) => s.activePageId);
@@ -80,7 +118,7 @@ export default function PageTabs() {
       ))}
 
       <button className="page-add" onClick={addPage} title="New figure in this document">
-        +
+        <TabIcon name="add" />
       </button>
     </div>
   );
@@ -159,7 +197,7 @@ function Tab({
           onStartRename();
         }}
       >
-        ✎
+        <TabIcon name="rename" />
       </button>
       <button
         className="page-action"
@@ -169,7 +207,7 @@ function Tab({
           onDuplicate();
         }}
       >
-        ⧉
+        <TabIcon name="duplicate" />
       </button>
       {canClose && (
         <button
@@ -180,7 +218,7 @@ function Tab({
             onClose();
           }}
         >
-          ×
+          <TabIcon name="close" />
         </button>
       )}
     </div>

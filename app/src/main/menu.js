@@ -35,6 +35,7 @@ function buildMenu(getWindow) {
         { type: "separator" },
         { label: "Export…", accelerator: "CmdOrCtrl+E", click: send("export") },
         { type: "separator" },
+        { label: "Art Store…", click: send("artStore") },
         { label: "Add asset library folder…", click: send("addLibrary") },
         { type: "separator" },
         isMac ? { role: "close" } : { role: "quit" },

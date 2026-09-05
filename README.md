@@ -58,6 +58,11 @@ else's server.
   after the original file has been moved or renamed.
 - **Grid**: a background grid at any spacing, with optional snapping. It is a
   drawing aid only and never appears in an export.
+- **Art Packs**: Morphly ships with NIH BioArt inside it and works offline
+  immediately. Further libraries, such as Bioicons, download from the built-in
+  Art Store when you want them, so the installer stays small and new packs can
+  appear without reinstalling Morphly. Each pack states what it contains and
+  what its licences oblige before you download it.
 - **Several figures in one file**: tabs above the canvas hold one page per
   figure, each with its own canvas size and undo history. Rename by
   double-clicking, drag to reorder, duplicate a page to start from an existing
@@ -146,17 +151,24 @@ To build installers for your platform:
 npm run dist     # output lands in app/release/
 ```
 
-## Getting the asset libraries
+## Art Packs and asset libraries
 
-**The packaged builds already contain both libraries**, around 3,500
-illustrations in all. They are mounted automatically the first time you 
-open the app, so it works offline straight away with nothing to download 
-or configure.
+**The packaged builds contain NIH BioArt**, 713 entries and around 2,500
+vectors, mounted automatically the first time you open the app, so Morphly
+works offline straight away with nothing to download or configure.
 
-You only need this section if you are running from source, or if you want to
-mount an extra library or a fresher copy of one. Morphly can read any number of
-library folders from anywhere on disk, and each can be removed independently of
-the bundled ones. To build one yourself:
+Everything else is an **Art Pack**: a library published on Zenodo and installed
+from the Art Store in the sidebar header. A pack is downloaded, checked against
+its published sha256, unpacked into a data directory and mounted. It can be
+removed again at any time, and figures already made keep working, because each
+element carries its own copy of the artwork it uses.
+
+| Pack | Contents | Download |
+| --- | --- | --- |
+| Bioicons | 2,830 icons: chemistry, cell biology, lab equipment, sequencing, clinical imagery. Strong on epigenetics. | 180 MB |
+
+Morphly also reads any library folder from anywhere on disk, which is what you
+want when running from source or building a library of your own:
 
 ```bash
 pip install -r scraper/requirements.txt

@@ -60,6 +60,10 @@ function buildMenu(getWindow) {
         { label: "New figure page", accelerator: "CmdOrCtrl+Shift+P", click: send("pageNew") },
         { label: "Duplicate this page", click: send("pageDuplicate") },
         { type: "separator" },
+        // No accelerator here: the renderer owns F2, and a menu accelerator
+        // would swallow the key before the window ever sees it.
+        { label: "Rename this page", click: send("pageRename") },
+        { type: "separator" },
         { label: "Next page", accelerator: "CmdOrCtrl+PageDown", click: send("pageNext") },
         { label: "Previous page", accelerator: "CmdOrCtrl+PageUp", click: send("pagePrev") },
       ],
@@ -97,6 +101,7 @@ function buildMenu(getWindow) {
         { label: "Keyboard shortcuts", click: send("help:shortcuts") },
         { type: "separator" },
         { label: "Show welcome screen", click: send("welcome") },
+        { label: "Check for updates…", click: send("checkUpdates") },
         { type: "separator" },
         {
           label: "NIH BioArt Source website",

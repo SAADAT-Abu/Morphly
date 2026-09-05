@@ -14,6 +14,7 @@ const path = require("node:path");
 
 const { readSettings, writeSettings, libraryKey, libraryDirFor } = require("./settings");
 const { loadLibraries, readSvg } = require("./library");
+const { checkForUpdate } = require("./updates");
 
 const ok = (data) => ({ ok: true, ...data });
 const fail = (err) => ({ ok: false, error: String(err?.message ?? err) });
@@ -100,6 +101,13 @@ function registerIpc() {
     } catch (err) {
       return fail(err);
     }
+  });
+
+  /** Ask Zenodo whether a newer release exists. Reads a public record and
+   *  sends nothing; see updates.js. */
+  ipcMain.handle("updates:check", async (_event, { force = false } = {}) => {
+    const settings = await readSettings();
+    return checkForUpdate({ settings, writeSettings, force });
   });
 
   // -- images --------------------------------------------------------------

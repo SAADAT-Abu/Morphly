@@ -26,6 +26,8 @@ export default function App() {
   const [helpTab, setHelpTab] = useState(null);
   const [welcomeOpen, setWelcomeOpen] = useState(false);
   const [tableDialogOpen, setTableDialogOpen] = useState(false);
+  /** { latest, url } when Zenodo has a newer release than this build. */
+  const [update, setUpdate] = useState(null);
 
   const store = useStore;
   const elements = useStore((s) => s.elements);
@@ -64,6 +66,39 @@ export default function App() {
       cancelled = true;
     };
   }, []);
+
+  // -- update check ---------------------------------------------------------
+
+  /**
+   * Ask whether a newer Morphly exists.
+   *
+   * Silent by design: offline is the normal state for this app, and a failed
+   * check is not something to interrupt anyone over. Only a genuinely newer
+   * version produces a banner, and only a manual check reports "up to date".
+   */
+  const runUpdateCheck = useCallback(
+    async ({ force = false } = {}) => {
+      try {
+        const res = await window.morphly.checkForUpdate({ force });
+        if (res.available) {
+          setUpdate({ latest: res.latest, current: res.current, url: res.url });
+        } else if (force) {
+          if (res.ok && res.latest) flash(`Morphly ${res.current} is up to date.`);
+          else if (res.skipped === "disabled") flash("Update checks are switched off.");
+          else flash("Could not reach Zenodo to check for updates.");
+        }
+      } catch {
+        /* never let a version check break the editor */
+      }
+    },
+    [flash]
+  );
+
+  useEffect(() => {
+    // A moment after launch, so it never competes with loading the library.
+    const id = window.setTimeout(() => runUpdateCheck(), 4000);
+    return () => window.clearTimeout(id);
+  }, [runUpdateCheck]);
 
   // -- placing assets -------------------------------------------------------
 
@@ -303,6 +338,9 @@ export default function App() {
       } else if (mod && e.key === "'") {
         e.preventDefault();
         s.toggleGrid();
+      } else if (e.key === "F2") {
+        e.preventDefault();
+        s.requestRename();
       } else if (e.key === "F1") {
         e.preventDefault();
         setHelpTab("start");
@@ -348,6 +386,8 @@ export default function App() {
         case "addLibrary": return addLibrary();
         case "pageNew": return s.addPage();
         case "pageDuplicate": return s.duplicatePage();
+        case "pageRename": return s.requestRename();
+        case "checkUpdates": return runUpdateCheck({ force: true });
         case "pageNext": return s.stepPage(1);
         case "pagePrev": return s.stepPage(-1);
         case "insertTable": return setTableDialogOpen(true);
@@ -372,7 +412,7 @@ export default function App() {
       }
     });
     return unsubscribe;
-  }, [store, handleNew, handleOpen, handleSave, fitToScreen, addLibrary, handleInsertImage]);
+  }, [store, handleNew, handleOpen, handleSave, fitToScreen, addLibrary, handleInsertImage, runUpdateCheck]);
 
 
   // Unsaved-changes guard.
@@ -462,6 +502,21 @@ export default function App() {
           }}
         />
       )}
+      {update && (
+        <div className="update-banner">
+          <span>
+            Morphly <strong>{update.latest}</strong> is available. You are running{" "}
+            {update.current}.
+          </span>
+          <button className="primary small" onClick={() => window.morphly.openExternal(update.url)}>
+            Open download page
+          </button>
+          <button className="ghost small" onClick={() => setUpdate(null)}>
+            Dismiss
+          </button>
+        </div>
+      )}
+
       {toast && <div className="toast">{toast}</div>}
     </div>
   );

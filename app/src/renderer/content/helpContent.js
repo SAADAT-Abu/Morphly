@@ -63,6 +63,7 @@ export const SHORTCUTS = [
       ["Ctrl + Shift + T", "Insert a table"],
       ["Ctrl + Shift + M", "Insert an image"],
       ["Ctrl + Shift + P", "New figure page"],
+      ["F2", "Rename the current page"],
     ],
   },
   {
@@ -174,7 +175,8 @@ export const GETTING_STARTED = [
       "The tabs above the canvas are pages, one per figure. A paper's figures are " +
       "usually built together, so they live in a single .morphly file: add a page with " +
       "the + button, double-click a tab to rename it, drag tabs to reorder them, and use " +
-      "the copy button on a tab to start a new figure from an existing one. Each page has " +
+      "the pencil button, a double-click or F2 to rename a tab, and the copy button on a " +
+      "tab to start a new figure from an existing one. Each page has " +
       "its own canvas size and its own undo history, so undo always means what you just " +
       "did on the figure in front of you. Export works on the page you are looking at, so " +
       "each figure is exported as its own file. Figures saved before pages existed open " +

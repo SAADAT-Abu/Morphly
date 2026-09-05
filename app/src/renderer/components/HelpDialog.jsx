@@ -215,6 +215,11 @@ function About() {
       </section>
 
       <section>
+        <h3>Updates</h3>
+        <UpdatePreference />
+      </section>
+
+      <section>
         <h3>Source code & feedback</h3>
         <p>
           Morphly is open source. Bug reports and feature requests are welcome. Please
@@ -281,6 +286,73 @@ function About() {
           locked inside this app.
         </p>
       </section>
+    </>
+  );
+}
+
+/**
+ * The one network setting in the app.
+ *
+ * Morphly is otherwise entirely offline, so the check is described plainly
+ * rather than buried: what it contacts, how often, and what it does not send.
+ * A figure editor reading a public record is harmless, but on an institutional
+ * machine people are entitled to know before it happens, and to switch it off.
+ */
+function UpdatePreference() {
+  const [enabled, setEnabled] = React.useState(true);
+  const [busy, setBusy] = React.useState(false);
+  const [result, setResult] = React.useState(null);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    window.morphly
+      .getSettings()
+      .then((res) => {
+        if (!cancelled && res.ok) setEnabled(res.settings.checkForUpdates !== false);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const toggle = async (value) => {
+    setEnabled(value);
+    await window.morphly.setSettings({ checkForUpdates: value });
+  };
+
+  const checkNow = async () => {
+    setBusy(true);
+    setResult(null);
+    try {
+      const res = await window.morphly.checkForUpdate({ force: true });
+      if (res.available) setResult(`Morphly ${res.latest} is available.`);
+      else if (res.ok && res.latest) setResult(`You are on the latest version (${res.current}).`);
+      else setResult("Could not reach Zenodo. Check again when you are online.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <>
+      <label className="check">
+        <input type="checkbox" checked={enabled} onChange={(e) => toggle(e.target.checked)} />
+        Check Zenodo for a newer version, at most once a day
+      </label>
+      <p>
+        This is the only network request Morphly makes. It reads the public Zenodo
+        record for the project and sends nothing: no identifiers, no usage data, not
+        even which version you are running. Nothing is ever downloaded or installed
+        automatically, since a release is close to half a gigabyte; Morphly only tells
+        you a newer one exists and offers to open the page.
+      </p>
+      <div className="link-row">
+        <button className="ghost small" onClick={checkNow} disabled={busy}>
+          {busy ? "Checking…" : "Check now"}
+        </button>
+      </div>
+      {result && <p className="message">{result}</p>}
     </>
   );
 }

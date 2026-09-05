@@ -20,6 +20,10 @@ const DEFAULTS = {
   recentProjects: [],
   /** Welcome screen shows until the user opts out of it. */
   showWelcome: true,
+  /** Ask Zenodo, at most once a day, whether a newer release exists. This is
+   *  the only network request Morphly ever makes; everything else is local. */
+  checkForUpdates: true,
+  lastUpdateCheck: 0,
 };
 
 const settingsPath = () => path.join(app.getPath("userData"), "settings.json");

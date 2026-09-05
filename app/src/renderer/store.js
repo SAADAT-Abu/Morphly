@@ -905,6 +905,13 @@ export const useStore = create((set, get) => ({
     set({ pages: next, dirty: true });
   },
 
+  /** Set when the menu or F2 asks for a rename, cleared once the tab strip
+   *  has opened its editor. Renaming lives in the tab, but it has to be
+   *  reachable from outside it. */
+  pendingRenamePageId: null,
+  requestRename: (id) => set({ pendingRenamePageId: id ?? get().activePageId }),
+  clearRenameRequest: () => set({ pendingRenamePageId: null }),
+
   /** Step to the next or previous tab, for Ctrl+PageDown / Ctrl+PageUp. */
   stepPage: (delta) => {
     const { pages, activePageId } = get();

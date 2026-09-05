@@ -25,6 +25,16 @@ export default function PageTabs() {
   const [editingId, setEditingId] = useState(null);
   const dragId = useRef(null);
 
+  // F2 and the Page menu ask for a rename through the store, since neither has
+  // a way to reach into this component directly.
+  const pendingRenamePageId = useStore((s) => s.pendingRenamePageId);
+  const clearRenameRequest = useStore((s) => s.clearRenameRequest);
+  useEffect(() => {
+    if (!pendingRenamePageId) return;
+    setEditingId(pendingRenamePageId);
+    clearRenameRequest();
+  }, [pendingRenamePageId, clearRenameRequest]);
+
   return (
     <div className="page-tabs" role="tablist" aria-label="Figures in this document">
       {pages.map((page, index) => (
@@ -138,9 +148,19 @@ function Tab({
           onSelect();
         }
       }}
-      title={`${page.name}\nDouble-click to rename, drag to reorder`}
+      title={`${page.name}\nDouble-click or press F2 to rename, drag to reorder`}
     >
       <span className="page-name">{page.name}</span>
+      <button
+        className="page-action"
+        title="Rename this figure (F2)"
+        onClick={(e) => {
+          e.stopPropagation();
+          onStartRename();
+        }}
+      >
+        ✎
+      </button>
       <button
         className="page-action"
         title="Duplicate this figure"

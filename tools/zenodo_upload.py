@@ -71,6 +71,10 @@ def api(method, url, token, body=None, data=None, content_type="application/json
         data = json.dumps(body).encode()
     if data is not None:
         headers["Content-Type"] = content_type
+        # A file-like body without an explicit length is sent chunked, and
+        # Zenodo's file API reads a chunked upload as an empty file.
+        if not isinstance(data, (bytes, bytearray)) and hasattr(data, "__len__"):
+            headers["Content-Length"] = str(len(data))
     request = urllib.request.Request(url, data=data, method=method, headers=headers)
     try:
         with urllib.request.urlopen(request, timeout=3600) as response:

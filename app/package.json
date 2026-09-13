@@ -15,6 +15,7 @@
     "dist": "npm run build && electron-builder"
   },
   "dependencies": {
+    "fast-xml-parser": "^5.11.1",
     "konva": "^10.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

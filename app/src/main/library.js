@@ -53,13 +53,24 @@ async function loadLibrary({ key, dir }) {
     // Keep only variants that actually have an SVG on disk. BioArt brush-type
     // entries ship Illustrator files only and are skipped by the scraper's
     // default --formats SVG, so they legitimately have nothing to show.
-    const variants = (entry.local_files ?? [])
-      .filter((g) => g.files && g.files.SVG)
-      .map((g) => ({
+    const variants = [];
+    for (const g of entry.local_files ?? []) {
+      if (!g.files || !g.files.SVG) continue;
+      // A 0-byte or missing SVG shows as a blank tile. A size check is only a
+      // metadata read, cheap enough for every file on every launch; checking
+      // the content is not, so that happens once, when an Art Pack installs.
+      try {
+        const { size } = await fs.stat(safeResolve(dir, g.files.SVG));
+        if (size === 0) continue;
+      } catch {
+        continue;
+      }
+      variants.push({
         groupId: g.group_id,
         caption: g.caption || entry.title,
         svgPath: g.files.SVG,
-      }));
+      });
+    }
 
     if (variants.length === 0) continue;
 

@@ -29,6 +29,7 @@ const path = require("node:path");
 const crypto = require("node:crypto");
 const os = require("node:os");
 const yauzl = require("yauzl");
+const { XMLValidator } = require("fast-xml-parser");
 
 /** Where packs may be downloaded from. */
 const ALLOWED_HOSTS = new Set(["zenodo.org", "raw.githubusercontent.com", "github.com"]);
@@ -228,6 +229,121 @@ function extractZip(zipPath, destination, { onProgress } = {}) {
   });
 }
 
+
+// ---------------------------------------------------------------------------
+// Validation
+// ---------------------------------------------------------------------------
+
+const DRAWABLE = /<(?:[a-z]+:)?(?:path|circle|ellipse|polygon|polyline|line|text|image|use)\b/i;
+const RECT = /<(?:[a-z]+:)?rect\b[^>]*>/gi;
+const WHITE_OR_NONE = /fill\s*[:=]\s*["']?\s*(?:#fff\b|#ffffff\b|white\b|none\b)/i;
+
+/**
+ * Decide what to do with one SVG from a pack.
+ *
+ *   ok        draw it as it is
+ *   repaired  the root had no size, recovered from the first group that
+ *             declares one (some Canvas exports put the page size on a
+ *             <g> rather than on <svg>, which leaves the file with no size
+ *             at all, so it renders as nothing)
+ *   empty     the file has no content
+ *   blank     all it contains is a white or unfilled page rectangle
+ *
+ * Broken files are dropped rather than shown as blank tiles, and a missing
+ * linked raster alone is not grounds for dropping: those drawings render
+ * with a gap where the image would be.
+ */
+function validateSvg(input) {
+  if (!input || !input.trim()) return { status: "empty" };
+  let text = input;
+  let repaired = false;
+
+  // Browsers render an SVG image only if it is well-formed XML; Inkscape is
+  // more forgiving, which is how a broken file can look fine in one and fail
+  // in the other. The common fault is stray bytes after the closing tag, and
+  // trimming them recovers the drawing. Anything else malformed is dropped.
+  let check = XMLValidator.validate(text);
+  if (check !== true) {
+    const close = /<\/(?:[a-z]+:)?svg\s*>/gi;
+    let last = null;
+    for (let m = close.exec(text); m; m = close.exec(text)) last = m;
+    if (last) {
+      const trimmed = text.slice(0, last.index + last[0].length);
+      if (trimmed.length < text.length && XMLValidator.validate(trimmed) === true) {
+        text = trimmed;
+        repaired = true;
+        check = true;
+      }
+    }
+    if (check !== true) return { status: "malformed", detail: check.err?.msg };
+  }
+
+  const body = text.replace(/<\?xml[\s\S]*?\?>/i, "").replace(/<!DOCTYPE[\s\S]*?>/i, "");
+  if (!DRAWABLE.test(body)) {
+    const rects = body.match(RECT) ?? [];
+    if (rects.length === 0 || rects.every((r) => WHITE_OR_NONE.test(r))) {
+      return { status: "blank" };
+    }
+  }
+
+  const root = /<(?:([a-z]+):)?svg\b[^>]*>/i.exec(body);
+  if (root && !/\bviewBox\s*=/.test(root[0]) && !/\b(?:width|height)\s*=/.test(root[0])) {
+    const sized = /<(?:[a-z]+:)?g\b[^>]*\bwidth\s*=\s*["']([\d.]+)(?:px)?["'][^>]*\bheight\s*=\s*["']([\d.]+)(?:px)?["']/i.exec(body);
+    if (sized) {
+      const [, w, h] = sized;
+      const fixed = root[0].replace(/\s*\/?>$/, (end) => ` viewBox="0 0 ${w} ${h}" width="${w}" height="${h}"${end}`);
+      text = text.replace(root[0], fixed);
+      repaired = true;
+    }
+  }
+  return repaired ? { status: "repaired", text } : { status: "ok" };
+}
+
+/**
+ * Check every SVG in an unpacked pack, repair what can be repaired, and drop
+ * entries with nothing left to draw from its manifest.
+ */
+async function validatePack(dir) {
+  const manifestPath = path.join(dir, "manifest.json");
+  const manifest = JSON.parse(await fsp.readFile(manifestPath, "utf8"));
+  const entries = Array.isArray(manifest) ? manifest : manifest.assets ?? [];
+  const report = { repaired: [], dropped: [] };
+
+  const kept = [];
+  for (const entry of entries) {
+    const groups = [];
+    for (const group of entry.local_files ?? []) {
+      const rel = group?.files?.SVG;
+      if (!rel) {
+        groups.push(group);
+        continue;
+      }
+      let text = "";
+      try {
+        text = await fsp.readFile(safeEntryPath(dir, rel), "utf8");
+      } catch {
+        report.dropped.push({ title: entry.title, reason: "missing" });
+        continue;
+      }
+      const verdict = validateSvg(text);
+      if (verdict.status === "repaired") {
+        await fsp.writeFile(safeEntryPath(dir, rel), verdict.text, "utf8");
+        report.repaired.push(entry.title);
+      }
+      if (["empty", "blank", "malformed"].includes(verdict.status)) {
+        report.dropped.push({ title: entry.title, reason: verdict.status });
+        continue;
+      }
+      groups.push(group);
+    }
+    if (groups.length > 0) kept.push({ ...entry, local_files: groups });
+  }
+
+  const next = Array.isArray(manifest) ? kept : { ...manifest, assets: kept };
+  await fsp.writeFile(manifestPath, JSON.stringify(next));
+  return report;
+}
+
 // ---------------------------------------------------------------------------
 // Install / remove
 // ---------------------------------------------------------------------------
@@ -267,10 +383,15 @@ async function installPack(entry, { settings, onProgress, signal, fetchImpl, all
 
     // A pack without a manifest is not a library, whatever else it contains.
     await fsp.access(path.join(staging, "manifest.json"));
+    const validation = await validatePack(staging);
 
     await fsp.writeFile(
       path.join(staging, "pack.json"),
-      JSON.stringify({ ...entry, thumbnail: undefined, installedAt: Date.now(), bytes }, null, 2)
+      JSON.stringify(
+        { ...entry, thumbnail: undefined, installedAt: Date.now(), bytes, validation },
+        null,
+        2
+      )
     );
 
     await fsp.rm(target, { recursive: true, force: true });
@@ -295,6 +416,8 @@ async function removePack(id, { settings } = {}) {
 
 module.exports = {
   defaultPacksRoot,
+  validateSvg,
+  validatePack,
   download,
   extractZip,
   packsRoot,

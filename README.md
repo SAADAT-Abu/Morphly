@@ -82,17 +82,19 @@ else's server.
 
 ### Download a build
 
-The current release is **0.2.0**, which adds figure tabs and fixes a freeze
-when starting a new figure. **Every build already contains the full
-illustration libraries**, around 3,500 icons, so there is nothing else to
-download and Morphly works offline the moment you open it.
+The current release is **0.3.0**. It ships with **NIH BioArt** inside it, so
+Morphly works offline the moment you open it, and adds the **Art Store**, where
+further illustration libraries (Bioicons and SciDraw) download as optional Art
+Packs. It also lets you type an exact hex colour on every swatch, and checks and
+cleans any artwork it downloads. Installers are about 40% smaller than 0.2.0,
+because Bioicons is no longer bundled.
 
 | Platform | Download | Size |
 | --- | --- | --- |
-| Linux | [Morphly-0.2.0.AppImage](https://zenodo.org/records/22251152/files/Morphly-0.2.0.AppImage?download=1) | 465 MB |
-| Windows | [Morphly Setup 0.2.0.exe](https://zenodo.org/records/22251152/files/Morphly%20Setup%200.2.0.exe?download=1) | 406 MB |
-| macOS, Apple Silicon | [Morphly-0.2.0-arm64.dmg](https://zenodo.org/records/22251152/files/Morphly-0.2.0-arm64.dmg?download=1) | 453 MB |
-| macOS, Intel | [Morphly-0.2.0.dmg](https://zenodo.org/records/22251152/files/Morphly-0.2.0.dmg?download=1) | 458 MB |
+| Linux | [Morphly-0.3.0.AppImage](https://zenodo.org/records/22737155/files/Morphly-0.3.0.AppImage?download=1) | 281 MB |
+| Windows | [Morphly Setup 0.3.0.exe](https://zenodo.org/records/22737155/files/Morphly%20Setup%200.3.0.exe?download=1) | 245 MB |
+| macOS, Apple Silicon | [Morphly-0.3.0-arm64.dmg](https://zenodo.org/records/22737155/files/Morphly-0.3.0-arm64.dmg?download=1) | 273 MB |
+| macOS, Intel | [Morphly-0.3.0.dmg](https://zenodo.org/records/22737155/files/Morphly-0.3.0.dmg?download=1) | 278 MB |
 
 **Which Mac do you have?** Click the Apple menu and choose *About This Mac*.
 If it says **Chip: Apple M1, M2, M3** or similar, take the **arm64** file. If
@@ -101,18 +103,16 @@ it says **Processor: Intel**, take the other one. Every Mac sold since late
 and the wrong one will not run, so it is worth the ten seconds to check.
 
 All files, with their checksums, are on the
-[Zenodo record](https://doi.org/10.5281/zenodo.22251152). The concept DOI
+[Zenodo record](https://doi.org/10.5281/zenodo.22737155). The concept DOI
 [10.5281/zenodo.22238248](https://doi.org/10.5281/zenodo.22238248) always
-resolves to the newest release, whichever that is. Version 0.1.0 remains
-archived at [10.5281/zenodo.22238249](https://doi.org/10.5281/zenodo.22238249)
-but freezes when you start a new figure with unsaved work, so 0.2.0 is the one
-to use. 
+resolves to the newest release, and earlier versions stay archived under it.
+Version 0.1.0 freezes when you start a new figure with unsaved work, so use 0.3.0.
 
 On Linux, mark the AppImage executable and run it:
 
 ```bash
-chmod +x Morphly-0.2.0.AppImage
-./Morphly-0.2.0.AppImage
+chmod +x Morphly-0.3.0.AppImage
+./Morphly-0.3.0.AppImage
 ```
 
 On macOS, open the .dmg and drag Morphly to your Applications folder.
@@ -166,6 +166,7 @@ element carries its own copy of the artwork it uses.
 | Pack | Contents | Download |
 | --- | --- | --- |
 | Bioicons | 2,830 icons: chemistry, cell biology, lab equipment, sequencing, clinical imagery. Strong on epigenetics. | 180 MB |
+| SciDraw | 609 drawings, each with a DOI: whole animals, neuroscience, behavioural setups, cells. | 59 MB |
 
 Morphly also reads any library folder from anywhere on disk, which is what you
 want when running from source or building a library of your own:
@@ -289,7 +290,7 @@ If Morphly helped make a figure in your work, please cite the archived
 release:
 
 > Saadat, A. (2026). *Morphly: a free desktop editor for scientific figures*
-> (version 0.2.0) [Software]. Zenodo. https://doi.org/10.5281/zenodo.22251152
+> (version 0.3.0) [Software]. Zenodo. https://doi.org/10.5281/zenodo.22737155
 
 To cite whichever version is current rather than this one, use the concept DOI
 [10.5281/zenodo.22238248](https://doi.org/10.5281/zenodo.22238248), which always

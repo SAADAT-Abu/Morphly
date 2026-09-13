@@ -138,12 +138,28 @@ def metadata_for(pack_id: str, catalogue: dict) -> dict:
     }
 
 
+def start_new_version(base: str, token: str, record_id: int) -> dict:
+    """
+    Open a new version of a published record and empty its file list.
+
+    Zenodo copies the previous version's files into the new draft; a new
+    version should carry only the new archive, so the inherited ones go.
+    """
+    opened = api("POST", f"{base}/api/deposit/depositions/{record_id}/actions/newversion", token)
+    draft = api("GET", opened["links"]["latest_draft"], token)
+    for inherited in draft.get("files", []):
+        api("DELETE", f"{base}/api/deposit/depositions/{draft['id']}/files/{inherited['id']}", token)
+    return draft
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--packs", nargs="+", default=list(PACKS))
     parser.add_argument("--sandbox", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--publish", action="store_true")
+    parser.add_argument("--new-version", action="store_true",
+                        help="add a new version to each pack's existing record (ids from zenodo.json)")
     args = parser.parse_args()
 
     base = "https://sandbox.zenodo.org" if args.sandbox else "https://zenodo.org"
@@ -157,11 +173,20 @@ def main() -> int:
         print(f"\n{pack_id}: {archive.name}, {archive.stat().st_size / 1e6:.0f} MB")
 
         if args.dry_run:
-            print(json.dumps(meta, indent=2))
+            if args.new_version:
+                previous = json.loads((PACKS_DIR / "zenodo.json").read_text())
+                print(f"  would open a new version of record {previous[pack_id]['id']}, "
+                      f"remove its inherited files, upload {archive.name}, set version {catalogue['version']}")
+            print(json.dumps(meta, indent=2)[:600])
             continue
 
-        draft = api("POST", f"{base}/api/deposit/depositions", token, body={})
-        print(f"  draft {draft['id']} created")
+        if args.new_version:
+            previous = json.loads((PACKS_DIR / ("zenodo-sandbox.json" if args.sandbox else "zenodo.json")).read_text())
+            draft = start_new_version(base, token, previous[pack_id]["id"])
+            print(f"  new version draft {draft['id']} opened from record {previous[pack_id]['id']}")
+        else:
+            draft = api("POST", f"{base}/api/deposit/depositions", token, body={})
+            print(f"  draft {draft['id']} created")
 
         print("  uploading")
         api("PUT", f"{draft['links']['bucket']}/{archive.name}", token,
@@ -184,7 +209,10 @@ def main() -> int:
 
     if results:
         out = PACKS_DIR / ("zenodo-sandbox.json" if args.sandbox else "zenodo.json")
-        out.write_text(json.dumps(results, indent=2))
+        # Merge rather than overwrite, so uploading one pack keeps the others' ids.
+        merged = json.loads(out.read_text()) if out.exists() else {}
+        merged.update(results)
+        out.write_text(json.dumps(merged, indent=2))
         print(f"\nwrote {out}")
         for pack_id, r in results.items():
             print(f"  {pack_id}: review at {r['review']}")

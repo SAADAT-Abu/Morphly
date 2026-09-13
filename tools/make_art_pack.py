@@ -153,6 +153,137 @@ def build_zip(library: Path, pack_meta: dict, out_zip: Path) -> tuple[int, int]:
     return written, skipped
 
 
+# ---------------------------------------------------------------------------
+# Cleaning
+# ---------------------------------------------------------------------------
+
+import re
+import xml.etree.ElementTree as ET
+
+DRAWABLE = re.compile(r"<(?:[a-z]+:)?(?:path|circle|ellipse|polygon|polyline|line|text|image|use)\b", re.I)
+RECT = re.compile(r"<(?:[a-z]+:)?rect\b[^>]*>", re.I)
+WHITE_OR_NONE = re.compile(r"fill\s*[:=]\s*[\"']?\s*(?:#fff\b|#ffffff\b|white\b|none\b)", re.I)
+ROOT = re.compile(r"<(?:[a-z]+:)?svg\b[^>]*>", re.I)
+
+
+def fit_to_drawing(path: Path, page_w: float, page_h: float) -> str | None:
+    """
+    Give a size-less SVG a viewBox that hugs what is actually drawn.
+
+    Some exports declare no size on <svg> and put a page size on a child group
+    instead, so the file renders as nothing, or, given the page size, as a
+    small figure lost in a corner of a big white page.
+
+    The bounds come from pixels, not from Inkscape's object query: that query
+    reports the page group, which is the size we are trying to get away from.
+    So render the drawing on its page, find the non-white pixels, and map
+    their box back into SVG units.
+    """
+    try:
+        from PIL import Image
+    except ImportError:
+        return None
+
+    scale = 2.0
+    text = path.read_text(errors="replace")
+    root = ROOT.search(text)
+    if not root:
+        return None
+    paged = text.replace(
+        root.group(0),
+        re.sub(r"\s*/?>$", lambda m: f' viewBox="0 0 {page_w} {page_h}" width="{page_w}" height="{page_h}"{m.group(0)}',
+               root.group(0)),
+        1,
+    )
+    with tempfile.TemporaryDirectory() as tmp:
+        svg = Path(tmp) / "paged.svg"
+        png = Path(tmp) / "paged.png"
+        svg.write_text(paged, encoding="utf-8")
+        # Long options only: Inkscape rejects "-w=1224" ("Cannot parse integer
+        # value") and exits without writing anything.
+        result = subprocess.run(
+            ["inkscape", str(svg), "--export-type=png", f"--export-filename={png}",
+             "--export-area-page", f"--export-width={int(page_w * scale)}",
+             f"--export-height={int(page_h * scale)}",
+             "--export-background=white", "--export-background-opacity=1"],
+            capture_output=True, text=True, timeout=180,
+        )
+        if not png.exists():
+            print(f"  ! could not render {path.name} to measure it: "
+                  f"{(result.stderr or result.stdout).strip()[-160:]}", file=sys.stderr)
+            return None
+        gray = Image.open(png).convert("L")
+        box = gray.point(lambda v: 255 if v < 245 else 0).getbbox()
+    if not box:
+        return None
+
+    x0, y0, x1, y1 = (v / scale for v in box)
+    w, h = x1 - x0, y1 - y0
+    pad = max(w, h) * 0.03  # a little margin so strokes and antialiasing are not clipped
+    return f"{x0 - pad:.2f} {y0 - pad:.2f} {w + 2 * pad:.2f} {h + 2 * pad:.2f}"
+
+
+def clean_library(source: Path, staging: Path) -> dict:
+    """
+    Copy a library, dropping files that cannot render and framing size-less
+    ones, so the published pack is clean rather than relying on the app to
+    work around it.
+    """
+    shutil.copytree(source, staging)
+    manifest = json.loads((staging / "manifest.json").read_text())
+    entries = manifest if isinstance(manifest, list) else manifest.get("assets", [])
+    report = {"dropped": [], "fitted": []}
+    kept = []
+
+    for entry in entries:
+        groups = []
+        for group in entry.get("local_files") or []:
+            rel = (group.get("files") or {}).get("SVG")
+            if not rel:
+                groups.append(group)
+                continue
+            path = staging / rel
+            reason = None
+            if not path.exists() or path.stat().st_size == 0:
+                reason = "empty"
+            else:
+                text = path.read_text(errors="replace")
+                try:
+                    ET.fromstring(text.encode("utf-8", "replace"))
+                except ET.ParseError:
+                    reason = "malformed"
+                else:
+                    body = re.sub(r"<\?xml[\s\S]*?\?>|<!DOCTYPE[\s\S]*?>", "", text, flags=re.I)
+                    rects = RECT.findall(body)
+                    if not DRAWABLE.search(body) and all(WHITE_OR_NONE.search(r) for r in rects):
+                        reason = "blank"
+                    else:
+                        root = ROOT.search(body)
+                        if root and "viewBox" not in root.group(0) and not re.search(r"\b(?:width|height)\s*=", root.group(0)):
+                            page = re.search(r"<(?:[a-z]+:)?g\b[^>]*\bwidth\s*=\s*[\"']([\d.]+)(?:px)?[\"'][^>]*\bheight\s*=\s*[\"']([\d.]+)(?:px)?[\"']", body, re.I)
+                            box = fit_to_drawing(path, float(page.group(1)), float(page.group(2))) if page else None
+                            if not box and page:
+                                # Visible but loosely framed beats blank; say so loudly.
+                                box = f"0 0 {page.group(1)} {page.group(2)}"
+                                print(f"  ! {entry.get('title')!r}: bounds unmeasurable, using the page size", file=sys.stderr)
+                            if box:
+                                _, _, w, h = box.split()
+                                fixed = re.sub(r"\s*/?>$", lambda m: f' viewBox="{box}" width="{w}" height="{h}"{m.group(0)}', root.group(0))
+                                path.write_text(text.replace(root.group(0), fixed, 1), encoding="utf-8")
+                                report["fitted"].append((entry.get("title"), box))
+            if reason:
+                path.unlink(missing_ok=True)
+                report["dropped"].append((entry.get("title"), reason))
+                continue
+            groups.append(group)
+        if groups:
+            kept.append({**entry, "local_files": groups})
+
+    out = kept if isinstance(manifest, list) else {**manifest, "assets": kept}
+    (staging / "manifest.json").write_text(json.dumps(out, indent=1))
+    return report
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--library", required=True, type=Path)
@@ -162,12 +293,26 @@ def main() -> int:
     parser.add_argument("--summary", required=True)
     parser.add_argument("--homepage", default="")
     parser.add_argument("--out", type=Path, default=Path("dist/art-packs"))
+    parser.add_argument("--no-clean", action="store_true",
+                        help="pack the library exactly as it is, without dropping or fitting files")
     args = parser.parse_args()
 
     library = args.library.resolve()
     if not (library / "manifest.json").exists():
         print(f"{library} has no manifest.json", file=sys.stderr)
         return 1
+
+    # Pack a cleaned copy, never the library itself, so the source folder stays
+    # exactly what the fetcher produced.
+    if not args.no_clean:
+        staging = Path(tempfile.mkdtemp(prefix=f"{args.id}-clean-")) / "library"
+        report = clean_library(library, staging)
+        print(f"cleaned: dropped {len(report['dropped'])}, fitted {len(report['fitted'])}")
+        for title, why in report["dropped"]:
+            print(f"  dropped {title!r}: {why}")
+        for title, box in report["fitted"]:
+            print(f"  fitted  {title!r}: viewBox {box}")
+        library = staging
 
     args.out.mkdir(parents=True, exist_ok=True)
     entries = read_manifest(library)

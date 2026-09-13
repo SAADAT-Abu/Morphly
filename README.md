@@ -25,8 +25,7 @@ subscription tool or fighting with general-purpose vector software that knows
 nothing about biology.
 
 Morphly is a third option. It is a desktop figure editor that sits on top of
-**free, openly licensed scientific illustration libraries** (NIH BioArt and
-Bioicons), giving you thousands of vetted viruses, cells, organs, lab
+**free, openly licensed scientific illustration libraries**, giving you thousands of vetted viruses, cells, organs, lab
 equipment, animals and molecules to build with. It runs entirely on your own
 machine. No account, no subscription, no upload of unpublished work to anyone
 else's server.
@@ -56,8 +55,6 @@ else's server.
   WebP or BMP, from the toolbar or by dragging files onto the canvas.
   Images are stored inside the .morphly file, so a saved figure still opens
   after the original file has been moved or renamed.
-- **Grid**: a background grid at any spacing, with optional snapping. It is a
-  drawing aid only and never appears in an export.
 - **Art Packs**: Morphly ships with NIH BioArt inside it and works offline
   immediately. Further libraries, such as Bioicons, download from the built-in
   Art Store when you want them, so the installer stays small and new packs can
@@ -105,8 +102,7 @@ and the wrong one will not run, so it is worth the ten seconds to check.
 All files, with their checksums, are on the
 [Zenodo record](https://doi.org/10.5281/zenodo.22737155). The concept DOI
 [10.5281/zenodo.22238248](https://doi.org/10.5281/zenodo.22238248) always
-resolves to the newest release, and earlier versions stay archived under it.
-Version 0.1.0 freezes when you start a new figure with unsaved work, so use 0.3.0.
+resolves to the newest release.
 
 On Linux, mark the AppImage executable and run it:
 
@@ -157,7 +153,7 @@ npm run dist     # output lands in app/release/
 vectors, mounted automatically the first time you open the app, so Morphly
 works offline straight away with nothing to download or configure.
 
-Everything else is an **Art Pack**: a library published on Zenodo and installed
+Everything else is an **Art Pack**: a library that can be installed
 from the Art Store in the sidebar header. A pack is downloaded, checked against
 its published sha256, unpacked into a data directory and mounted. It can be
 removed again at any time, and figures already made keep working, because each
@@ -300,12 +296,7 @@ Illustrations should be cited to their original libraries, not to Morphly.
 Ticking *Append asset citations* on export produces correctly formatted credits
 for everything used in the figure.
 
-## Author
-
-**Abu Saadat**, Postdoctoral Fellow, Josep Carreras Leukaemia Research
-Institute (IJC), Barcelona.
-
-Morphly is a side project, built because good scientific figures should not
+Morphly exist because making because good scientific figures should not
 require a subscription.
 
 ## Licence

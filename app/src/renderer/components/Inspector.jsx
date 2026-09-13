@@ -88,6 +88,65 @@ export default function Inspector() {
  */
 const SWATCH_CAP = 24;
 
+/**
+ * Editable hex value for one swatch.
+ *
+ * Typing a colour is faster than dragging a picker when you already know the
+ * value, such as a journal's palette or a lab's house colours, and it is
+ * exact. It commits on Enter or when the field loses focus, reverts on
+ * Escape, and ignores anything that is not a hex colour rather than applying
+ * half a value. Typing the original colour back clears the change.
+ */
+function HexField({ value, disabled, onCommit }) {
+  const [draft, setDraft] = React.useState(value);
+  const cancelled = React.useRef(false);
+
+  React.useEffect(() => setDraft(value), [value]);
+
+  const commit = () => {
+    if (cancelled.current) {
+      cancelled.current = false;
+      setDraft(value);
+      return;
+    }
+    const match = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(draft.trim());
+    if (!match) {
+      setDraft(value);
+      return;
+    }
+    const digits = match[1].length === 3
+      ? match[1].split("").map((c) => c + c).join("")
+      : match[1];
+    const next = `#${digits.toLowerCase()}`;
+    if (next !== value) onCommit(next);
+    else setDraft(value);
+  };
+
+  return (
+    <input
+      className="swatch-hex"
+      value={draft}
+      disabled={disabled}
+      spellCheck={false}
+      maxLength={7}
+      aria-label="Hex colour"
+      title="Type a hex colour, then press Enter"
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          e.currentTarget.blur();
+        } else if (e.key === "Escape") {
+          cancelled.current = true;
+          e.currentTarget.blur();
+        }
+        e.stopPropagation();
+      }}
+    />
+  );
+}
+
 function RecolorPanel({ element }) {
   const setAssetColor = useStore((s) => s.setAssetColor);
   const resetAssetColors = useStore((s) => s.resetAssetColors);
@@ -152,7 +211,11 @@ function RecolorPanel({ element }) {
                 onChange={(e) => setAssetColor(element.id, hex, e.target.value)}
                 title={`${hex}${isChanged ? ` changed to ${current}` : ""}`}
               />
-              <span className="swatch-hex">{current}</span>
+              <HexField
+                value={current}
+                disabled={isHidden}
+                onCommit={(next) => setAssetColor(element.id, hex, next)}
+              />
               <span className="swatch-count" title={`${count} rule(s) use this colour`}>
                 x{count}
               </span>

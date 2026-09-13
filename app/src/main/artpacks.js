@@ -104,9 +104,13 @@ function sanitiseSvg(text) {
     // on* handlers, quoted or bare
     .replace(/\son[a-z]+\s*=\s*(["'])[\s\S]*?\1/gi, "")
     .replace(/\son[a-z]+\s*=\s*[^\s>]+/gi, "")
-    // remote references, including javascript: and data: URLs in href/src
-    .replace(/\s(?:xlink:)?href\s*=\s*(["'])\s*(?:https?:|\/\/|javascript:|data:)[^"']*\1/gi, "")
-    .replace(/\ssrc\s*=\s*(["'])\s*(?:https?:|\/\/|javascript:|data:)[^"']*\1/gi, "");
+    // Remote references, javascript: URLs and non-raster data: URLs. Embedded
+    // PNG, JPEG, GIF and WebP stay: a raster cannot run script, and about a
+    // fifth of SciDraw's drawings (and many Bioicons ones) are built around
+    // one, so stripping them blanked those drawings on install. data:image/svg+xml
+    // still goes, because a nested SVG can carry script into an export.
+    .replace(/\s(?:xlink:)?href\s*=\s*(["'])\s*(?:https?:|\/\/|javascript:|data:(?!image\/(?:png|jpe?g|gif|webp)[;,]))[^"']*\1/gi, "")
+    .replace(/\ssrc\s*=\s*(["'])\s*(?:https?:|\/\/|javascript:|data:(?!image\/(?:png|jpe?g|gif|webp)[;,]))[^"']*\1/gi, "");
 }
 
 // ---------------------------------------------------------------------------

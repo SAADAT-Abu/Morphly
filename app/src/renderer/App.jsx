@@ -13,6 +13,7 @@ import TableDialog from "./components/TableDialog";
 import ArtStore from "./components/ArtStore";
 import { useStore } from "./store";
 import { cellBox, isHeaderCell } from "./lib/tableLayout";
+import { migrate, serialise, DocumentError } from "./lib/document";
 
 export default function App() {
   const stageRef = useRef(null);
@@ -239,15 +240,9 @@ export default function App() {
   const handleSave = useCallback(
     async (saveAs) => {
       const state = store.getState();
-      // Version 2 carries every page. Version 1 files, which held a single
-      // canvas and element list, still open: loadDocument wraps them as a
-      // one-page document.
-      const doc = {
-        format: "morphly-figure",
-        version: 2,
-        pages: state.allPages(),
-        activePageId: state.activePageId,
-      };
+      // Always written at the current format version; lib/document.js is the
+      // one place that knows what that is.
+      const doc = serialise({ pages: state.allPages(), activePageId: state.activePageId });
       const res = await window.morphly.saveProject(
         JSON.stringify(doc, null, 2),
         saveAs ? null : state.projectPath
@@ -271,11 +266,17 @@ export default function App() {
       return;
     }
     try {
-      const doc = JSON.parse(res.json);
+      // Older figures are brought up to date in memory; the file on disk is
+      // only rewritten if the user saves.
+      const doc = migrate(JSON.parse(res.json));
       loadDocument(doc, res.filePath);
       flash(`Opened ${res.filePath.split(/[/\\]/).pop()}`);
     } catch (err) {
-      flash(`That file is not a Morphly figure (${err.message})`);
+      flash(
+        err instanceof DocumentError
+          ? err.message
+          : `That file is not a Morphly figure (${err.message})`
+      );
     }
   }, [loadDocument, flash]);
 

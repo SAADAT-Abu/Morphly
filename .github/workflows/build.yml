@@ -64,6 +64,12 @@ jobs:
             node node_modules/electron/install.js
           fi
 
+      # Packaging stops here if any unit test fails, so a regression in export,
+      # colour handling or the file format cannot ship in an installer.
+      - name: Run tests
+        working-directory: app
+        run: npm test
+
       - name: Build installers
         working-directory: app
         # The builds are unsigned: there is no Apple Developer ID or Windows

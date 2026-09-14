@@ -170,7 +170,7 @@ function elementToSvg(element, stage) {
   const transform = `translate(${element.x} ${element.y})${
     element.rotation ? ` rotate(${element.rotation})` : ""
   }`;
-  const open = `<g transform="${transform}"${element.opacity !== 1 ? ` opacity="${element.opacity}"` : ""}>`;
+  const open = `<g transform="${transform}"${Number.isFinite(element.opacity) && element.opacity !== 1 ? ` opacity="${element.opacity}"` : ""}>`;
 
   let body = "";
   switch (element.type) {

@@ -930,21 +930,14 @@ export const useStore = create((set, get) => ({
    * keep working untouched.
    */
   loadDocument: (doc, projectPath = null) => {
-    const pages =
-      Array.isArray(doc.pages) && doc.pages.length > 0
-        ? doc.pages.map((p, i) => ({
-            id: p.id ?? nextPageId(),
-            name: p.name ?? `Figure ${i + 1}`,
-            canvas: { ...DEFAULT_CANVAS, ...(p.canvas ?? {}) },
-            elements: p.elements ?? [],
-          }))
-        : [
-            {
-              ...makePage("Figure 1"),
-              canvas: { ...DEFAULT_CANVAS, ...(doc.canvas ?? {}) },
-              elements: doc.elements ?? [],
-            },
-          ];
+    // `doc` has already been through migrate() in lib/document.js, so it always
+    // has pages, whatever version of Morphly saved it.
+    const pages = doc.pages.map((p, i) => ({
+      id: p.id ?? nextPageId(),
+      name: p.name ?? `Figure ${i + 1}`,
+      canvas: { ...DEFAULT_CANVAS, ...(p.canvas ?? {}) },
+      elements: Array.isArray(p.elements) ? p.elements : [],
+    }));
 
     const active = pages.find((p) => p.id === doc.activePageId) ?? pages[0];
     set({

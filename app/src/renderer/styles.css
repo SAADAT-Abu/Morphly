@@ -81,6 +81,19 @@ input[type="range"] { padding: 0; }
 .toolbar .group { display: flex; align-items: center; gap: 4px; }
 .toolbar .divider { width: 1px; align-self: stretch; background: var(--border); margin: 0 4px; }
 .toolbar .spacer { flex: 1; }
+/* Second row: drawing, inserting, arranging and viewing. It wraps rather than
+   overflowing when the window is narrow. */
+.toolbar.toolbar-tools {
+  padding: 5px 12px;
+  gap: 6px;
+  flex-wrap: wrap;
+  row-gap: 4px;
+  background: var(--bg, var(--panel));
+}
+.toolbar .group-label { font-size: 11px; color: var(--text-dim); margin: 0 2px 0 4px; white-space: nowrap; }
+.toolbar .align-to { height: 28px; font-size: 12px; padding: 2px 4px; }
+.tool:disabled { opacity: 0.35; }
+.tool:disabled:hover { background: var(--panel-2); }
 /* Fixed box with the icon centred by the grid, so every tool sits identically
    regardless of what it draws. */
 .tool {

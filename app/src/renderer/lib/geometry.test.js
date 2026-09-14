@@ -1,7 +1,39 @@
 import { describe, it, expect } from "vitest";
-import { pointsBounds, elementBox, computeSnap } from "./geometry";
+import { pointsBounds, elementBox, visualBox, unionBox } from "./geometry";
 
-const canvas = { width: 1000, height: 800 };
+describe("visualBox", () => {
+  it("is the element's own box when it is upright", () => {
+    expect(visualBox({ x: 10, y: 20, width: 30, height: 40 })).toEqual({ x: 10, y: 20, width: 30, height: 40 });
+  });
+
+  it("follows a line's points to either side of its origin", () => {
+    expect(visualBox({ x: 100, y: 100, points: [0, 0, -40, 30] })).toEqual({ x: 60, y: 100, width: 40, height: 30 });
+  });
+
+  it("covers a turned element, which rotates about its top-left corner", () => {
+    const box = visualBox({ x: 100, y: 100, width: 200, height: 100, rotation: 90 });
+    expect(box.x).toBeCloseTo(0, 6);
+    expect(box.y).toBeCloseTo(100, 6);
+    expect(box.width).toBeCloseTo(100, 6);
+    expect(box.height).toBeCloseTo(200, 6);
+  });
+
+  it("asks for a height the model does not store, as for text", () => {
+    expect(visualBox({ x: 0, y: 0, width: 300 }, () => 48).height).toBe(48);
+    expect(visualBox({ x: 0, y: 0, width: 300 }).height).toBe(0);
+  });
+});
+
+describe("unionBox", () => {
+  it("surrounds every box", () => {
+    expect(unionBox([{ x: 0, y: 10, width: 5, height: 5 }, { x: 20, y: 0, width: 10, height: 40 }])).toEqual({ x: 0, y: 0, width: 30, height: 40 });
+  });
+
+  it("is null for nothing", () => {
+    expect(unionBox([])).toBeNull();
+  });
+});
+
 
 describe("pointsBounds", () => {
   it("measures a straight segment", () => {
@@ -24,48 +56,5 @@ describe("elementBox", () => {
 
   it("treats a missing size as zero", () => {
     expect(elementBox({ x: 1, y: 2 })).toEqual({ x: 1, y: 2, width: 0, height: 0 });
-  });
-});
-
-describe("computeSnap", () => {
-  it("leaves an element alone when nothing is near", () => {
-    const snap = computeSnap({ x: 103, y: 207, width: 50, height: 50 }, [], canvas, 6);
-    expect(snap).toEqual({ x: 103, y: 207, guides: { vertical: null, horizontal: null } });
-  });
-
-  it("snaps an element's centre to the centre of the page", () => {
-    const snap = computeSnap({ x: 447, y: 100, width: 100, height: 50 }, [], canvas, 6);
-    expect(snap.x).toBe(450);
-    expect(snap.guides.vertical).toBe(500);
-  });
-
-  it("snaps an edge to another element's edge", () => {
-    const other = { x: 0, y: 0, width: 200, height: 100 };
-    const snap = computeSnap({ x: 204, y: 300, width: 50, height: 50 }, [other], canvas, 6);
-    expect(snap.x).toBe(200);
-    expect(snap.guides.vertical).toBe(200);
-  });
-
-  it("picks the closest guide when several are in range", () => {
-    const other = { x: 503, y: 0, width: 10, height: 10 };
-    const snap = computeSnap({ x: 498, y: 300, width: 100, height: 50 }, [other], canvas, 6);
-    expect(snap.x).toBe(500);
-  });
-
-  it("does not snap at exactly the threshold distance", () => {
-    const snap = computeSnap({ x: 6, y: 300, width: 100, height: 50 }, [], canvas, 6);
-    expect(snap.x).toBe(6);
-    expect(snap.guides.vertical).toBeNull();
-  });
-
-  it("snaps to lines and arrows using the box of their points", () => {
-    const line = { x: 300, y: 0, points: [0, 0, 100, 0] };
-    const snap = computeSnap({ x: 403, y: 300, width: 10, height: 10 }, [line], canvas, 6);
-    expect(snap.x).toBe(400);
-  });
-
-  it("snaps both axes independently", () => {
-    const snap = computeSnap({ x: 2, y: 797, width: 0, height: 0 }, [], canvas, 6);
-    expect(snap).toMatchObject({ x: 0, y: 800 });
   });
 });

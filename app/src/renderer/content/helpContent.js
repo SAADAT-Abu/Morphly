@@ -84,6 +84,7 @@ export const SHORTCUTS = [
       ["Shift + click", "Add to selection"],
       ["Drag on empty space", "Select everything the band touches"],
       ["Shift + drag", "Add the band to the selection"],
+      ["Ctrl + drag", "Move or resize without snapping"],
       ["Esc", "Deselect / back to Select tool"],
     ],
   },
@@ -150,8 +151,13 @@ export const GETTING_STARTED = [
       "Add rectangles, ellipses, triangles, lines, arrows and text from the toolbar. Drag to " +
       "move, use the handles to resize and rotate. Zoom with Ctrl and the wheel; when the " +
       "figure is larger than the window, use the scrollbars, shift plus wheel for sideways, " +
-      "or hold space and drag. Pink guides appear as edges line up with " +
-      "the page centre or with other elements. Select several things and press Ctrl+G to " +
+      "or hold space and drag. While you move or resize something, dotted pink guides " +
+      "show when its edges or centre line up with the page, with other objects, or with " +
+      "the panel it sits in (a panel's centre lines win), and marks appear when gaps " +
+      "become equal. Hold Ctrl to move freely, or turn snapping off with the magnet " +
+      "button. The Arrange buttons in the toolbar align and distribute the selection " +
+      "relative to the page, the selection, its panel, the first object selected or the " +
+      "biggest one. Select several things and press Ctrl+G to " +
       "group them, so they move and scale as one piece. To select several at once, drag a "
       + "band across empty space and everything it touches is caught; hold shift to add to "
       + "what is already selected. A selected line or arrow shows a handle on each end: drag "

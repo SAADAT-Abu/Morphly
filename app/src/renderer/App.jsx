@@ -443,6 +443,12 @@ export default function App() {
         case "pagePrev": return s.stepPage(-1);
         case "insertTable": return setTableDialogOpen(true);
         case "insertPanels": return setPanelDialogOpen(true);
+        case "toggleSnapping": return s.toggleSnapping();
+        case "align:left": case "align:hcenter": case "align:right":
+        case "align:top": case "align:vcenter": case "align:bottom":
+          return s.alignSelected(action.slice("align:".length));
+        case "distribute:h-gaps": case "distribute:v-gaps":
+          return s.distributeSelected(action.slice("distribute:".length));
         case "insertImage": return handleInsertImage();
         case "toggleGrid": return s.toggleGrid();
         case "undo": return s.undo();

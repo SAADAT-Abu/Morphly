@@ -1,9 +1,17 @@
-import React, { useEffect, useRef, useState } from "react";
+import React from "react";
 import { useStore } from "../store";
 import iconUrl from "../assets/icon.png";
+import { ALIGN_REFERENCES, movableUnits } from "../lib/align";
 
 /**
- * Tool icons are inline SVG on a shared 24x24 grid rather than Unicode glyphs.
+ * The toolbar, in two rows.
+ *
+ *   top      the document: file actions, undo and redo, its name, help, export
+ *   tools    working on the figure, left to right in the order a figure is
+ *            usually made: draw, insert, edit, arrange; then viewing options
+ *            at the far end
+ *
+ * Icons are inline SVG on a shared 24x24 grid rather than Unicode glyphs.
  * Glyphs like the box, circle and triangle characters carry different advance
  * widths and sit on different baselines in every font, so they cannot be made
  * to line up inside equally sized buttons; drawn paths can.
@@ -25,9 +33,36 @@ const ICON = {
   image: <path d="M3.5 5.5h17v13h-17zM3.5 15l4.5-4.5 4 4 3-2.5 5.5 4.5M15.5 9.5h.01" />,
   panels: <path d="M3.5 4.5h7.5v7h-7.5zM13 4.5h7.5v7H13zM3.5 13.5h17v6h-17z" />,
   grid: <path d="M8 3v18M16 3v18M3 8h18M3 16h18" />,
-  // A droplet, not a page: a page outline reads as the image button, and these
-  // two sit next to each other.
+  // A droplet, not a page: a page outline reads as the image button.
   canvas: <path d="M12 3.4c3.6 4.1 5.6 6.6 5.6 9.1a5.6 5.6 0 1 1-11.2 0c0-2.5 2-5 5.6-9.1z" />,
+  snap: <path d="M6 4.5v7a6 6 0 0 0 12 0v-7h-3.5v7a2.5 2.5 0 0 1-5 0v-7zM6 8.5h3.5M14.5 8.5H18" />,
+
+  undo: <path d="M8.5 5.5 4 10l4.5 4.5M4.5 10h10a5 5 0 0 1 0 10h-3" />,
+  redo: <path d="M15.5 5.5 20 10l-4.5 4.5M19.5 10h-10a5 5 0 0 0 0 10h3" />,
+  duplicate: <path d="M8.5 8.5h11v11h-11zM15.5 8.5v-4h-11v11h4" />,
+  delete: <path d="M4.5 6.5h15M9.5 6.5v-2h5v2M6.5 6.5l1 13h9l1-13M10.5 10v6M13.5 10v6" />,
+  group: (
+    <>
+      <path d="M3.5 3.5h17v17h-17z" strokeDasharray="2.5 2.5" />
+      <path d="M7 7h5.5v5.5H7zM11.5 11.5H17V17h-5.5z" />
+    </>
+  ),
+  ungroup: <path d="M3.5 3.5h7.5V11H3.5zM13 13h7.5v7.5H13z" />,
+
+  "align-left": <path d="M4 3.5v17M7 6.5h11v4H7zM7 13.5h6.5v4H7z" />,
+  "align-hcenter": <path d="M12 3.5v17M5.5 6.5h13v4h-13zM8.5 13.5h7v4h-7z" />,
+  "align-right": <path d="M20 3.5v17M6 6.5h11v4H6zM10.5 13.5H17v4h-6.5z" />,
+  "align-top": <path d="M3.5 4h17M6.5 7h4v11h-4zM13.5 7h4v6.5h-4z" />,
+  "align-vcenter": <path d="M3.5 12h17M6.5 5.5h4v13h-4zM13.5 8.5h4v7h-4z" />,
+  "align-bottom": <path d="M3.5 20h17M6.5 6h4v11h-4zM13.5 10.5h4V17h-4z" />,
+  "distribute-h-gaps": <path d="M3.5 4v16M20.5 4v16M7.5 7.5h3v9h-3zM13.5 5.5h3v13h-3z" />,
+  "distribute-h-centres": <path d="M4 8h3v8H4zM10.5 6h3v12h-3zM17 9h3v6h-3zM5.5 3.5v2M12 3v2M18.5 3.5v2" />,
+  "distribute-v-gaps": <path d="M4 3.5h16M4 20.5h16M7.5 7.5h9v3h-9zM5.5 13.5h13v3h-13z" />,
+  "distribute-v-centres": <path d="M8 4h8v3H8zM6 10.5h12v3H6zM9 17h6v3H9zM3.5 5.5h2M3 12h2M3.5 18.5h2" />,
+
+  "zoom-out": <path d="M6 12h12" />,
+  "zoom-in": <path d="M12 6v12M6 12h12" />,
+  fit: <path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5" />,
 };
 
 const TOOLS = [
@@ -40,8 +75,24 @@ const TOOLS = [
   ["text", "Text (T)"],
 ];
 
+const ALIGN_BUTTONS = [
+  ["left", "Align left edges"],
+  ["hcenter", "Centre horizontally"],
+  ["right", "Align right edges"],
+  ["top", "Align top edges"],
+  ["vcenter", "Centre vertically"],
+  ["bottom", "Align bottom edges"],
+];
+
+const DISTRIBUTE_BUTTONS = [
+  ["h-gaps", "Distribute horizontally: equal gaps"],
+  ["h-centres", "Distribute horizontally: equal centre spacing"],
+  ["v-gaps", "Distribute vertically: equal gaps"],
+  ["v-centres", "Distribute vertically: equal centre spacing"],
+];
+
 function ToolIcon({ name }) {
-  // `select` is a filled cursor; the rest read better as outlines.
+  // `select` and the triangle read better filled; the rest as outlines.
   const filled = name === "select" || name === "triangle";
   return (
     <svg
@@ -57,6 +108,21 @@ function ToolIcon({ name }) {
     >
       {ICON[name]}
     </svg>
+  );
+}
+
+/** An icon button with its label as the tooltip and accessible name. */
+function IconButton({ icon, label, active, ...props }) {
+  return (
+    <button
+      className={`tool${active ? " active" : ""}`}
+      title={label}
+      aria-label={label}
+      {...(active !== undefined ? { "aria-pressed": active } : {})}
+      {...props}
+    >
+      <ToolIcon name={icon} />
+    </button>
   );
 }
 
@@ -91,137 +157,138 @@ export default function Toolbar({
   const toggleGrid = useStore((s) => s.toggleGrid);
   const canvas = useStore((s) => s.canvas);
   const setCanvas = useStore((s) => s.setCanvas);
+  const alignTo = useStore((s) => s.alignTo);
+  const setAlignTo = useStore((s) => s.setAlignTo);
+  const alignSelected = useStore((s) => s.alignSelected);
+  const distributeSelected = useStore((s) => s.distributeSelected);
+  const snapping = useStore((s) => s.snapping);
+  const toggleSnapping = useStore((s) => s.toggleSnapping);
 
   // Ungroup is only meaningful when something in the selection is grouped.
   const hasGroup = elements.some((el) => selectedIds.includes(el.id) && el.groupId);
 
+  // Pieces that would actually move: a group counts once, locked items not at all.
+  const units = selectedIds.length ? movableUnits(elements, selectedIds).length : 0;
+  // Spreading between themselves needs three; across a page or panel, two.
+  const canDistribute = units >= (alignTo === "page" || alignTo === "panel" ? 2 : 3);
+
   const fileName = projectPath ? projectPath.split(/[/\\]/).pop() : "Untitled figure";
 
   return (
-    <div className="toolbar">
-      <div className="brand">
-        <img className="logo" src={iconUrl} alt="" width="20" height="20" /> Morphly
+    <div className="toolbar-wrap">
+      <div className="toolbar">
+        <div className="brand">
+          <img className="logo" src={iconUrl} alt="" width="20" height="20" /> Morphly
+        </div>
+
+        <div className="group">
+          <button className="ghost" onClick={onNew} title="New figure (Ctrl+N)">New</button>
+          <button className="ghost" onClick={onOpen} title="Open (Ctrl+O)">Open</button>
+          <button className="ghost" onClick={() => onSave(false)} title="Save (Ctrl+S)">Save</button>
+          <button className="ghost" onClick={() => onSave(true)}>Save as…</button>
+        </div>
+
+        <div className="divider" />
+
+        <div className="group">
+          <IconButton icon="undo" label="Undo (Ctrl+Z)" onClick={undo} disabled={past.length === 0} />
+          <IconButton icon="redo" label="Redo (Ctrl+Shift+Z)" onClick={redo} disabled={future.length === 0} />
+        </div>
+
+        <div className="spacer" />
+
+        <div className="filename" title={projectPath ?? "Not saved yet"}>
+          {fileName}
+          {dirty && <span className="dot" title="Unsaved changes">•</span>}
+        </div>
+
+        <button className="ghost help-btn" onClick={onHelp} title="Help (F1)">?</button>
+        <button className="primary" onClick={onExport}>Export…</button>
       </div>
 
-      <div className="group">
-        <button className="ghost" onClick={onNew} title="New figure (Ctrl+N)">New</button>
-        <button className="ghost" onClick={onOpen} title="Open (Ctrl+O)">Open</button>
-        <button className="ghost" onClick={() => onSave(false)} title="Save (Ctrl+S)">Save</button>
-        <button className="ghost" onClick={() => onSave(true)}>Save as…</button>
-      </div>
+      <div className="toolbar toolbar-tools">
+        <div className="group tools" role="group" aria-label="Draw">
+          {TOOLS.map(([tool, label]) => (
+            <IconButton key={tool} icon={tool} label={label} active={activeTool === tool} onClick={() => setTool(tool)} />
+          ))}
+        </div>
 
-      <div className="divider" />
+        <div className="divider" />
 
-      <div className="group tools">
-        {TOOLS.map(([tool, label]) => (
-          <button
-            key={tool}
-            className={`tool${activeTool === tool ? " active" : ""}`}
-            title={label}
-            aria-label={label}
-            aria-pressed={activeTool === tool}
-            onClick={() => setTool(tool)}
+        <div className="group" role="group" aria-label="Insert">
+          <IconButton icon="table" label="Insert a table (Ctrl+Shift+T)" onClick={onInsertTable} />
+          <IconButton icon="image" label="Insert an image (Ctrl+Shift+M)" onClick={onInsertImage} />
+          <IconButton icon="panels" label="Insert a panel layout (Ctrl+Shift+L)" onClick={onInsertPanels} />
+        </div>
+
+        <div className="divider" />
+
+        <div className="group" role="group" aria-label="Edit">
+          <IconButton icon="duplicate" label="Duplicate (Ctrl+D)" onClick={duplicateSelected} disabled={selectedIds.length === 0} />
+          <IconButton icon="delete" label="Delete (Del)" onClick={deleteSelected} disabled={selectedIds.length === 0} />
+          <IconButton icon="group" label="Group (Ctrl+G)" onClick={groupSelected} disabled={selectedIds.length < 2} />
+          <IconButton icon="ungroup" label="Ungroup (Ctrl+Shift+G)" onClick={ungroupSelected} disabled={!hasGroup} />
+        </div>
+
+        <div className="divider" />
+
+        <div className="group" role="group" aria-label="Arrange">
+          <span className="group-label">Align to</span>
+          <select
+            className="align-to"
+            value={alignTo}
+            onChange={(e) => setAlignTo(e.target.value)}
+            title="What aligning and distributing is relative to"
+            aria-label="Align relative to"
           >
-            <ToolIcon name={tool} />
-          </button>
-        ))}
+            {ALIGN_REFERENCES.map(([value, label]) => (
+              <option key={value} value={value}>{label}</option>
+            ))}
+          </select>
+          {ALIGN_BUTTONS.map(([edge, label]) => (
+            <IconButton key={edge} icon={`align-${edge}`} label={label} onClick={() => alignSelected(edge)} disabled={units === 0} />
+          ))}
+          {DISTRIBUTE_BUTTONS.map(([mode, label]) => (
+            <IconButton
+              key={mode}
+              icon={`distribute-${mode}`}
+              label={canDistribute ? label : `${label} (select ${alignTo === "page" || alignTo === "panel" ? "two" : "three"} or more)`}
+              onClick={() => distributeSelected(mode)}
+              disabled={!canDistribute}
+            />
+          ))}
+        </div>
+
+        <div className="spacer" />
+
+        <div className="group" role="group" aria-label="View">
+          <IconButton icon="snap" label="Snap to guides" active={snapping} onClick={toggleSnapping} />
+          <IconButton icon="grid" label="Show grid (Ctrl+apostrophe)" active={grid.visible} onClick={toggleGrid} />
+
+          {/* Page colour. It is here as well as in the properties panel because
+              the panel only shows canvas settings when nothing is selected,
+              which is exactly when you are least likely to be looking at it. */}
+          <label className="canvas-color" title="Page background colour">
+            <ToolIcon name="canvas" />
+            <input
+              type="color"
+              value={canvas.background}
+              onChange={(e) => setCanvas({ background: e.target.value })}
+              aria-label="Page background colour"
+            />
+            <span className="swatch" style={{ background: canvas.background }} />
+          </label>
+        </div>
+
+        <div className="divider" />
+
+        <div className="group zoom" role="group" aria-label="Zoom">
+          <IconButton icon="zoom-out" label="Zoom out" onClick={() => setZoom(zoom / 1.2)} />
+          <span className="zoom-label">{Math.round(zoom * 100)}%</span>
+          <IconButton icon="zoom-in" label="Zoom in" onClick={() => setZoom(zoom * 1.2)} />
+          <IconButton icon="fit" label="Fit to screen (Ctrl+0)" onClick={onFitToScreen} />
+        </div>
       </div>
-
-      <div className="divider" />
-
-      <div className="group">
-        <button
-          className="tool"
-          onClick={onInsertTable}
-          title="Insert a table (Ctrl+Shift+T)"
-          aria-label="Insert a table"
-        >
-          <ToolIcon name="table" />
-        </button>
-        <button
-          className="tool"
-          onClick={onInsertPanels}
-          title="Insert a panel layout (Ctrl+Shift+L)"
-          aria-label="Insert a panel layout"
-        >
-          <ToolIcon name="panels" />
-        </button>
-        <button
-          className="tool"
-          onClick={onInsertImage}
-          title="Insert an image (Ctrl+Shift+M)"
-          aria-label="Insert an image"
-        >
-          <ToolIcon name="image" />
-        </button>
-        <button
-          className={`tool${grid.visible ? " active" : ""}`}
-          onClick={toggleGrid}
-          title="Show grid (Ctrl+apostrophe)"
-          aria-pressed={grid.visible}
-        >
-          <ToolIcon name="grid" />
-        </button>
-
-        {/* Page colour. It is in the toolbar as well as the properties panel
-            because the panel only shows canvas settings when nothing is
-            selected, which is exactly when you are least likely to be looking
-            at it. */}
-        <label className="canvas-color" title="Page background colour">
-          <ToolIcon name="canvas" />
-          <input
-            type="color"
-            value={canvas.background}
-            onChange={(e) => setCanvas({ background: e.target.value })}
-            aria-label="Page background colour"
-          />
-          <span className="swatch" style={{ background: canvas.background }} />
-        </label>
-      </div>
-
-      <div className="divider" />
-
-      <div className="group">
-        <button className="ghost" onClick={undo} disabled={past.length === 0} title="Undo (Ctrl+Z)">↶</button>
-        <button className="ghost" onClick={redo} disabled={future.length === 0} title="Redo (Ctrl+Shift+Z)">↷</button>
-        <button className="ghost" onClick={duplicateSelected} disabled={selectedIds.length === 0} title="Duplicate (Ctrl+D)">⧉</button>
-        <button className="ghost" onClick={deleteSelected} disabled={selectedIds.length === 0} title="Delete (Del)">🗑</button>
-        <button
-          className="ghost"
-          onClick={groupSelected}
-          disabled={selectedIds.length < 2}
-          title="Group (Ctrl+G)"
-        >
-          Group
-        </button>
-        <button
-          className="ghost"
-          onClick={ungroupSelected}
-          disabled={!hasGroup}
-          title="Ungroup (Ctrl+Shift+G)"
-        >
-          Ungroup
-        </button>
-      </div>
-
-      <div className="divider" />
-
-      <div className="group zoom">
-        <button className="ghost" onClick={() => setZoom(zoom / 1.2)} title="Zoom out">−</button>
-        <span className="zoom-label">{Math.round(zoom * 100)}%</span>
-        <button className="ghost" onClick={() => setZoom(zoom * 1.2)} title="Zoom in">+</button>
-        <button className="ghost" onClick={onFitToScreen} title="Fit to screen (Ctrl+0)">Fit</button>
-      </div>
-
-      <div className="spacer" />
-
-      <div className="filename" title={projectPath ?? "Not saved yet"}>
-        {fileName}
-        {dirty && <span className="dot" title="Unsaved changes">•</span>}
-      </div>
-
-      <button className="ghost help-btn" onClick={onHelp} title="Help (F1)">?</button>
-      <button className="primary" onClick={onExport}>Export…</button>
     </div>
   );
 }

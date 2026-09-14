@@ -80,6 +80,21 @@ function buildMenu(getWindow) {
       ],
     },
     {
+      label: "&Arrange",
+      submenu: [
+        { label: "Align left", click: send("align:left") },
+        { label: "Centre horizontally", click: send("align:hcenter") },
+        { label: "Align right", click: send("align:right") },
+        { type: "separator" },
+        { label: "Align top", click: send("align:top") },
+        { label: "Centre vertically", click: send("align:vcenter") },
+        { label: "Align bottom", click: send("align:bottom") },
+        { type: "separator" },
+        { label: "Distribute horizontally", click: send("distribute:h-gaps") },
+        { label: "Distribute vertically", click: send("distribute:v-gaps") },
+      ],
+    },
+    {
       label: "&View",
       submenu: [
         { label: "Zoom in", accelerator: "CmdOrCtrl+Plus", click: send("zoomIn") },
@@ -87,6 +102,7 @@ function buildMenu(getWindow) {
         { label: "Fit to screen", accelerator: "CmdOrCtrl+0", click: send("fit") },
         { type: "separator" },
         { label: "Show grid", accelerator: "CmdOrCtrl+'", click: send("toggleGrid") },
+        { label: "Snap to guides", click: send("toggleSnapping") },
         { type: "separator" },
         { role: "togglefullscreen" },
         { role: "toggleDevTools" },

@@ -1,4 +1,4 @@
-/** Small geometry helpers shared by the canvas and the alignment tools. */
+/** Small geometry helpers shared by the canvas, snapping and alignment. */
 
 /** Line and arrow elements store `points`; their box is derived from them. */
 export function pointsBounds(points) {
@@ -20,59 +20,57 @@ export function elementBox(el) {
 }
 
 /**
- * Snapping candidates for a dragged element: the canvas edges and centre, plus
- * every other visible element's edges and centre. Returns the adjusted
- * position and the guide lines to draw.
+ * The box an element actually covers on the page, in canvas coordinates.
+ *
+ * Unlike elementBox this follows a line's points wherever they lie relative to
+ * its origin, and turns with rotation (elements rotate about their top-left
+ * corner, as Konva groups do), giving the upright box around the turned shape.
+ * Text only learns its height once Konva lays it out, so `measure(el)` may
+ * supply heights the model does not store.
  */
-export function computeSnap(dragged, others, canvas, threshold) {
-  const box = elementBox(dragged);
-  const vLines = [0, canvas.width / 2, canvas.width];
-  const hLines = [0, canvas.height / 2, canvas.height];
-
-  for (const el of others) {
-    const b = elementBox(el);
-    vLines.push(b.x, b.x + b.width / 2, b.x + b.width);
-    hLines.push(b.y, b.y + b.height / 2, b.y + b.height);
+export function visualBox(el, measure) {
+  let minX = 0;
+  let minY = 0;
+  let maxX;
+  let maxY;
+  if (el.points) {
+    const xs = el.points.filter((_, i) => i % 2 === 0);
+    const ys = el.points.filter((_, i) => i % 2 === 1);
+    minX = Math.min(...xs);
+    maxX = Math.max(...xs);
+    minY = Math.min(...ys);
+    maxY = Math.max(...ys);
+  } else {
+    maxX = el.width ?? 0;
+    maxY = el.height ?? measure?.(el) ?? 0;
   }
 
-  // Each edge of the dragged box that could latch onto a guide.
-  const vEdges = [
-    { offset: 0, value: box.x },
-    { offset: box.width / 2, value: box.x + box.width / 2 },
-    { offset: box.width, value: box.x + box.width },
-  ];
-  const hEdges = [
-    { offset: 0, value: box.y },
-    { offset: box.height / 2, value: box.y + box.height / 2 },
-    { offset: box.height, value: box.y + box.height },
-  ];
-
-  let bestV = null;
-  for (const edge of vEdges) {
-    for (const line of vLines) {
-      const dist = Math.abs(edge.value - line);
-      if (dist < threshold && (!bestV || dist < bestV.dist)) {
-        bestV = { dist, x: line - edge.offset, guide: line };
-      }
-    }
+  const rotation = el.rotation ?? 0;
+  if (!rotation) {
+    return { x: el.x + minX, y: el.y + minY, width: maxX - minX, height: maxY - minY };
   }
+  const r = (rotation * Math.PI) / 180;
+  const cos = Math.cos(r);
+  const sin = Math.sin(r);
+  const corners = [
+    [minX, minY],
+    [maxX, minY],
+    [maxX, maxY],
+    [minX, maxY],
+  ].map(([lx, ly]) => [el.x + lx * cos - ly * sin, el.y + lx * sin + ly * cos]);
+  const xs = corners.map((c) => c[0]);
+  const ys = corners.map((c) => c[1]);
+  const x = Math.min(...xs);
+  const y = Math.min(...ys);
+  return { x, y, width: Math.max(...xs) - x, height: Math.max(...ys) - y };
+}
 
-  let bestH = null;
-  for (const edge of hEdges) {
-    for (const line of hLines) {
-      const dist = Math.abs(edge.value - line);
-      if (dist < threshold && (!bestH || dist < bestH.dist)) {
-        bestH = { dist, y: line - edge.offset, guide: line };
-      }
-    }
-  }
-
-  return {
-    x: bestV ? bestV.x : box.x,
-    y: bestH ? bestH.y : box.y,
-    guides: {
-      vertical: bestV ? bestV.guide : null,
-      horizontal: bestH ? bestH.guide : null,
-    },
-  };
+/** The smallest box around several boxes, or null for none. */
+export function unionBox(boxes) {
+  if (boxes.length === 0) return null;
+  const left = Math.min(...boxes.map((b) => b.x));
+  const top = Math.min(...boxes.map((b) => b.y));
+  const right = Math.max(...boxes.map((b) => b.x + b.width));
+  const bottom = Math.max(...boxes.map((b) => b.y + b.height));
+  return { x: left, y: top, width: right - left, height: bottom - top };
 }

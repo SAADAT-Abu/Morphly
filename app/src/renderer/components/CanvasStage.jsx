@@ -33,7 +33,9 @@ import { useSvgImage, useSvgImageFromText, useRasterImage } from "../lib/useSvgI
 import { offsets, cellAtPoint, cellCorners, isHeaderCell } from "../lib/tableLayout";
 import { buildIsolationSvg, effectiveColorMap } from "../lib/svgPalette";
 import { isPanel } from "../lib/panelLayout";
-import { computeSnap, pointsBounds } from "../lib/geometry";
+import { pointsBounds, visualBox, unionBox } from "../lib/geometry";
+import { snapContext, snapMove, snapPoint } from "../lib/snapping";
+import { measuredHeight, rememberHeight } from "../lib/measure";
 import {
   isConnector,
   connectorGeometry,
@@ -47,6 +49,10 @@ import {
 import CanvasScrollbars from "./CanvasScrollbars";
 
 const SNAP_THRESHOLD = 6; // canvas units, scaled by zoom at call time
+/** Smart guides are pink, so they never read as part of the figure. */
+const GUIDE_COLOUR = "#ff3ea5";
+const NO_GUIDES = { lines: [], gaps: [] };
+
 /** How close, in screen pixels, a dragged line end must come to a glue point. */
 const GLUE_RADIUS = 14;
 
@@ -399,7 +405,9 @@ export default function CanvasStage({ stageRef, onRequestTextEdit, onExternalDro
   const nodeRefs = useRef(new Map());
 
   const [size, setSize] = useState({ width: 800, height: 600 });
-  const [guides, setGuides] = useState({ vertical: null, horizontal: null });
+  /** Smart guides to draw: dotted lines, and markers on equal gaps. */
+  const [guides, setGuides] = useState(NO_GUIDES);
+  const snapping = useStore((s) => s.snapping);
   const [isPanning, setIsPanning] = useState(false);
   /** Positions of every selected element when a drag began, so a group can be
    *  moved as one piece. */
@@ -644,6 +652,16 @@ export default function CanvasStage({ stageRef, onRequestTextEdit, onExternalDro
           .filter((el) => ids.includes(el.id) && el.id !== element.id && !el.locked)
           .map((el) => ({ id: el.id, x: el.x, y: el.y })),
       };
+
+      // What the smart guides can latch onto does not change during a drag,
+      // so it is measured once here rather than on every mouse move.
+      const moving = new Set([element.id, ...dragStartRef.current.members.map((m) => m.id)]);
+      const still = elements.filter((el) => !moving.has(el.id) && el.visible);
+      Object.assign(dragStartRef.current, {
+        startBox: unionBox(elements.filter((el) => moving.has(el.id)).map((el) => visualBox(el, measuredHeight))),
+        still: still.map((el) => visualBox(el, measuredHeight)),
+        panels: still.filter(isPanel).map((el) => visualBox(el, measuredHeight)),
+      });
     },
     [commit, selectedIds, elements]
   );
@@ -653,23 +671,33 @@ export default function CanvasStage({ stageRef, onRequestTextEdit, onExternalDro
       const node = e.target;
       const start = dragStartRef.current;
 
-      // Snap against everything that isn't moving with us.
       const movingIds = new Set([element.id, ...(start?.members ?? []).map((m) => m.id)]);
-      const others = elements.filter((el) => !movingIds.has(el.id) && el.visible);
-      const dragged = { ...element, x: node.x(), y: node.y() };
-      const snap = computeSnap(dragged, others, canvas, SNAP_THRESHOLD / zoom);
+      const snap = { x: node.x(), y: node.y() };
+      let shown = NO_GUIDES;
 
-      // Snapping to the grid, when it is on, takes precedence over the element
-      // guides: a user who asked for a grid wants things on it.
       if (grid.visible && grid.snap) {
+        // Snapping to the grid, when it is on, takes precedence over the smart
+        // guides: a user who asked for a grid wants things on it.
         snap.x = Math.round(snap.x / grid.size) * grid.size;
         snap.y = Math.round(snap.y / grid.size) * grid.size;
-        snap.guides = { vertical: null, horizontal: null };
+      } else if (snapping && start?.startBox && !(e.evt?.ctrlKey || e.evt?.metaKey)) {
+        // Snap the box around everything moving, not just the piece under the
+        // mouse, so a whole selection lines up. Ctrl moves freely.
+        const box = {
+          ...start.startBox,
+          x: start.startBox.x + snap.x - start.origin.x,
+          y: start.startBox.y + snap.y - start.origin.y,
+        };
+        const context = snapContext({ canvas, others: start.still, panels: start.panels, focus: box });
+        const result = snapMove(box, context, SNAP_THRESHOLD / zoom);
+        snap.x += result.dx;
+        snap.y += result.dy;
+        shown = { lines: result.guides, gaps: result.gaps };
       }
 
       node.x(snap.x);
       node.y(snap.y);
-      setGuides(snap.guides);
+      setGuides(shown);
 
       const boxes = { [element.id]: { x: snap.x, y: snap.y } };
       if (start) {
@@ -691,12 +719,12 @@ export default function CanvasStage({ stageRef, onRequestTextEdit, onExternalDro
       );
       if (involved) setLive({ moving: movingIds, boxes });
     },
-    [elements, elementsById, gluedTargets, canvas, zoom, grid]
+    [elements, elementsById, gluedTargets, canvas, zoom, grid, snapping]
   );
 
   const handleDragEnd = useCallback(
     (e, element) => {
-      setGuides({ vertical: null, horizontal: null });
+      setGuides(NO_GUIDES);
       const start = dragStartRef.current;
       const x = e.target.x();
       const y = e.target.y();
@@ -749,6 +777,54 @@ export default function CanvasStage({ stageRef, onRequestTextEdit, onExternalDro
     [gluedTargets]
   );
 
+  /**
+   * Smart guides while resizing: the handle being dragged snaps to the same
+   * lines a moving object would. Skipped while rotating, for a rotated
+   * selection, and with Ctrl held. A side handle only moves one way, so it
+   * only snaps that way.
+   */
+  const snapAnchor = useCallback(
+    (oldPos, newPos, evt) => {
+      const tr = transformerRef.current;
+      const anchor = tr?.getActiveAnchor() ?? "";
+      if (!snapping || evt?.ctrlKey || evt?.metaKey || !tr || anchor === "rotater" || Math.abs(tr.rotation()) > 0.01) {
+        return newPos;
+      }
+      const moving = new Set(selectedIds);
+      const still = elements.filter((el) => !moving.has(el.id) && el.visible);
+      const point = { x: (newPos.x - stagePos.x) / zoom, y: (newPos.y - stagePos.y) / zoom };
+      const context = snapContext({
+        canvas,
+        others: still.map((el) => visualBox(el, measuredHeight)),
+        panels: still.filter(isPanel).map((el) => visualBox(el, measuredHeight)),
+        focus: { ...point, width: 0, height: 0 },
+      });
+      const snapped = snapPoint(point, context, SNAP_THRESHOLD / zoom);
+
+      const movesX = anchor !== "top-center" && anchor !== "bottom-center";
+      const movesY = anchor !== "middle-left" && anchor !== "middle-right";
+      setGuides({
+        lines: snapped.guides.filter((g) => (g.axis === "x" ? movesX : movesY)),
+        gaps: [],
+      });
+      return {
+        x: movesX ? snapped.x * zoom + stagePos.x : newPos.x,
+        y: movesY ? snapped.y * zoom + stagePos.y : newPos.y,
+      };
+    },
+    [snapping, selectedIds, elements, stagePos, zoom, canvas]
+  );
+
+  // Text height is only known once Konva has wrapped the words; aligning and
+  // snapping read it from here.
+  useEffect(() => {
+    for (const el of elements) {
+      if (el.type !== "text") continue;
+      const text = nodeRefs.current.get(el.id)?.findOne("Text");
+      if (text) rememberHeight(el.id, text.height());
+    }
+  }, [elements]);
+
   // -- transform (resize / rotate) -----------------------------------------
 
   const handleTransformEnd = useCallback(
@@ -792,6 +868,7 @@ export default function CanvasStage({ stageRef, onRequestTextEdit, onExternalDro
       }
       updateElement(element.id, patch);
       setLive(null);
+      setGuides(NO_GUIDES);
     },
     [updateElement]
   );
@@ -992,6 +1069,7 @@ export default function CanvasStage({ stageRef, onRequestTextEdit, onExternalDro
             anchorStroke="#4c8dff"
             anchorFill="#ffffff"
             anchorSize={8}
+            anchorDragBoundFunc={snapAnchor}
             boundBoxFunc={(oldBox, newBox) =>
               newBox.width < 8 || newBox.height < 8 ? oldBox : newBox
             }
@@ -1031,22 +1109,20 @@ export default function CanvasStage({ stageRef, onRequestTextEdit, onExternalDro
               dash={[5 / zoom, 4 / zoom]}
             />
           )}
-          {guides.vertical !== null && (
+          {guides.lines.map((g, i) => (
             <Line
-              points={[guides.vertical, -10000, guides.vertical, 10000]}
-              stroke="#ff3ea5"
-              strokeWidth={1 / zoom}
-              dash={[4 / zoom, 4 / zoom]}
+              key={`guide-${i}`}
+              points={g.axis === "x" ? [g.at, g.from, g.at, g.to] : [g.from, g.at, g.to, g.at]}
+              stroke={GUIDE_COLOUR}
+              strokeWidth={1.6 / zoom}
+              // Zero-length dashes with round caps draw as dots.
+              dash={[0, 4 / zoom]}
+              lineCap="round"
             />
-          )}
-          {guides.horizontal !== null && (
-            <Line
-              points={[-10000, guides.horizontal, 10000, guides.horizontal]}
-              stroke="#ff3ea5"
-              strokeWidth={1 / zoom}
-              dash={[4 / zoom, 4 / zoom]}
-            />
-          )}
+          ))}
+          {guides.gaps.map((gap, i) => (
+            <GapMarker key={`gap-${i}`} gap={gap} zoom={zoom} />
+          ))}
         </Layer>
       </Stage>
 
@@ -1060,6 +1136,32 @@ export default function CanvasStage({ stageRef, onRequestTextEdit, onExternalDro
 
       <SpacebarPanHint onChange={setIsPanning} />
     </div>
+  );
+}
+
+/**
+ * Marks one of a set of equal gaps: a line across the gap with a tick at each
+ * end, the way PowerPoint shows matching spacing.
+ */
+function GapMarker({ gap, zoom }) {
+  const tick = 5 / zoom;
+  const style = { stroke: GUIDE_COLOUR, strokeWidth: 1 / zoom, listening: false };
+  const { from, to, at } = gap;
+  if (gap.axis === "x") {
+    return (
+      <>
+        <Line {...style} points={[from, at, to, at]} />
+        <Line {...style} points={[from, at - tick, from, at + tick]} />
+        <Line {...style} points={[to, at - tick, to, at + tick]} />
+      </>
+    );
+  }
+  return (
+    <>
+      <Line {...style} points={[at, from, at, to]} />
+      <Line {...style} points={[at - tick, from, at + tick, from]} />
+      <Line {...style} points={[at - tick, to, at + tick, to]} />
+    </>
   );
 }
 

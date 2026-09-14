@@ -20,7 +20,6 @@ export default function Inspector() {
   const canvas = useStore((s) => s.canvas);
   const setCanvas = useStore((s) => s.setCanvas);
   const updateSelected = useStore((s) => s.updateSelected);
-  const align = useStore((s) => s.align);
 
   const selected = elements.filter((el) => selectedIds.includes(el.id));
   const single = selected.length === 1 ? selected[0] : null;
@@ -39,7 +38,7 @@ export default function Inspector() {
       {selected.length > 0 && (
         <>
           <Section title={selected.length === 1 ? single.name : `${selected.length} selected`}>
-            <AlignButtons align={align} multi={selected.length > 1} />
+            <p className="hint">Align and distribute from the Arrange buttons in the toolbar.</p>
           </Section>
 
           {single && <GeometryFields element={single} />}
@@ -571,38 +570,6 @@ function CanvasSettings({ canvas, setCanvas }) {
     </>
   );
 }
-
-function AlignButtons({ align, multi }) {
-  const edges = [
-    ["left", "Align left"],
-    ["hcenter", "Centre horizontally"],
-    ["right", "Align right"],
-    ["top", "Align top"],
-    ["vcenter", "Centre vertically"],
-    ["bottom", "Align bottom"],
-  ];
-  return (
-    <>
-      <div className="align-row">
-        {edges.map(([edge, label]) => (
-          <button key={edge} className="ghost small" title={label} onClick={() => align(edge)}>
-            {ALIGN_ICONS[edge]}
-          </button>
-        ))}
-      </div>
-      <p className="hint">{multi ? "Aligns the selection to itself." : "Aligns to the canvas."}</p>
-    </>
-  );
-}
-
-const ALIGN_ICONS = {
-  left: "⇤",
-  hcenter: "↔",
-  right: "⇥",
-  top: "⤒",
-  vcenter: "↕",
-  bottom: "⤓",
-};
 
 // ---------------------------------------------------------------------------
 // Primitives

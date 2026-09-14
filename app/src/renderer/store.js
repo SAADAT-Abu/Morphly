@@ -12,6 +12,8 @@ import { create } from "zustand";
 import { extractPalette, intrinsicSize } from "./lib/svgPalette";
 import { isConnector, relayoutConnectors, remapGlue, unglueExcept } from "./lib/connectors";
 import { isPanel, layoutPanels, reletterPanels } from "./lib/panelLayout";
+import { alignMoves, distributeMoves, applyMoves } from "./lib/align";
+import { measuredHeight } from "./lib/measure";
 
 let groupCounter = 0;
 
@@ -81,6 +83,10 @@ export const useStore = create((set, get) => ({
   /** Grid overlay. A drawing aid rather than part of the figure, so it lives
    *  in view state: it is never exported, never saved and never undone. */
   grid: { visible: false, size: 50, color: "#9aa4bd", snap: false },
+  /** What Align and Distribute work relative to (lib/align.js). */
+  alignTo: "selection",
+  /** Smart guides while moving and resizing (lib/snapping.js). */
+  snapping: true,
   library: null,
   libraryError: null,
   /** Which colour part to highlight on canvas: { elementId, hex } or null.
@@ -820,55 +826,26 @@ export const useStore = create((set, get) => ({
 
   // -- alignment -----------------------------------------------------------
 
-  /** Align selected elements. With one element selected, aligns to the canvas;
-   *  with several, aligns them to each other's bounding box. */
-  align: (edge) => {
-    const { selectedIds, elements, canvas } = get();
-    if (selectedIds.length === 0) return;
-    const chosen = elements.filter((el) => selectedIds.includes(el.id) && !el.locked);
-    if (chosen.length === 0) return;
-
-    const boxOf = (el) => ({
-      left: el.x,
-      top: el.y,
-      right: el.x + (el.width ?? 0),
-      bottom: el.y + (el.height ?? 0),
-    });
-
-    let bounds;
-    if (chosen.length === 1) {
-      bounds = { left: 0, top: 0, right: canvas.width, bottom: canvas.height };
-    } else {
-      const boxes = chosen.map(boxOf);
-      bounds = {
-        left: Math.min(...boxes.map((b) => b.left)),
-        top: Math.min(...boxes.map((b) => b.top)),
-        right: Math.max(...boxes.map((b) => b.right)),
-        bottom: Math.max(...boxes.map((b) => b.bottom)),
-      };
-    }
-
+  /** Align the selection (lib/align.js), relative to the chosen reference. */
+  alignSelected: (edge) => {
+    const { elements, selectedIds, canvas, alignTo } = get();
+    const moves = alignMoves(elements, selectedIds, edge, { relativeTo: alignTo, canvas, measure: measuredHeight });
+    if (Object.keys(moves).length === 0) return;
     get().commit();
-    set((s) => ({
-      elements: s.elements.map((el) => {
-        if (!selectedIds.includes(el.id) || el.locked) return el;
-        const w = el.width ?? 0;
-        const h = el.height ?? 0;
-        switch (edge) {
-          case "left": return { ...el, x: bounds.left };
-          case "right": return { ...el, x: bounds.right - w };
-          case "hcenter": return { ...el, x: (bounds.left + bounds.right) / 2 - w / 2 };
-          case "top": return { ...el, y: bounds.top };
-          case "bottom": return { ...el, y: bounds.bottom - h };
-          case "vcenter": return { ...el, y: (bounds.top + bounds.bottom) / 2 - h / 2 };
-          default: return el;
-        }
-      }),
-      dirty: true,
-    }));
+    set((st) => ({ elements: applyMoves(st.elements, moves), dirty: true }));
   },
 
-  // -- canvas --------------------------------------------------------------
+  /** Spread the selection evenly: "h-gaps" | "v-gaps" | "h-centres" | "v-centres". */
+  distributeSelected: (mode) => {
+    const { elements, selectedIds, canvas, alignTo } = get();
+    const moves = distributeMoves(elements, selectedIds, mode, { relativeTo: alignTo, canvas, measure: measuredHeight });
+    if (Object.keys(moves).length === 0) return;
+    get().commit();
+    set((st) => ({ elements: applyMoves(st.elements, moves), dirty: true }));
+  },
+
+  setAlignTo: (alignTo) => set({ alignTo }),
+  toggleSnapping: () => set((st) => ({ snapping: !st.snapping })),
 
   setCanvas: (patch) => {
     get().commit();

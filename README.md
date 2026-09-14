@@ -274,6 +274,47 @@ creators.
 | [Requests](https://requests.readthedocs.io) | Asset fetching | Apache-2.0 |
 | [Beautiful Soup](https://www.crummy.com/software/BeautifulSoup/) | Asset fetching | MIT |
 
+## Roadmap
+
+### Version 0.4 (next): diagrams and a safety net
+
+- **Glue points.** Arrow and line ends attach to shapes, illustrations, images
+  and tables at fixed connection points, as in BioRender, and follow them when
+  they move. Deleting the shape leaves the arrow where it was.
+- **Curved lines and elbow connectors.** Curves with one draggable control
+  point, and right-angle elbow connectors for pathway and workflow diagrams.
+  Both work with glue points and export as true vectors.
+- **SVG import as editable vector artwork.** Plots exported from R (svglite,
+  ggplot2) or Python (matplotlib) arrive recolourable, with removable colour
+  parts, and stay vector in SVG and PDF export. Imported files are checked and
+  cleaned the same way as Art Packs. A plot arrives as one object: you can
+  recolour and resize it, but not yet edit its individual labels. Very heavy
+  files, such as a scatter plot with 100,000 points, are simplified on import by
+  merging identical marks into a single path, and Morphly warns when a file is
+  too large.
+- **Panel layouts.** Split a page into a grid of panels with automatic panel
+  letters (A, B, C) and consistent spacing, the way journal figures are laid out.
+- **Crash recovery.** Morphly keeps a recovery snapshot of the open figure in its
+  own data folder and offers to restore it after a crash. It never writes to
+  your file unless you save.
+- **Foundations.** A versioned file format with migrations, so figures made in
+  older versions keep opening, and automated tests for geometry and SVG export.
+
+### Version 0.5: data and graphs
+
+- **Datasets.** Import CSV or TSV files (Excel later), or type data into a
+  table. Data is stored inside the figure file, so it travels with the figure.
+- **Graphs as figure elements.** Bar charts with individual points and error
+  bars (SD, SEM or CI), box plots, scatter plots and XY line plots, exported as
+  true vectors like everything else in Morphly.
+
+### Later
+
+Directions we intend to take, not yet scheduled: statistical tests validated
+against R, significance annotations, figure templates, pathway diagrams
+generated from interaction tables (for example ligand-receptor results), and
+biomedical plot types such as Kaplan-Meier, ROC and volcano plots.
+
 ## Found a bug? Want a feature?
 
 Please [open an issue](https://github.com/SAADAT-Abu/Morphly/issues) rather

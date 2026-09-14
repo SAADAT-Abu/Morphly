@@ -159,8 +159,12 @@ export const GETTING_STARTED = [
   {
     title: "4. Build the figure",
     body:
-      "Add rectangles, ellipses, triangles, lines, arrows and text from the toolbar. Drag to " +
-      "move, use the handles to resize and rotate. Zoom with Ctrl and the wheel; when the " +
+      "Add rectangles, ellipses, triangles, lines and text from the toolbar. The small arrow " +
+      "beside the line button chooses how its ends look (arrowheads, open arrows, inhibition " +
+      "bars, squares or dots) and whether it is solid, dashed or dotted; with lines selected " +
+      "it restyles them. Drag to move, and use the handles to resize and rotate: while " +
+      "turning, the angle from upright is shown beside the pointer, and it settles on " +
+      "upright, level and the diagonals when close. Zoom with Ctrl and the wheel; when the " +
       "figure is larger than the window, use the scrollbars, shift plus wheel for sideways, " +
       "or hold space and drag. While you move or resize something, dotted pink guides " +
       "show when its edges or centre line up with the page, with other objects, or with " +

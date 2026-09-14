@@ -12,6 +12,8 @@ import {
   unglueExcept,
   remapGlue,
   ELBOW_STUB,
+  lineEnds,
+  dashPattern,
 } from "./connectors";
 
 const rect = (over = {}) => ({ id: "r", type: "rect", x: 100, y: 100, width: 200, height: 100, rotation: 0, visible: true, ...over });
@@ -113,7 +115,7 @@ describe("straight connectors", () => {
     const g = connectorGeometry(arrow());
     expect(g.d).toBe("M0 0L88 0");
     expect(g.heads).toHaveLength(1);
-    expect(g.heads[0]).toEqual([100, 0, 88, 6, 88, -6]);
+    expect(g.heads[0]).toEqual({ kind: "polygon", points: [100, 0, 88, 6, 88, -6] });
   });
 
   it("draws both heads, or none for a plain line", () => {
@@ -152,7 +154,7 @@ describe("curved connectors", () => {
 
   it("points its head along the curve, not along the straight line", () => {
     const g = connectorGeometry(arrow({ route: "curved", bend: { along: 0.5, offset: 40 } }));
-    const [tipX, tipY, b1x, b1y, b2x, b2y] = g.heads[0];
+    const [tipX, tipY, b1x, b1y, b2x, b2y] = g.heads[0].points;
     expect([tipX, tipY]).toEqual([100, 0]);
     // Arriving from the control point (50, 80), the head's base sits below the tip.
     expect((b1y + b2y) / 2).toBeGreaterThan(0);
@@ -212,7 +214,7 @@ describe("elbow connectors", () => {
   it("aims the head along the last leg", () => {
     const g = connectorGeometry(arrow({ route: "elbow", points: [0, 0, 200, 80] }));
     expect(g.d).toBe("M0 0L100 0L100 80L188 80");
-    expect(g.heads[0].slice(0, 2)).toEqual([200, 80]);
+    expect(g.heads[0].points.slice(0, 2)).toEqual([200, 80]);
   });
 
   it("routes a glued elbow out of the side it is glued to", () => {
@@ -223,6 +225,55 @@ describe("elbow connectors", () => {
     expect(vertices[0]).toEqual({ x: 200, y: 200 });
     expect(vertices[1].x).toBe(200); // straight down out of the bottom
     expect(axisAligned(vertices)).toBe(true);
+  });
+});
+
+describe("line ends and dashes", () => {
+  it("reads older arrows' heads as triangles", () => {
+    expect(lineEnds({ type: "arrow", heads: "both" })).toEqual({ start: "triangle", end: "triangle" });
+    expect(lineEnds({ type: "arrow" })).toEqual({ start: "none", end: "triangle" });
+    expect(lineEnds({ type: "line" })).toEqual({ start: "none", end: "none" });
+  });
+
+  it("prefers the newer end styles, ignoring anything it does not know", () => {
+    expect(lineEnds({ type: "arrow", heads: "both", startHead: "circle", endHead: "nonsense" })).toEqual({ start: "circle", end: "none" });
+  });
+
+  it("draws each end style and stops the line where that style needs", () => {
+    const at = (endHead) => connectorGeometry(arrow({ startHead: "none", endHead }));
+    expect(at("triangle").d).toBe("M0 0L88 0");
+
+    const open = at("open");
+    expect(open.d).toBe("M0 0L98 0");
+    expect(open.heads).toEqual([{ kind: "polyline", points: [88, 6, 100, 0, 88, -6] }]);
+
+    const bar = at("bar");
+    expect(bar.d).toBe("M0 0L100 0");
+    expect(bar.heads).toEqual([{ kind: "polyline", points: [100, 6, 100, -6] }]);
+
+    const square = at("square");
+    expect(square.heads[0].kind).toBe("polygon");
+    const xs = square.heads[0].points.filter((_, i) => i % 2 === 0);
+    expect(Math.min(...xs)).toBeCloseTo(94.6, 6);
+    expect(Math.max(...xs)).toBeCloseTo(105.4, 6);
+
+    const dot = at("circle").heads[0];
+    expect(dot).toMatchObject({ kind: "circle", cx: 100, cy: 0 });
+    expect(dot.r).toBeCloseTo(5.4, 6);
+
+    expect(at("none").heads).toEqual([]);
+  });
+
+  it("turns end shapes to follow the line", () => {
+    const bar = connectorGeometry(arrow({ points: [0, 0, 0, 100], startHead: "none", endHead: "bar" })).heads[0].points;
+    expect(bar.map((v) => Math.round(v))).toEqual([-6, 100, 6, 100]);
+  });
+
+  it("scales dashes and dots to the line's width", () => {
+    expect(dashPattern({ strokeWidth: 4, dash: "dashed" })).toEqual([16, 12]);
+    expect(dashPattern({ strokeWidth: 4, dash: "dotted" })).toEqual([0, 10]);
+    expect(dashPattern({ strokeWidth: 4 })).toBeNull();
+    expect(connectorGeometry(arrow({ dash: "dashed" })).dash).toEqual([16, 12]);
   });
 });
 

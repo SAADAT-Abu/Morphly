@@ -10,7 +10,7 @@
 
 import { create } from "zustand";
 import { extractPalette, intrinsicSize } from "./lib/svgPalette";
-import { isConnector, relayoutConnectors, remapGlue, unglueExcept } from "./lib/connectors";
+import { isConnector, lineEnds, relayoutConnectors, remapGlue, unglueExcept } from "./lib/connectors";
 import { isPanel, layoutPanels, reletterPanels } from "./lib/panelLayout";
 import { alignMoves, distributeMoves, applyMoves } from "./lib/align";
 import { measuredHeight } from "./lib/measure";
@@ -82,10 +82,10 @@ export const useStore = create((set, get) => ({
   zoom: 0.4,
   stagePos: { x: 0, y: 0 },
   activeTool: "select",
-  /** Head style for the next arrow: "none" | "end" | "both". Remembers the
-   *  last choice so drawing several matching arrows doesn't mean re-setting
-   *  it every time. */
-  lastArrowHeads: "end",
+  /** Ends and dash for the next line drawn (lib/connectors.js). Remembers the
+   *  last choice, so drawing several matching arrows does not mean setting
+   *  it again each time. */
+  lineStyle: { startHead: "none", endHead: "triangle", dash: "solid" },
   /** Grid overlay. A drawing aid rather than part of the figure, so it lives
    *  in view state: it is never exported, never saved and never undone. */
   grid: { visible: false, size: 50, color: "#9aa4bd", snap: false },
@@ -297,9 +297,17 @@ export const useStore = create((set, get) => ({
     } else if (type === "triangle") {
       element = get()._base({ ...common, ...labelled, name: "Triangle", width: size, height: size });
     } else if (type === "line" || type === "arrow") {
+      // "arrow" (the A key) always gets a head, even if the last line had none.
+      const remembered = get().lineStyle;
+      const style =
+        type === "arrow" && remembered.startHead === "none" && remembered.endHead === "none"
+          ? { ...remembered, endHead: "triangle" }
+          : remembered;
+      const headed = style.startHead !== "none" || style.endHead !== "none";
       element = get()._base({
         ...common,
-        name: type === "arrow" ? "Arrow" : "Line",
+        type: "arrow",
+        name: headed ? "Arrow" : "Line",
         fill: "#1f3a63",
         strokeWidth: 4,
         // points are relative to the element's x/y origin
@@ -309,7 +317,9 @@ export const useStore = create((set, get) => ({
         route: "straight",
         start: null,
         end: null,
-        ...(type === "arrow" ? { heads: get().lastArrowHeads } : {}),
+        startHead: style.startHead,
+        endHead: style.endHead,
+        dash: style.dash,
       });
     } else {
       return;
@@ -599,12 +609,34 @@ export const useStore = create((set, get) => ({
     }));
   },
 
-  /** Change an arrow's head style, and remember it for the next arrow. */
-  setArrowHeads: (id, heads) => {
+  /**
+   * Line ends and dash: { startHead, endHead, dash }, any of them. Applied to
+   * the given lines (the selected ones by default) as one undo step, and
+   * remembered for the next line drawn. Pass `[]` just to remember it.
+   */
+  setLineStyle: (patch, ids = null) => {
+    const remembered = { ...get().lineStyle, ...patch };
+    const targets = new Set(ids ?? get().selectedIds);
+    const affects = (el) => targets.has(el.id) && isConnector(el) && !el.locked;
+    if (!get().elements.some(affects)) {
+      set({ lineStyle: remembered });
+      return;
+    }
     get().commit();
     set((s) => ({
-      elements: s.elements.map((el) => (el.id === id ? { ...el, heads } : el)),
-      lastArrowHeads: heads,
+      lineStyle: remembered,
+      elements: s.elements.map((el) => {
+        if (!affects(el)) return el;
+        const ends = lineEnds(el);
+        const style = { startHead: ends.start, endHead: ends.end, dash: el.dash ?? "solid", ...patch };
+        const { heads, ...rest } = el; // the old form, now spelled out as startHead and endHead
+        const headed = style.startHead !== "none" || style.endHead !== "none";
+        // Names Morphly gave follow what the line is; names the user typed stay.
+        const name = /^(Line|Arrow)( copy)*$/.test(el.name ?? "")
+          ? el.name.replace(/^(Line|Arrow)/, headed ? "Arrow" : "Line")
+          : el.name;
+        return { ...rest, type: "arrow", ...style, name };
+      }),
       dirty: true,
     }));
   },

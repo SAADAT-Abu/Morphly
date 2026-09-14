@@ -576,6 +576,29 @@ table.credits-table td:last-child {
 }
 .dropdown button:hover { background: var(--accent-dim); }
 .dropdown-sep { height: 1px; background: var(--border); margin: 3px 0; }
+.dropdown button svg { flex: 0 0 auto; }
+.dropdown button.current { background: var(--accent-dim); }
+
+/* The line tool: a draw button and a narrow arrow for its styles, as one piece */
+.line-tool { display: flex; }
+.tool.line-tool-main { width: 36px; border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.tool.line-tool-caret { width: 16px; margin-left: -1px; border-top-left-radius: 0; border-bottom-left-radius: 0; }
+.line-dropdown { min-width: 210px; }
+
+/* The angle shown beside the pointer while turning something */
+.rotation-badge {
+  position: absolute;
+  z-index: 15;
+  pointer-events: none;
+  padding: 2px 6px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+  background: rgba(20, 22, 28, 0.92);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  white-space: nowrap;
+}
 
 /* Table dialog ------------------------------------------------------------- */
 .table-modal { width: 340px; }

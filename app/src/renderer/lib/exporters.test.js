@@ -80,6 +80,20 @@ describe("buildSvg elements", () => {
     expect(svg).toContain('d="M0 0L88 0"');
   });
 
+  it("writes dashed and dotted lines and every end style", () => {
+    const line = (over) => el({ type: "arrow", points: [0, 0, 100, 0], fill: "#000000", strokeWidth: 4, ...over });
+    const svg = exportOf([
+      line({ dash: "dashed", startHead: "circle", endHead: "open" }),
+      line({ dash: "dotted", startHead: "bar", endHead: "square" }),
+    ]);
+    wellFormed(svg);
+    expect(svg).toContain('stroke-dasharray="16 12"');
+    expect(svg).toContain('stroke-dasharray="0 10"');
+    expect(svg.match(/<circle /g)).toHaveLength(1);
+    expect(svg.match(/<polyline /g)).toHaveLength(2);
+    expect(svg.match(/<polygon /g)).toHaveLength(1);
+  });
+
   it("draws curved and elbow connectors from the same geometry as the canvas", () => {
     const box = el({ id: "box", type: "rect", x: 200, y: 100, width: 100, height: 50, fill: "#ffffff", stroke: "#000000", strokeWidth: 1 });
     const elbow = el({

@@ -12,6 +12,7 @@
 import React from "react";
 import { useStore, CANVAS_PRESETS } from "../store";
 import { isPanel } from "../lib/panelLayout";
+import { lineEnds } from "../lib/connectors";
 import { analyseSvg, topContainer, partPalette, partLabel } from "../lib/svgParts";
 import { effectiveColorMap } from "../lib/svgPalette";
 import { extractPalette } from "../lib/svgPalette";
@@ -521,15 +522,24 @@ const LINE_ROUTES = [
   ["elbow", "└", "Elbow"],
 ];
 
-const ARROW_HEADS = [
-  ["none", "⎯", "No heads"],
-  ["end", "→", "Single head"],
-  ["both", "↔", "Double headed"],
+const HEAD_LABELS = [
+  ["none", "None"],
+  ["triangle", "Arrow"],
+  ["open", "Open arrow"],
+  ["square", "Square"],
+  ["circle", "Dot"],
+  ["bar", "Bar (inhibition)"],
+];
+
+const DASH_LABELS = [
+  ["solid", "Solid"],
+  ["dashed", "Dashed"],
+  ["dotted", "Dotted"],
 ];
 
 function ShapeFields({ element }) {
   const updateElement = useStore((s) => s.updateElement);
-  const setArrowHeads = useStore((s) => s.setArrowHeads);
+  const setLineStyle = useStore((s) => s.setLineStyle);
   const setConnectorRoute = useStore((s) => s.setConnectorRoute);
   const set = (patch) => updateElement(element.id, patch);
   const isLine = element.type === "line" || element.type === "arrow";
@@ -537,19 +547,32 @@ function ShapeFields({ element }) {
   return (
     <>
     <Section title="Shape">
-      {element.type === "arrow" && (
-        <div className="segmented" role="group" aria-label="Arrow heads">
-          {ARROW_HEADS.map(([value, glyph, label]) => (
-            <button
-              key={value}
-              className={(element.heads ?? "end") === value ? "active" : ""}
-              title={label}
-              onClick={() => setArrowHeads(element.id, value)}
+      {isLine && (
+        <div className="field-grid">
+          <Field label="Start">
+            <select
+              value={lineEnds(element).start}
+              onChange={(e) => setLineStyle({ startHead: e.target.value }, [element.id])}
             >
-              <span className="seg-glyph">{glyph}</span>
-              {label.split(" ")[0]}
-            </button>
-          ))}
+              {HEAD_LABELS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+            </select>
+          </Field>
+          <Field label="End">
+            <select
+              value={lineEnds(element).end}
+              onChange={(e) => setLineStyle({ endHead: e.target.value }, [element.id])}
+            >
+              {HEAD_LABELS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+            </select>
+          </Field>
+          <Field label="Line">
+            <select
+              value={element.dash ?? "solid"}
+              onChange={(e) => setLineStyle({ dash: e.target.value }, [element.id])}
+            >
+              {DASH_LABELS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+            </select>
+          </Field>
         </div>
       )}
       {isLine && (

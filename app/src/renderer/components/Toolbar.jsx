@@ -2,6 +2,7 @@ import React from "react";
 import { useStore } from "../store";
 import iconUrl from "../assets/icon.png";
 import { ALIGN_REFERENCES, movableUnits } from "../lib/align";
+import { connectorGeometry, isConnector } from "../lib/connectors";
 
 /**
  * The toolbar, in two rows.
@@ -70,10 +71,148 @@ const TOOLS = [
   ["rect", "Rectangle (R)"],
   ["ellipse", "Ellipse (O)"],
   ["triangle", "Triangle"],
-  ["line", "Line (L)"],
-  ["arrow", "Arrow (A)"],
-  ["text", "Text (T)"],
 ];
+
+/** End combinations offered for the line tool. */
+const LINE_PRESETS = [
+  ["Line", { startHead: "none", endHead: "none" }],
+  ["Arrow", { startHead: "none", endHead: "triangle" }],
+  ["Double arrow", { startHead: "triangle", endHead: "triangle" }],
+  ["Open arrow", { startHead: "none", endHead: "open" }],
+  ["Double open arrow", { startHead: "open", endHead: "open" }],
+  ["Inhibition", { startHead: "none", endHead: "bar" }],
+  ["Square end", { startHead: "none", endHead: "square" }],
+  ["Dot end", { startHead: "none", endHead: "circle" }],
+  ["Dots at both ends", { startHead: "circle", endHead: "circle" }],
+];
+
+const DASH_PRESETS = [
+  ["Solid", "solid"],
+  ["Dashed", "dashed"],
+  ["Dotted", "dotted"],
+];
+
+/** A small drawing of a line style, made by the same geometry as the canvas. */
+function LinePreview({ style, width = 48 }) {
+  const height = 16;
+  const geometry = connectorGeometry({
+    type: "arrow",
+    x: 0,
+    y: 0,
+    points: [4, height / 2, width - 4, height / 2],
+    strokeWidth: 1.6,
+    startHead: style.startHead,
+    endHead: style.endHead,
+    dash: style.dash,
+  });
+  return (
+    <svg viewBox={`0 0 ${width} ${height}`} width={width} height={height} aria-hidden="true">
+      <path
+        d={geometry.d}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeDasharray={geometry.dash ? geometry.dash.join(" ") : undefined}
+      />
+      {geometry.heads.map((head, i) =>
+        head.kind === "circle" ? (
+          <circle key={i} cx={head.cx} cy={head.cy} r={head.r} fill="currentColor" />
+        ) : head.kind === "polyline" ? (
+          <polyline key={i} points={head.points.join(" ")} fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+        ) : (
+          <polygon key={i} points={head.points.join(" ")} fill="currentColor" />
+        )
+      )}
+    </svg>
+  );
+}
+
+/**
+ * Lines and arrows share one tool. The main button draws with the current
+ * style; the arrow beside it lists end styles and dashes. Choosing one sets
+ * the style for the next line, and restyles any lines already selected.
+ */
+function LineTool({ active }) {
+  const lineStyle = useStore((s) => s.lineStyle);
+  const setLineStyle = useStore((s) => s.setLineStyle);
+  const setTool = useStore((s) => s.setTool);
+  const [open, setOpen] = React.useState(false);
+  const hostRef = React.useRef(null);
+
+  React.useEffect(() => {
+    if (!open) return undefined;
+    const close = (e) => {
+      if (!hostRef.current?.contains(e.target)) setOpen(false);
+    };
+    const escape = (e) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("mousedown", close);
+    window.addEventListener("keydown", escape);
+    return () => {
+      window.removeEventListener("mousedown", close);
+      window.removeEventListener("keydown", escape);
+    };
+  }, [open]);
+
+  const choose = (patch) => {
+    const s = useStore.getState();
+    const restyling = s.elements.some((el) => s.selectedIds.includes(el.id) && isConnector(el));
+    setLineStyle(patch);
+    // With lines selected, the choice restyles them; otherwise it is ready to draw.
+    if (!restyling) setTool("line");
+    setOpen(false);
+  };
+
+  return (
+    <div className="menu-host line-tool" ref={hostRef}>
+      <button
+        className={`tool line-tool-main${active ? " active" : ""}`}
+        title="Line (L), or A for an arrow"
+        aria-label="Line"
+        aria-pressed={active}
+        onClick={() => setTool("line")}
+      >
+        <LinePreview style={lineStyle} width={24} />
+      </button>
+      <button
+        className={`tool line-tool-caret${open ? " active" : ""}`}
+        title="Line ends and style"
+        aria-label="Line ends and style"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <svg viewBox="0 0 10 10" width="10" height="10" aria-hidden="true">
+          <path d="M2 3.5 5 6.5 8 3.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+        </svg>
+      </button>
+      {open && (
+        <div className="dropdown line-dropdown" role="menu">
+          {LINE_PRESETS.map(([label, ends]) => {
+            const current = lineStyle.startHead === ends.startHead && lineStyle.endHead === ends.endHead;
+            return (
+              <button key={label} role="menuitemradio" aria-checked={current} className={current ? "current" : ""} onClick={() => choose(ends)}>
+                <LinePreview style={{ ...lineStyle, ...ends }} />
+                {label}
+              </button>
+            );
+          })}
+          <div className="dropdown-sep" />
+          {DASH_PRESETS.map(([label, dash]) => {
+            const current = (lineStyle.dash ?? "solid") === dash;
+            return (
+              <button key={dash} role="menuitemradio" aria-checked={current} className={current ? "current" : ""} onClick={() => choose({ dash })}>
+                <LinePreview style={{ startHead: "none", endHead: "none", dash }} />
+                {label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 const ALIGN_BUTTONS = [
   ["left", "Align left edges"],
@@ -276,6 +415,8 @@ export default function Toolbar({
           {TOOLS.map(([tool, label]) => (
             <IconButton key={tool} icon={tool} label={label} active={activeTool === tool} onClick={() => setTool(tool)} />
           ))}
+          <LineTool active={activeTool === "line" || activeTool === "arrow"} />
+          <IconButton icon="text" label="Text (T)" active={activeTool === "text"} onClick={() => setTool("text")} />
         </div>
 
         <div className="divider" />

@@ -724,7 +724,13 @@ export default function App() {
         s.nudgeSelected(dx, dy);
       } else if (!mod) {
         // Single-key tool switches, as in most editors.
-        const map = { v: "select", r: "rect", o: "ellipse", l: "line", a: "arrow", t: "text" };
+        if (e.key.toLowerCase() === "a") {
+          // A draws an arrow: the line tool with a head, remembered for next time.
+          s.setLineStyle({ startHead: "none", endHead: "triangle" }, []);
+          s.setTool("line");
+          return;
+        }
+        const map = { v: "select", r: "rect", o: "ellipse", l: "line", t: "text" };
         const tool = map[e.key.toLowerCase()];
         if (tool) s.setTool(tool);
       }

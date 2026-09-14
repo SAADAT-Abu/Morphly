@@ -19,6 +19,9 @@
  *                 a sideways distance from it, so the curve keeps its shape
  *                 when the ends move
  *   elbowRatio    elbow only: where the middle leg sits between the ends (0..1)
+ *   startHead,    how each end looks: "none" | "triangle" | "open" | "square" |
+ *   endHead       "circle" | "bar" (older arrows stored `heads` instead)
+ *   dash          "solid" | "dashed" | "dotted"
  *
  * Glue points follow BioRender: the middle of each side and the corners of the
  * element's box, with circles and triangles using points on their own outline.
@@ -150,10 +153,73 @@ export function glueTargetAt(elements, point, margin = 0, { exclude = [] } = {})
 /** Arrow heads are three stroke widths long and wide, as they always were. */
 export const headSize = (c) => (c.strokeWidth ?? 2) * 3;
 
-function headsOf(c) {
-  if (c.type !== "arrow") return { start: false, end: false };
+/** The styles an end of a line can have. "bar" is the flat end used for inhibition. */
+export const HEAD_STYLES = ["none", "triangle", "open", "square", "circle", "bar"];
+export const DASH_STYLES = ["solid", "dashed", "dotted"];
+
+/**
+ * How each end of a line looks. Lines drawn before end styles existed stored
+ * `heads` ("none" | "end" | "both") on arrows, which means triangles.
+ */
+export function lineEnds(c) {
+  if (c.startHead !== undefined || c.endHead !== undefined) {
+    const valid = (v) => (HEAD_STYLES.includes(v) ? v : "none");
+    return { start: valid(c.startHead), end: valid(c.endHead) };
+  }
+  if (c.type !== "arrow") return { start: "none", end: "none" };
   const heads = c.heads ?? "end";
-  return { start: heads === "both", end: heads !== "none" };
+  return { start: heads === "both" ? "triangle" : "none", end: heads === "none" ? "none" : "triangle" };
+}
+
+/** A dash pattern in stroke lengths, scaled to the line's width, or null for a
+ *  solid line. Dots are dashes of no length, drawn round by the line caps. */
+export function dashPattern(c) {
+  const w = Math.max(0.5, c.strokeWidth ?? 2);
+  if (c.dash === "dashed") return [w * 4, w * 3];
+  if (c.dash === "dotted") return [0, w * 2.5];
+  return null;
+}
+
+/** How far the line stops short of its tip, so a thick stroke never shows
+ *  through or past the end drawn there. */
+function shaftInset(style, c) {
+  if (style === "triangle") return headSize(c);
+  if (style === "open") return (c.strokeWidth ?? 2) / 2;
+  return 0;
+}
+
+/**
+ * The shape drawn at one end: tip at (x, y), the line arriving along `angle`.
+ *   { kind: "polygon", points }   filled
+ *   { kind: "polyline", points }  stroked like the line
+ *   { kind: "circle", cx, cy, r } filled
+ * Points are flat [x1, y1, x2, y2, ...]. Returns null for no end.
+ */
+export function headShape(style, x, y, angle, size) {
+  switch (style) {
+    case "triangle":
+      return { kind: "polygon", points: headPolygon(x, y, angle, size) };
+    case "open": {
+      const [tx, ty, ax, ay, bx, by] = headPolygon(x, y, angle, size);
+      return { kind: "polyline", points: [ax, ay, tx, ty, bx, by] };
+    }
+    case "square": {
+      const h = size * 0.45;
+      const cos = Math.cos(angle);
+      const sin = Math.sin(angle);
+      const corner = (u, v) => [x + u * cos - v * sin, y + u * sin + v * cos];
+      return { kind: "polygon", points: [...corner(-h, -h), ...corner(h, -h), ...corner(h, h), ...corner(-h, h)] };
+    }
+    case "circle":
+      return { kind: "circle", cx: x, cy: y, r: size * 0.45 };
+    case "bar": {
+      const offX = Math.sin(angle) * (size / 2);
+      const offY = Math.cos(angle) * (size / 2);
+      return { kind: "polyline", points: [x - offX, y + offY, x + offX, y - offY] };
+    }
+    default:
+      return null;
+  }
 }
 
 /** Triangle for one head: tip at (x, y), pointing along `angle`. Returned as
@@ -307,7 +373,8 @@ function resolveEnd(attachment, fallback, lookup) {
  *   points        the ends to store, [x1, y1, ..., xn, yn]
  *   d             SVG path data for the line, stopped short of any head so a
  *                 thick stroke never shows through the tip
- *   heads         head triangles, each a flat [x1, y1, x2, y2, x3, y3]
+ *   heads         the shapes drawn at the ends (see headShape)
+ *   dash          the dash pattern, or null for a solid line
  *   start, end    the ends
  *   bendHandle    curved: the point the curve passes through
  *   elbowHandle   elbow with a movable middle leg: { x, y, axis }
@@ -328,9 +395,13 @@ export function connectorGeometry(c, lookup = () => undefined) {
   const E = toLocal(e.point);
   const route = c.route ?? "straight";
   const size = headSize(c);
-  const heads = headsOf(c);
+  const ends = lineEnds(c);
 
-  const result = { start: S, end: E, heads: [], bendHandle: null, elbowHandle: null, route: null };
+  const result = { start: S, end: E, heads: [], bendHandle: null, elbowHandle: null, route: null, dash: dashPattern(c) };
+  const addHead = (style, tip, from) => {
+    const shape = headShape(style, tip.x, tip.y, Math.atan2(tip.y - from.y, tip.x - from.x), size);
+    if (shape) result.heads.push(shape);
+  };
 
   if (route === "curved") {
     const { through, control } = curveThrough(S, E, c.bend);
@@ -338,11 +409,11 @@ export function connectorGeometry(c, lookup = () => undefined) {
     // at the end from it, which is the direction each head points.
     const startFrom = Math.hypot(control.x - S.x, control.y - S.y) > 1e-6 ? control : E;
     const endFrom = Math.hypot(control.x - E.x, control.y - E.y) > 1e-6 ? control : S;
-    const s2 = heads.start ? pullBack(S, startFrom, size) : S;
-    const e2 = heads.end ? pullBack(E, endFrom, size) : E;
+    const s2 = pullBack(S, startFrom, shaftInset(ends.start, c));
+    const e2 = pullBack(E, endFrom, shaftInset(ends.end, c));
     result.d = `M${num(s2.x)} ${num(s2.y)}Q${num(control.x)} ${num(control.y)} ${num(e2.x)} ${num(e2.y)}`;
-    if (heads.end) result.heads.push(headPolygon(E.x, E.y, Math.atan2(E.y - endFrom.y, E.x - endFrom.x), size));
-    if (heads.start) result.heads.push(headPolygon(S.x, S.y, Math.atan2(S.y - startFrom.y, S.x - startFrom.x), size));
+    addHead(ends.end, E, endFrom);
+    addHead(ends.start, S, startFrom);
     result.points = [S.x, S.y, E.x, E.y];
     result.bendHandle = through;
     return result;
@@ -367,16 +438,10 @@ export function connectorGeometry(c, lookup = () => undefined) {
 
   const n = vertices.length;
   const drawn = vertices.slice();
-  if (heads.end) {
-    const from = vertices[n - 2];
-    drawn[n - 1] = pullBack(vertices[n - 1], from, size);
-    result.heads.push(headPolygon(E.x, E.y, Math.atan2(E.y - from.y, E.x - from.x), size));
-  }
-  if (heads.start) {
-    const from = vertices[1];
-    drawn[0] = pullBack(vertices[0], from, size);
-    result.heads.push(headPolygon(S.x, S.y, Math.atan2(S.y - from.y, S.x - from.x), size));
-  }
+  drawn[n - 1] = pullBack(vertices[n - 1], vertices[n - 2], shaftInset(ends.end, c));
+  addHead(ends.end, E, vertices[n - 2]);
+  drawn[0] = pullBack(vertices[0], vertices[1], shaftInset(ends.start, c));
+  addHead(ends.start, S, vertices[1]);
   result.d = drawn.map((v, i) => `${i === 0 ? "M" : "L"}${num(v.x)} ${num(v.y)}`).join("");
   return result;
 }

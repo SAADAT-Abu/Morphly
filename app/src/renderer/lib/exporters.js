@@ -185,11 +185,17 @@ function elementToSvg(element, stage, lookup) {
       // the canvas uses (lib/connectors.js), so the export cannot drift from
       // what the user arranged.
       const geometry = connectorGeometry(element, lookup);
+      const dash = geometry.dash ? ` stroke-dasharray="${geometry.dash.join(" ")}"` : "";
+      const pairs = (p) => p.reduce((out, v, i) => (i % 2 === 0 ? `${out}${i ? " " : ""}${v}` : `${out},${v}`), "");
+      const stroke = `stroke="${element.fill}" stroke-width="${element.strokeWidth}" stroke-linecap="round" stroke-linejoin="round"`;
       body =
-        `<path d="${geometry.d}" fill="none" stroke="${element.fill}" ` +
-        `stroke-width="${element.strokeWidth}" stroke-linecap="round" stroke-linejoin="round"/>` +
+        `<path d="${geometry.d}" fill="none" ${stroke}${dash}/>` +
         geometry.heads
-          .map((h) => `<polygon points="${h[0]},${h[1]} ${h[2]},${h[3]} ${h[4]},${h[5]}" fill="${element.fill}"/>`)
+          .map((h) => {
+            if (h.kind === "circle") return `<circle cx="${h.cx}" cy="${h.cy}" r="${h.r}" fill="${element.fill}"/>`;
+            if (h.kind === "polyline") return `<polyline points="${pairs(h.points)}" fill="none" ${stroke}/>`;
+            return `<polygon points="${pairs(h.points)}" fill="${element.fill}"/>`;
+          })
           .join("");
       break;
     }

@@ -51,6 +51,17 @@ import {
 import CanvasScrollbars from "./CanvasScrollbars";
 
 const SNAP_THRESHOLD = 6; // canvas units, scaled by zoom at call time
+/** The cursor while turning something: a circular arrow, outlined so it shows
+ *  on light and dark alike. */
+const ROTATE_CURSOR = `url("data:image/svg+xml;utf8,${encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round">' +
+    '<path d="M18.5 8.5A7.5 7.5 0 1 0 19.5 13" stroke="white" stroke-width="4"/>' +
+    '<path d="M20.5 3.5v5.5h-5.5" stroke="white" stroke-width="4"/>' +
+    '<path d="M18.5 8.5A7.5 7.5 0 1 0 19.5 13" stroke="black" stroke-width="2"/>' +
+    '<path d="M20.5 3.5v5.5h-5.5" stroke="black" stroke-width="2"/>' +
+    "</svg>"
+)}") 12 12, grab`;
+
 /** Smart guides are pink, so they never read as part of the figure. */
 const GUIDE_COLOUR = "#ff3ea5";
 const NO_GUIDES = { lines: [], gaps: [] };
@@ -261,10 +272,28 @@ function ConnectorShape({ element, lookup }) {
         lineCap="round"
         lineJoin="round"
         hitStrokeWidth={Math.max(12, element.strokeWidth + 8)}
+        dash={geometry.dash ?? undefined}
+        dashEnabled={Boolean(geometry.dash)}
       />
-      {geometry.heads.map((head, i) => (
-        <Line key={i} points={head} closed fill={element.fill} />
-      ))}
+      {geometry.heads.map((head, i) => {
+        if (head.kind === "circle") {
+          return <Circle key={i} x={head.cx} y={head.cy} radius={head.r} fill={element.fill} />;
+        }
+        if (head.kind === "polyline") {
+          return (
+            <Line
+              key={i}
+              points={head.points}
+              stroke={element.fill}
+              strokeWidth={element.strokeWidth}
+              lineCap="round"
+              lineJoin="round"
+              hitStrokeWidth={Math.max(12, element.strokeWidth + 8)}
+            />
+          );
+        }
+        return <Line key={i} points={head.points} closed fill={element.fill} />;
+      })}
     </>
   );
 }
@@ -416,6 +445,9 @@ export default function CanvasStage({ stageRef, onRequestTextEdit, onExternalDro
   const nodeRefs = useRef(new Map());
 
   const [size, setSize] = useState({ width: 800, height: 600 });
+  /** While turning something: where the pointer is, and the angle from upright. */
+  const [rotation, setRotation] = useState(null);
+
   /** Smart guides to draw: dotted lines, and markers on equal gaps. */
   const [guides, setGuides] = useState(NO_GUIDES);
   const snapping = useStore((s) => s.snapping);
@@ -779,6 +811,13 @@ export default function CanvasStage({ stageRef, onRequestTextEdit, onExternalDro
    *  connector follow the box as it changes. */
   const handleTransform = useCallback(
     (e, element) => {
+      // Turning: show the angle from upright beside the pointer, -180 to 180.
+      const tr = transformerRef.current;
+      if (tr?.getActiveAnchor() === "rotater") {
+        const pointer = e.target.getStage().getPointerPosition();
+        const angle = ((Math.round(tr.rotation()) % 360) + 540) % 360 - 180;
+        if (pointer) setRotation({ x: pointer.x, y: pointer.y, angle });
+      }
       if (!gluedTargets.has(element.id)) return;
       const node = e.target;
       const box = {
@@ -888,6 +927,7 @@ export default function CanvasStage({ stageRef, onRequestTextEdit, onExternalDro
       updateElement(element.id, patch);
       setLive(null);
       setGuides(NO_GUIDES);
+      setRotation(null);
     },
     [updateElement]
   );
@@ -1033,7 +1073,7 @@ export default function CanvasStage({ stageRef, onRequestTextEdit, onExternalDro
             setStagePos({ x: e.target.x(), y: e.target.y() });
           }
         }}
-        style={{ cursor: isPanning ? "grab" : activeTool === "select" ? "default" : "crosshair" }}
+        style={{ cursor: rotation ? ROTATE_CURSOR : isPanning ? "grab" : activeTool === "select" ? "default" : "crosshair" }}
       >
         {/* Page */}
         <Layer listening>
@@ -1132,6 +1172,10 @@ export default function CanvasStage({ stageRef, onRequestTextEdit, onExternalDro
             anchorFill="#ffffff"
             anchorSize={8}
             anchorDragBoundFunc={snapAnchor}
+            rotateAnchorCursor={ROTATE_CURSOR}
+            // Turning clicks to upright, level and the diagonals when close.
+            rotationSnaps={[0, 45, 90, 135, 180, 225, 270, 315]}
+            rotationSnapTolerance={4}
             boundBoxFunc={(oldBox, newBox) =>
               newBox.width < 8 || newBox.height < 8 ? oldBox : newBox
             }
@@ -1187,6 +1231,12 @@ export default function CanvasStage({ stageRef, onRequestTextEdit, onExternalDro
           ))}
         </Layer>
       </Stage>
+
+      {rotation && (
+        <div className="rotation-badge" style={{ left: rotation.x + 18, top: rotation.y + 18 }}>
+          {rotation.angle}°
+        </div>
+      )}
 
       <CanvasScrollbars
         size={size}

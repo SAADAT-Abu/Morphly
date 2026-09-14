@@ -7,7 +7,7 @@
  * their own `ns0:` namespace declarations and their recoloured markup intact.
  */
 
-import { applyPalette, effectiveColorMap } from "./svgPalette";
+import { artworkText } from "./svgParts";
 import { offsets, cellCorners, isHeaderCell } from "./tableLayout";
 import { connectorGeometry } from "./connectors";
 
@@ -249,10 +249,9 @@ function elementToSvg(element, stage, lookup) {
     }
 
     case "asset": {
-      // effectiveColorMap folds in hidden colour parts, so anything the user
-      // removed on canvas is absent from the export too.
-      const recoloured = applyPalette(element.svgSource, effectiveColorMap(element));
-      body = sizedSvg(recoloured, element.width, element.height);
+      // The same text the canvas draws: recolouring, hidden colours and part
+      // edits, so anything changed or removed on canvas is so in the export.
+      body = sizedSvg(artworkText(element), element.width, element.height);
       break;
     }
 

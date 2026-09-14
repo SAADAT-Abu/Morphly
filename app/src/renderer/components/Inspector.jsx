@@ -12,6 +12,8 @@
 import React from "react";
 import { useStore, CANVAS_PRESETS } from "../store";
 import { isPanel } from "../lib/panelLayout";
+import { analyseSvg, topContainer, partPalette, partLabel } from "../lib/svgParts";
+import { effectiveColorMap } from "../lib/svgPalette";
 import { extractPalette } from "../lib/svgPalette";
 
 export default function Inspector() {
@@ -19,6 +21,7 @@ export default function Inspector() {
   const selectedIds = useStore((s) => s.selectedIds);
   const canvas = useStore((s) => s.canvas);
   const setCanvas = useStore((s) => s.setCanvas);
+  const partEdit = useStore((s) => s.partEdit);
   const updateSelected = useStore((s) => s.updateSelected);
 
   const selected = elements.filter((el) => selectedIds.includes(el.id));
@@ -55,7 +58,16 @@ export default function Inspector() {
 
           {single && single.type === "image" && <ImageFields element={single} />}
 
-          {single && single.type === "asset" && <RecolorPanel element={single} />}
+          {single && single.type === "asset" && (
+            partEdit?.elementId === single.id ? (
+              <PartsPanel element={single} />
+            ) : (
+              <>
+                <PartsLauncher element={single} />
+                <RecolorPanel element={single} />
+              </>
+            )
+          )}
 
           <Section title="Appearance">
             <Field label="Opacity">
@@ -146,6 +158,115 @@ function HexField({ value, disabled, onCommit }) {
         e.stopPropagation();
       }}
     />
+  );
+}
+
+/** The way into editing parts, above the whole-drawing colours. */
+function PartsLauncher({ element }) {
+  const enterPartEdit = useStore((s) => s.enterPartEdit);
+  return (
+    <Section title="Parts">
+      <button className="ghost" onClick={() => enterPartEdit(element.id)} disabled={element.locked}>
+        Edit parts…
+      </button>
+      <p className="hint">
+        Or double-click the illustration. Select, recolour, hide and move individual pieces of it.
+      </p>
+    </Section>
+  );
+}
+
+/**
+ * The selected parts of the illustration being edited: their own colours,
+ * hiding, and putting them back. Colours listed are the ones inside the
+ * selected parts, and changing one changes it only there.
+ */
+function PartsPanel({ element }) {
+  const partEdit = useStore((s) => s.partEdit);
+  const updateParts = useStore((s) => s.updateParts);
+  const resetParts = useStore((s) => s.resetParts);
+  const exitPartEdit = useStore((s) => s.exitPartEdit);
+  const partEditUp = useStore((s) => s.partEditUp);
+  const openPartGroup = useStore((s) => s.openPartGroup);
+  const analysis = React.useMemo(() => analyseSvg(element.svgSource), [element.svgSource]);
+  if (!analysis || !partEdit) return null;
+
+  const keys = partEdit.selected;
+  const edits = element.partEdits ?? {};
+  const wholeDrawing = effectiveColorMap(element);
+  const top = topContainer(analysis);
+  const palette = keys.length ? partPalette(analysis, keys) : [];
+  const allHidden = keys.length > 0 && keys.every((k) => edits[k]?.hidden);
+  const one = keys.length === 1 ? analysis.byKey.get(keys[0]) : null;
+  const editedCount = Object.keys(edits).length;
+
+  const setColour = (hex, value) =>
+    updateParts(keys, (edit) => ({ colors: { ...(edit.colors ?? {}), [hex]: value } }));
+  const clearColour = (hex) =>
+    updateParts(keys, (edit) => {
+      const colors = { ...(edit.colors ?? {}) };
+      delete colors[hex];
+      return { colors };
+    });
+
+  return (
+    <Section title="Editing parts">
+      <div className="part-level">
+        <span>{partEdit.container === top ? "Whole drawing" : partLabel(analysis, partEdit.container)}</span>
+        {partEdit.container !== top && (
+          <button className="ghost small" onClick={partEditUp}>Up one level</button>
+        )}
+        <button className="primary small" onClick={exitPartEdit}>Done</button>
+      </div>
+      <p className="hint">
+        Click a part to select it. Shift adds more, Ctrl picks a single shape, and double-click
+        opens a group. Drag or use the arrow keys to move; Delete hides; Esc goes back.
+      </p>
+
+      {keys.length > 0 && (
+        <>
+          <p className="part-selection">{one ? partLabel(analysis, keys[0]) : `${keys.length} parts`}</p>
+          {palette.length > 0 && (
+            <div className="swatch-list">
+              {palette.slice(0, SWATCH_CAP).map(({ hex }) => {
+                const own = edits[keys[0]]?.colors?.[hex];
+                const drawn = wholeDrawing[hex] && wholeDrawing[hex] !== "none" ? wholeDrawing[hex] : hex;
+                const current = own ?? drawn;
+                const changed = keys.some((k) => edits[k]?.colors?.[hex]);
+                return (
+                  <div className={`swatch-row${changed ? " changed" : ""}`} key={hex}>
+                    <input type="color" value={current} onChange={(e) => setColour(hex, e.target.value)} title={hex} />
+                    <HexField value={current} onCommit={(next) => setColour(hex, next)} />
+                    {changed && (
+                      <button className="link" onClick={() => clearColour(hex)} title="Back to the drawing's colour">
+                        reset
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          <div className="table-buttons">
+            <button className="ghost small" onClick={() => updateParts(keys, { hidden: !allHidden })}>
+              {allHidden ? "Show" : "Hide"}
+            </button>
+            <button className="ghost small" onClick={() => resetParts(keys)} disabled={!keys.some((k) => edits[k])}>
+              Reset
+            </button>
+            {one?.container && (
+              <button className="ghost small" onClick={() => openPartGroup(keys[0])}>Open group</button>
+            )}
+          </div>
+        </>
+      )}
+
+      {editedCount > 0 && (
+        <button className="ghost small part-reset-all" onClick={() => resetParts(null)}>
+          Reset all parts ({editedCount})
+        </button>
+      )}
+    </Section>
   );
 }
 

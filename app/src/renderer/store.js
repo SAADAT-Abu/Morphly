@@ -15,6 +15,7 @@ import { isPanel, layoutPanels, reletterPanels } from "./lib/panelLayout";
 import { alignMoves, distributeMoves, applyMoves } from "./lib/align";
 import { measuredHeight } from "./lib/measure";
 import { copyElements, pasteElements, offsetToCentre, reorderSelection } from "./lib/clipboard";
+import { analyseSvg, topContainer, parentKey, cleanEdit, canvasDeltaToUser } from "./lib/svgParts";
 
 let groupCounter = 0;
 
@@ -92,6 +93,9 @@ export const useStore = create((set, get) => ({
   clipboard: null,
   /** How many times the clipboard has been pasted, so copies step away. */
   pasteCount: 0,
+  /** Editing the parts of one illustration (lib/svgParts.js), or null:
+   *  { elementId, container: part key being looked inside, selected: [part keys] } */
+  partEdit: null,
   library: null,
   libraryError: null,
   /** Which colour part to highlight on canvas: { elementId, hex } or null.
@@ -849,6 +853,122 @@ export const useStore = create((set, get) => ({
     set((st) => ({ elements: applyMoves(st.elements, moves), dirty: true }));
   },
 
+  // -- editing parts of an illustration ------------------------------------
+
+  /** Start editing the parts of an illustration. Returns whether it could. */
+  enterPartEdit: (id) => {
+    const el = get().elements.find((e) => e.id === id);
+    if (!el || el.type !== "asset" || el.locked) return false;
+    const analysis = analyseSvg(el.svgSource);
+    if (!analysis || analysis.leaves.length === 0) return false;
+    set({
+      partEdit: { elementId: id, container: topContainer(analysis), selected: [] },
+      selectedIds: [id],
+      activeTool: "select",
+    });
+    return true;
+  },
+
+  exitPartEdit: () => {
+    if (get().partEdit) set({ partEdit: null });
+  },
+
+  setPartSelection: (selected) =>
+    set((s) => (s.partEdit ? { partEdit: { ...s.partEdit, selected } } : {})),
+
+  _partAnalysis: () => {
+    const { partEdit, elements } = get();
+    const el = partEdit && elements.find((e) => e.id === partEdit.elementId);
+    return el ? { el, analysis: analyseSvg(el.svgSource) } : { el: null, analysis: null };
+  },
+
+  /** Look inside a group, so clicks pick the pieces within it. */
+  openPartGroup: (key) => {
+    const { partEdit } = get();
+    const { analysis } = get()._partAnalysis();
+    const node = analysis?.byKey.get(key);
+    if (!partEdit || !node?.container) return;
+    set({ partEdit: { ...partEdit, container: key, selected: [] } });
+  },
+
+  /** Back out of a group, selecting it, but never above where editing began. */
+  partEditUp: () => {
+    const { partEdit } = get();
+    const { analysis } = get()._partAnalysis();
+    if (!partEdit || !analysis) return false;
+    const top = topContainer(analysis);
+    if (partEdit.container === top || partEdit.container.length <= top.length) return false;
+    set({ partEdit: { ...partEdit, container: parentKey(partEdit.container), selected: [partEdit.container] } });
+    return true;
+  },
+
+  /** Esc: first clear the part selection, then go up a level, then finish. */
+  partEditBack: () => {
+    const { partEdit } = get();
+    if (!partEdit) return;
+    if (partEdit.selected.length) {
+      set({ partEdit: { ...partEdit, selected: [] } });
+      return;
+    }
+    if (!get().partEditUp()) set({ partEdit: null });
+  },
+
+  /**
+   * Change some parts of the illustration being edited. `change` is a patch,
+   * or a function from a part's current edit to a patch. Edits that end up
+   * doing nothing are removed, so a reset part leaves no trace in the file.
+   */
+  updateParts: (keys, change, { commit = true } = {}) => {
+    const { partEdit } = get();
+    if (!partEdit || keys.length === 0) return;
+    if (commit) get().commit();
+    set((s) => ({
+      elements: s.elements.map((el) => {
+        if (el.id !== partEdit.elementId) return el;
+        const partEdits = { ...(el.partEdits ?? {}) };
+        for (const key of keys) {
+          const current = partEdits[key] ?? {};
+          const next = cleanEdit({ ...current, ...(typeof change === "function" ? change(current, key) : change) });
+          if (next) partEdits[key] = next;
+          else delete partEdits[key];
+        }
+        return { ...el, partEdits };
+      }),
+      dirty: true,
+    }));
+  },
+
+  /** Put parts back as drawn; every part when `keys` is null. */
+  resetParts: (keys = null) => {
+    const { partEdit } = get();
+    if (!partEdit) return;
+    get().commit();
+    set((s) => ({
+      elements: s.elements.map((el) => {
+        if (el.id !== partEdit.elementId) return el;
+        if (!keys) return { ...el, partEdits: {} };
+        const partEdits = { ...(el.partEdits ?? {}) };
+        for (const key of keys) delete partEdits[key];
+        return { ...el, partEdits };
+      }),
+      dirty: true,
+    }));
+  },
+
+  /** Move the selected parts by a distance on the page. */
+  nudgeParts: (dx, dy) => {
+    const { partEdit } = get();
+    const { el } = get()._partAnalysis();
+    if (!el || !partEdit.selected.length) return;
+    const d = canvasDeltaToUser(el, dx, dy);
+    get().updateParts(partEdit.selected, (edit) => ({ dx: (edit.dx ?? 0) + d.x, dy: (edit.dy ?? 0) + d.y }));
+  },
+
+  hideSelectedParts: () => {
+    const { partEdit } = get();
+    if (partEdit?.selected.length) get().updateParts(partEdit.selected, { hidden: true });
+  },
+
   // -- clipboard and order ---------------------------------------------------
 
   /** Copy the selection. Returns whether there was anything to copy. */
@@ -1174,6 +1294,15 @@ export const useStore = create((set, get) => ({
  * after the previous change was laid out.
  */
 useStore.subscribe((state, previous) => {
+  // Editing parts ends when its illustration is deselected, deleted or locked,
+  // whichever way that happens (a click, undo, a page switch).
+  if (state.partEdit) {
+    const el = state.elements.find((e) => e.id === state.partEdit.elementId);
+    if (!el || el.locked || state.selectedIds.length !== 1 || state.selectedIds[0] !== el.id) {
+      useStore.setState({ partEdit: null });
+      return;
+    }
+  }
   if (state.elements === previous.elements) return;
   const next = reletterPanels(relayoutConnectors(state.elements));
   if (next !== state.elements) useStore.setState({ elements: next });

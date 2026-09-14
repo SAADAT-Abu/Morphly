@@ -626,6 +626,12 @@ table.credits-table td:last-child {
 .preset-row button, .table-buttons button { padding: 4px 0; font-size: 11px; }
 .preset-row button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
 
+/* Editing parts of an illustration */
+.part-level { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+.part-level span { flex: 1; font-weight: 600; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.part-selection { font-size: 12px; margin: 8px 0 4px; color: var(--text); text-transform: capitalize; }
+.part-reset-all { margin-top: 8px; }
+
 /* Table cell editor: no wrapping frame, so it sits inside the cell cleanly. */
 /* The cell editor sits inside the cell and takes the cell's own colours, so
    editing looks like the finished table rather than a floating text box.

@@ -321,6 +321,23 @@ export default function App() {
       const selected = s.elements.filter((el) => s.selectedIds.includes(el.id));
       const separator = { type: "separator" };
 
+      if (s.partEdit) {
+        const el = selected[0];
+        const keys = s.partEdit.selected;
+        const edits = el?.partEdits ?? {};
+        window.morphly.showContextMenu([
+          { label: "Hide", accelerator: "Delete", action: "parts:hide", enabled: keys.length > 0 },
+          { label: "Show", action: "parts:show", enabled: keys.some((k) => edits[k]?.hidden) },
+          { label: "Reset", action: "parts:reset", enabled: keys.some((k) => edits[k]) },
+          { label: "Reset all parts", action: "parts:resetAll", enabled: Object.keys(edits).length > 0 },
+          separator,
+          { label: "Open group", action: "parts:open", enabled: keys.length === 1 },
+          { label: "Up one level", action: "parts:up" },
+          { label: "Done editing parts", action: "parts:done" },
+        ]);
+        return;
+      }
+
       if (!onObject || selected.length === 0) {
         window.morphly.showContextMenu([
           { label: "Paste here", accelerator: "CmdOrCtrl+V", action: "pasteHere" },
@@ -346,6 +363,12 @@ export default function App() {
         { label: "Paste in place", accelerator: "CmdOrCtrl+Shift+V", action: "pasteInPlace" },
         { label: "Duplicate", accelerator: "CmdOrCtrl+D", action: "duplicate" },
         { label: "Delete", accelerator: "Delete", action: "delete" },
+        separator,
+        {
+          label: "Edit parts",
+          action: "parts:edit",
+          enabled: selected.length === 1 && selected[0].type === "asset" && !selected[0].locked,
+        },
         separator,
         { label: "Group", accelerator: "CmdOrCtrl+G", action: "group", enabled: selected.length >= 2 },
         { label: "Ungroup", accelerator: "CmdOrCtrl+Shift+G", action: "ungroup", enabled: selected.some((el) => el.groupId) },
@@ -478,6 +501,33 @@ export default function App() {
         return;
       }
 
+      // Editing parts of an illustration: keys act on the parts, and commands
+      // for whole elements wait until editing is done.
+      if (s.partEdit) {
+        const arrows = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
+        if (e.key === "Escape") {
+          e.preventDefault();
+          s.partEditBack();
+        } else if (e.key === "Delete" || e.key === "Backspace") {
+          e.preventDefault();
+          s.hideSelectedParts();
+        } else if (arrows[e.key]) {
+          e.preventDefault();
+          const step = e.shiftKey ? 20 : 2;
+          s.nudgeParts(arrows[e.key][0] * step, arrows[e.key][1] * step);
+        } else if (mod && e.key.toLowerCase() === "z") {
+          e.preventDefault();
+          e.shiftKey ? s.redo() : s.undo();
+        } else if (mod && e.key.toLowerCase() === "y") {
+          e.preventDefault();
+          s.redo();
+        } else if (mod && e.key.toLowerCase() === "s") {
+          e.preventDefault();
+          handleSave(e.shiftKey);
+        }
+        return;
+      }
+
       if (mod && e.key.toLowerCase() === "z") {
         e.preventDefault();
         e.shiftKey ? s.redo() : s.undo();
@@ -599,6 +649,14 @@ export default function App() {
         case "pasteHere": return handlePaste({ at: contextPointRef.current });
         case "order:front": case "order:forward": case "order:backward": case "order:back":
           return s.reorderSelected(action.slice("order:".length));
+        case "parts:edit": return s.enterPartEdit(s.selectedIds[0]);
+        case "parts:hide": return s.hideSelectedParts();
+        case "parts:show": return s.partEdit && s.updateParts(s.partEdit.selected, { hidden: false });
+        case "parts:reset": return s.partEdit && s.resetParts(s.partEdit.selected);
+        case "parts:resetAll": return s.resetParts(null);
+        case "parts:open": return s.partEdit && s.openPartGroup(s.partEdit.selected[0]);
+        case "parts:up": return s.partEditUp();
+        case "parts:done": return s.exitPartEdit();
         case "lock": return s.setSelectedLocked(true);
         case "unlock": return s.setSelectedLocked(false);
         case "duplicate": return s.duplicateSelected();
@@ -633,6 +691,12 @@ export default function App() {
       if (state.dirty !== previous.dirty) window.morphly.setDirty(state.dirty);
     });
   }, [store]);
+
+  // The canvas is captured as it looks for PNG export, so part editing (with
+  // its tints and outlines) ends before the export dialog opens.
+  useEffect(() => {
+    if (exportOpen) store.getState().exitPartEdit();
+  }, [exportOpen, store]);
 
   // Crash recovery. While there are unsaved changes a spare copy is kept in
   // Morphly's data folder (never in the user's file); lib/recovery.js decides

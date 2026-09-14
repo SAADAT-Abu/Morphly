@@ -33,6 +33,8 @@ import { useSvgImage, useSvgImageFromText, useRasterImage } from "../lib/useSvgI
 import { offsets, cellAtPoint, cellCorners, isHeaderCell } from "../lib/tableLayout";
 import { buildIsolationSvg, effectiveColorMap } from "../lib/svgPalette";
 import { isPanel } from "../lib/panelLayout";
+import { artworkText, analyseSvg, partForLeaf, topContainer, canvasDeltaToUser } from "../lib/svgParts";
+import { useHitMap, pickLeaf, partMask, partBox } from "../lib/useHitMap";
 import { pointsBounds, visualBox, unionBox } from "../lib/geometry";
 import { snapContext, snapMove, snapPoint } from "../lib/snapping";
 import { measuredHeight, rememberHeight } from "../lib/measure";
@@ -85,7 +87,14 @@ function ColorHighlight({ element, hex }) {
 }
 
 function AssetShape({ element }) {
-  const image = useSvgImage(element.svgSource, effectiveColorMap(element));
+  // Recolouring and part edits are applied to the text, so the picture is
+  // rebuilt only when one of them changes.
+  const text = useMemo(
+    () => artworkText(element),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [element.svgSource, element.colorMap, element.hiddenColors, element.partEdits]
+  );
+  const image = useSvgImageFromText(text);
   if (!image) {
     // Placeholder while the SVG rasterises, so the element still has a
     // visible, selectable footprint.
@@ -388,6 +397,8 @@ export default function CanvasStage({ stageRef, onRequestTextEdit, onExternalDro
   const activeTool = useStore((s) => s.activeTool);
   const highlight = useStore((s) => s.highlight);
   const grid = useStore((s) => s.grid);
+  const partEdit = useStore((s) => s.partEdit);
+  const enterPartEdit = useStore((s) => s.enterPartEdit);
 
   const selectWithGroups = useStore((s) => s.selectWithGroups);
   const toggleSelection = useStore((s) => s.toggleSelection);
@@ -481,9 +492,10 @@ export default function CanvasStage({ stageRef, onRequestTextEdit, onExternalDro
         if (selectedIds.length === 1 && isConnector(el)) return false;
         return el && !el.locked && el.visible;
       });
-    tr.nodes(nodes);
+    // Editing the parts of an illustration replaces the resize box.
+    tr.nodes(partEdit ? [] : nodes);
     tr.getLayer()?.batchDraw();
-  }, [selectedIds, elements]);
+  }, [selectedIds, elements, partEdit]);
 
   // -- zoom / pan ----------------------------------------------------------
 
@@ -552,6 +564,11 @@ export default function CanvasStage({ stageRef, onRequestTextEdit, onExternalDro
     (e) => {
       // The right button opens the context menu; it neither draws nor starts a band.
       if (e.evt?.button === 2) return;
+      // A click anywhere outside the illustration being edited finishes editing it.
+      if (useStore.getState().partEdit) {
+        useStore.getState().exitPartEdit();
+        return;
+      }
       const clickedEmpty = e.target === e.target.getStage() || e.target.name() === "canvas-bg";
       if (!clickedEmpty) return;
 
@@ -974,6 +991,10 @@ export default function CanvasStage({ stageRef, onRequestTextEdit, onExternalDro
         onContextMenu={(e) => {
           e.evt.preventDefault();
           if (activeTool !== "select") return;
+          if (useStore.getState().partEdit) {
+            onContextMenu?.(pointerOnCanvas(e.target.getStage()), true);
+            return;
+          }
           const stage = e.target.getStage();
           const at = pointerOnCanvas(stage);
 
@@ -1049,8 +1070,11 @@ export default function CanvasStage({ stageRef, onRequestTextEdit, onExternalDro
               x={element.x}
               y={element.y}
               rotation={element.rotation}
-              opacity={element.opacity}
-              draggable={!element.locked && activeTool === "select"}
+              // While the parts of one illustration are edited, everything else
+              // fades back and stops responding, so the drawing stands out.
+              opacity={partEdit && partEdit.elementId !== element.id ? element.opacity * 0.3 : element.opacity}
+              listening={!partEdit || partEdit.elementId === element.id}
+              draggable={!element.locked && activeTool === "select" && !partEdit}
               onMouseDown={(e) => {
                 if (activeTool !== "select" || element.locked) return;
                 e.cancelBubble = true;
@@ -1072,6 +1096,10 @@ export default function CanvasStage({ stageRef, onRequestTextEdit, onExternalDro
                   if (cell) onRequestTextEdit(element.id, { row: cell.row, col: cell.col });
                   return;
                 }
+                if (element.type === "asset" && !partEdit) {
+                  enterPartEdit(element.id);
+                  return;
+                }
                 if (element.type === "text" || LABELLABLE.includes(element.type)) {
                   onRequestTextEdit(element.id);
                 }
@@ -1088,6 +1116,9 @@ export default function CanvasStage({ stageRef, onRequestTextEdit, onExternalDro
               {isPanel(element) && <PanelLetter element={element} />}
               {highlight?.elementId === element.id && element.type === "asset" && (
                 <ColorHighlight element={element} hex={highlight.hex} />
+              )}
+              {partEdit?.elementId === element.id && (
+                <PartEditor element={element} partEdit={partEdit} zoom={zoom} />
               )}
             </Group>
           ))}
@@ -1167,6 +1198,175 @@ export default function CanvasStage({ stageRef, onRequestTextEdit, onExternalDro
 
       <SpacebarPanHint onChange={setIsPanning} />
     </div>
+  );
+}
+
+/**
+ * Editing the parts of one illustration, drawn inside its group so everything
+ * here is in the element's own units and turns with it.
+ *
+ * A transparent box over the drawing takes the mouse. The shape under the
+ * pointer comes from the hit map (lib/useHitMap.js); the part it belongs to
+ * depends on which group is open. Hover paints that part pink; selected parts
+ * get a blue tint and an outline, and drag as one. The hit map is rebuilt a
+ * moment after the drawing changes, never during a drag.
+ */
+function PartEditor({ element, partEdit, zoom }) {
+  const setPartSelection = useStore((s) => s.setPartSelection);
+  const openPartGroup = useStore((s) => s.openPartGroup);
+  const updateParts = useStore((s) => s.updateParts);
+  const commit = useStore((s) => s.commit);
+
+  const analysis = useMemo(() => analyseSvg(element.svgSource), [element.svgSource]);
+  const text = useMemo(
+    () => artworkText(element),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [element.svgSource, element.colorMap, element.hiddenColors, element.partEdits]
+  );
+
+  const dragRef = useRef(null);
+  const [hitText, setHitText] = useState(text);
+  useEffect(() => {
+    if (dragRef.current) return undefined;
+    const id = window.setTimeout(() => setHitText(text), 120);
+    return () => window.clearTimeout(id);
+  }, [text]);
+  const map = useHitMap(hitText, element.width, element.height);
+
+  const [hover, setHover] = useState(null);
+  const selected = partEdit.selected;
+
+  const hoverMask = useMemo(
+    () => (hover && !selected.includes(hover) ? partMask(map, analysis, [hover], [255, 45, 149, 150]) : null),
+    [map, analysis, hover, selected]
+  );
+  const selectedMask = useMemo(() => partMask(map, analysis, selected, [76, 141, 255, 90]), [map, analysis, selected]);
+  const selectedBox = useMemo(() => partBox(map, analysis, selected), [map, analysis, selected]);
+  const top = analysis ? topContainer(analysis) : "";
+  const containerBox = useMemo(
+    () => (partEdit.container !== top ? partBox(map, analysis, [partEdit.container]) : null),
+    [map, analysis, partEdit.container, top]
+  );
+
+  const partAt = (node, evt, { anyLevel = false } = {}) => {
+    if (!map || !analysis) return null;
+    const pos = node.getRelativePointerPosition();
+    const leaf = pickLeaf(map, pos.x, pos.y);
+    if (leaf === -1) return null;
+    const single = evt?.ctrlKey || evt?.metaKey;
+    const key = partForLeaf(analysis, leaf, partEdit.container, { single });
+    if (key || !anyLevel) return key ? { key } : null;
+    // A click on a piece outside the open group goes back to the top.
+    const outer = partForLeaf(analysis, leaf, top, { single });
+    return outer ? { key: outer, container: top } : null;
+  };
+
+  const startDrag = (stage, keys) => {
+    const el = useStore.getState().elements.find((e) => e.id === element.id);
+    const start = stage.getRelativePointerPosition();
+    const origin = Object.fromEntries(keys.map((k) => [k, { dx: el.partEdits?.[k]?.dx ?? 0, dy: el.partEdits?.[k]?.dy ?? 0 }]));
+    dragRef.current = { keys, origin, moved: false, frame: 0 };
+
+    const onMove = (evt) => {
+      const drag = dragRef.current;
+      if (!drag) return;
+      stage.setPointersPositions(evt);
+      const p = stage.getRelativePointerPosition();
+      const dx = p.x - start.x;
+      const dy = p.y - start.y;
+      if (!drag.moved) {
+        // A few pixels of wobble is a click, not a move.
+        if (Math.hypot(dx, dy) < 3 / zoom) return;
+        drag.moved = true;
+        commit();
+        setHover(null);
+      }
+      cancelAnimationFrame(drag.frame);
+      drag.frame = requestAnimationFrame(() => {
+        const d = canvasDeltaToUser(el, dx, dy);
+        updateParts(keys, (_edit, key) => ({ dx: origin[key].dx + d.x, dy: origin[key].dy + d.y }), { commit: false });
+      });
+    };
+    const onUp = () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+      dragRef.current = null;
+      setHitText(artworkText(useStore.getState().elements.find((e) => e.id === element.id) ?? element));
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  };
+
+  return (
+    <>
+      {selectedMask && (
+        <KonvaImage image={selectedMask} width={element.width} height={element.height} listening={false} />
+      )}
+      {hoverMask && (
+        <KonvaImage image={hoverMask} width={element.width} height={element.height} listening={false} />
+      )}
+      {containerBox && (
+        <Rect
+          {...containerBox}
+          stroke="#9aa4bd"
+          strokeWidth={1 / zoom}
+          dash={[6 / zoom, 4 / zoom]}
+          listening={false}
+        />
+      )}
+      {selectedBox && (
+        <Rect
+          {...selectedBox}
+          stroke="#4c8dff"
+          strokeWidth={1.5 / zoom}
+          dash={[4 / zoom, 3 / zoom]}
+          listening={false}
+        />
+      )}
+      <Rect
+        width={element.width}
+        height={element.height}
+        fill="rgba(0,0,0,0)"
+        onMouseMove={(e) => {
+          if (dragRef.current) return;
+          setHover(partAt(e.target, e.evt)?.key ?? null);
+        }}
+        onMouseLeave={() => setHover(null)}
+        onMouseDown={(e) => {
+          e.cancelBubble = true;
+          const hit = partAt(e.target, e.evt, { anyLevel: true });
+          if (e.evt.button === 2) {
+            if (hit && !selected.includes(hit.key)) {
+              if (hit.container !== undefined) openPartGroup(hit.container);
+              setPartSelection([hit.key]);
+            }
+            return;
+          }
+          if (e.evt.button !== 0) return;
+          if (!hit) {
+            if (!e.evt.shiftKey) setPartSelection([]);
+            return;
+          }
+          if (hit.container !== undefined) useStore.getState().setPartSelection([]);
+          let next;
+          if (e.evt.shiftKey) {
+            next = selected.includes(hit.key) ? selected.filter((k) => k !== hit.key) : [...selected, hit.key];
+          } else {
+            next = selected.includes(hit.key) ? selected : [hit.key];
+          }
+          if (hit.container !== undefined) {
+            useStore.setState((s) => ({ partEdit: { ...s.partEdit, container: hit.container } }));
+          }
+          setPartSelection(next);
+          if (next.includes(hit.key)) startDrag(e.target.getStage(), next);
+        }}
+        onDblClick={(e) => {
+          e.cancelBubble = true;
+          const hit = partAt(e.target, e.evt);
+          if (hit && analysis.byKey.get(hit.key)?.container) openPartGroup(hit.key);
+        }}
+      />
+    </>
   );
 }
 

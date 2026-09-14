@@ -149,7 +149,12 @@ export const GETTING_STARTED = [
       "updates together, which is why recolouring a 500-shape illustration takes one click " +
       "rather than five hundred. The cross beside a swatch removes those parts from the " +
       "figure entirely. Nothing is destructive: the original file is untouched and " +
-      "everything can be restored.",
+      "everything can be restored. To change one piece rather than a colour, double-click " +
+      "the illustration (or right-click it and choose Edit parts). Click a part to select it, " +
+      "Shift to add more, Ctrl for a single shape, and double-click to open a group; then " +
+      "recolour it in the properties panel, drag it or nudge it with the arrow keys, or press " +
+      "Delete to hide it. Esc steps back out. Part edits are saved with the figure, reach " +
+      "the export, and can be reset at any time.",
   },
   {
     title: "4. Build the figure",

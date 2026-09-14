@@ -256,6 +256,134 @@ export default function App() {
     }
   }, [addImageFromDataUrl, placeSvgArtwork, flash]);
 
+  // -- figure name, default folder and autosave -----------------------------
+
+  const [fileSettings, setFileSettings] = useState({ autosave: true, saveFolder: null });
+  useEffect(() => {
+    window.morphly.fileSettings().then((res) => {
+      if (res.ok) setFileSettings(res);
+    });
+  }, []);
+
+  /** Renaming a saved figure renames its file; an unsaved one just changes name. */
+  const handleRename = useCallback(
+    async (title) => {
+      const s = store.getState();
+      if (!s.projectPath) {
+        s.setTitle(title);
+        return;
+      }
+      const res = await window.morphly.renameProject({ filePath: s.projectPath, title });
+      if (res.ok) store.getState().setProjectPath(res.filePath);
+      else flash(`Could not rename: ${res.error}`);
+    },
+    [store, flash]
+  );
+
+  /**
+   * Autosave. A moment after the figure changes (and never more than ten
+   * seconds behind while work carries on), it is written to its file, or
+   * created in the default folder under its title. Edits made while a save is
+   * under way are saved next time rather than lost or marked saved by mistake.
+   */
+  useEffect(() => {
+    if (!fileSettings.autosave) return undefined;
+    const QUIET_MS = 2000;
+    const MAX_WAIT_MS = 10000;
+    let timer = null;
+    let firstPending = 0;
+    let saving = false;
+    let again = false;
+    let lastError = null;
+
+    const schedule = () => {
+      const now = Date.now();
+      if (!firstPending) firstPending = now;
+      window.clearTimeout(timer);
+      timer = window.setTimeout(run, Math.max(0, Math.min(QUIET_MS, MAX_WAIT_MS - (now - firstPending))));
+    };
+
+    const run = async () => {
+      timer = null;
+      const s = store.getState();
+      if (!s.dirty) {
+        firstPending = 0;
+        return;
+      }
+      if (saving) {
+        again = true;
+        return;
+      }
+      saving = true;
+      firstPending = 0;
+      const taken = { elements: s.elements, canvas: s.canvas, pages: s.pages, activePageId: s.activePageId, title: s.title };
+      const doc = serialise({ pages: s.allPages(), activePageId: s.activePageId });
+      const res = await window.morphly.autosaveProject({
+        json: JSON.stringify(doc, null, 2),
+        filePath: s.projectPath,
+        title: s.title,
+      });
+      saving = false;
+
+      const now = store.getState();
+      if (res.ok) {
+        lastError = null;
+        const unchanged = Object.keys(taken).every((key) => now[key] === taken[key]);
+        if (unchanged) now.markSaved(res.filePath);
+        else {
+          now.setProjectPath(res.filePath);
+          schedule();
+        }
+      } else if (res.error !== lastError) {
+        lastError = res.error;
+        flash(`Autosave failed: ${res.error}`);
+      }
+      if (again) {
+        again = false;
+        schedule();
+      }
+    };
+
+    if (store.getState().dirty) schedule();
+    const unsubscribe = store.subscribe((state, previous) => {
+      if (!state.dirty) return;
+      const changed =
+        !previous.dirty ||
+        state.elements !== previous.elements ||
+        state.canvas !== previous.canvas ||
+        state.pages !== previous.pages ||
+        state.activePageId !== previous.activePageId ||
+        state.title !== previous.title;
+      if (changed) schedule();
+    });
+    return () => {
+      unsubscribe();
+      window.clearTimeout(timer);
+    };
+  }, [fileSettings.autosave, store, flash]);
+
+  const handleChooseSaveFolder = useCallback(async () => {
+    const res = await window.morphly.chooseSaveFolder();
+    if (res.canceled) return;
+    if (!res.ok) {
+      flash(`Could not change the folder: ${res.error}`);
+      return;
+    }
+    setFileSettings((current) => ({ ...current, saveFolder: res.saveFolder }));
+    flash(`New figures and exports will be saved in ${res.saveFolder}`);
+  }, [flash]);
+
+  const handleSetAutosave = useCallback(
+    async (enabled) => {
+      const res = await window.morphly.setAutosave(enabled);
+      if (res.ok) {
+        setFileSettings((current) => ({ ...current, autosave: res.autosave }));
+        flash(res.autosave ? "Autosave is on" : "Autosave is off: save with Ctrl+S");
+      }
+    },
+    [flash]
+  );
+
   // -- clipboard ------------------------------------------------------------
 
   /**
@@ -439,7 +567,8 @@ export default function App() {
       const doc = serialise({ pages: state.allPages(), activePageId: state.activePageId });
       const res = await window.morphly.saveProject(
         JSON.stringify(doc, null, 2),
-        saveAs ? null : state.projectPath
+        saveAs ? null : state.projectPath,
+        state.title
       );
       if (res.ok) {
         markSaved(res.filePath);
@@ -649,6 +778,9 @@ export default function App() {
         case "pasteHere": return handlePaste({ at: contextPointRef.current });
         case "order:front": case "order:forward": case "order:backward": case "order:back":
           return s.reorderSelected(action.slice("order:".length));
+        case "chooseSaveFolder": return handleChooseSaveFolder();
+        case "autosave:true": return handleSetAutosave(true);
+        case "autosave:false": return handleSetAutosave(false);
         case "parts:edit": return s.enterPartEdit(s.selectedIds[0]);
         case "parts:hide": return s.hideSelectedParts();
         case "parts:show": return s.partEdit && s.updateParts(s.partEdit.selected, { hidden: false });
@@ -676,7 +808,7 @@ export default function App() {
       }
     });
     return unsubscribe;
-  }, [store, handleNew, handleOpen, handleSave, fitToScreen, addLibrary, handleInsertImage, runUpdateCheck, handleCopy, handlePaste]);
+  }, [store, handleNew, handleOpen, handleSave, fitToScreen, addLibrary, handleInsertImage, runUpdateCheck, handleCopy, handlePaste, handleChooseSaveFolder, handleSetAutosave]);
 
 
   // Unsaved-changes guard.
@@ -711,6 +843,7 @@ export default function App() {
       if (!res.ok || !res.found) return;
       try {
         loadDocument(migrate(res.snapshot.document), res.snapshot.projectPath ?? null);
+        if (!res.snapshot.projectPath && res.snapshot.title) store.setState({ title: res.snapshot.title });
         // The restored work is in no file yet, so it is unsaved: the close
         // prompt protects it and copies carry on as before.
         store.setState({ dirty: true });
@@ -735,6 +868,8 @@ export default function App() {
         onHelp={() => setHelpTab("start")}
         onInsertTable={() => setTableDialogOpen(true)}
         onInsertPanels={() => setPanelDialogOpen(true)}
+        onRename={handleRename}
+        autosave={fileSettings.autosave}
         onInsertImage={handleInsertImage}
       />
 

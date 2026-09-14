@@ -15,11 +15,11 @@
  * sure it stays inside the configured library folder.
  */
 
-const { app, BrowserWindow, dialog, ipcMain, protocol, net } = require("electron");
+const { app, BrowserWindow, dialog, ipcMain, protocol, net, Menu } = require("electron");
 const path = require("node:path");
 const { pathToFileURL } = require("node:url");
 
-const { libraryDirFor } = require("./settings");
+const { libraryDirFor, readSettings } = require("./settings");
 const { safeResolve } = require("./library");
 const { registerIpc } = require("./ipc");
 const { createRecovery } = require("./recovery");
@@ -188,6 +188,10 @@ app.whenReady().then(() => {
   registerIpc({ recovery });
   createWindow();
   buildMenu(() => mainWindow);
+  readSettings().then((settings) => {
+    const item = Menu.getApplicationMenu()?.getMenuItemById("autosave");
+    if (item) item.checked = settings.autosave !== false;
+  });
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

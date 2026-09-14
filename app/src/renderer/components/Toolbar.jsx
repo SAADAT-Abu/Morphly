@@ -111,6 +111,70 @@ function ToolIcon({ name }) {
   );
 }
 
+/**
+ * The figure's name, in the top-left corner. Click to rename; Enter keeps the
+ * new name and Escape puts the old one back. Beside it, whether the figure is
+ * saved, so autosave never leaves anyone wondering.
+ */
+function FigureTitle({ title, projectPath, dirty, autosave, onRename }) {
+  const [editing, setEditing] = React.useState(false);
+  const [draft, setDraft] = React.useState(title);
+  const cancelled = React.useRef(false);
+
+  React.useEffect(() => {
+    if (!editing) setDraft(title);
+  }, [title, editing]);
+
+  const commit = () => {
+    setEditing(false);
+    if (cancelled.current) {
+      cancelled.current = false;
+      setDraft(title);
+      return;
+    }
+    const next = draft.trim();
+    if (next && next !== title) onRename(next);
+    else setDraft(title);
+  };
+
+  const status = dirty
+    ? autosave ? "Saving…" : "Unsaved changes"
+    : projectPath ? "Saved" : "Not saved yet";
+
+  if (editing) {
+    return (
+      <input
+        className="figure-title-input"
+        autoFocus
+        value={draft}
+        maxLength={120}
+        aria-label="Figure name"
+        onFocus={(e) => e.target.select()}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") e.currentTarget.blur();
+          else if (e.key === "Escape") {
+            cancelled.current = true;
+            e.currentTarget.blur();
+          }
+          e.stopPropagation();
+        }}
+      />
+    );
+  }
+  return (
+    <button
+      className="figure-title"
+      onClick={() => setEditing(true)}
+      title={`${projectPath ?? "Not saved yet"}\nClick to rename`}
+    >
+      <span className="figure-title-text">{title}</span>
+      <span className={`figure-status${dirty ? " pending" : ""}`}>{status}</span>
+    </button>
+  );
+}
+
 /** An icon button with its label as the tooltip and accessible name. */
 function IconButton({ icon, label, active, ...props }) {
   return (
@@ -136,6 +200,8 @@ export default function Toolbar({
   onInsertTable,
   onInsertPanels,
   onInsertImage,
+  onRename,
+  autosave,
 }) {
   const activeTool = useStore((s) => s.activeTool);
   const setTool = useStore((s) => s.setTool);
@@ -172,7 +238,7 @@ export default function Toolbar({
   // Spreading between themselves needs three; across a page or panel, two.
   const canDistribute = units >= (alignTo === "page" || alignTo === "panel" ? 2 : 3);
 
-  const fileName = projectPath ? projectPath.split(/[/\\]/).pop() : "Untitled figure";
+  const title = useStore((s) => s.title);
 
   return (
     <div className="toolbar-wrap">
@@ -180,6 +246,10 @@ export default function Toolbar({
         <div className="brand">
           <img className="logo" src={iconUrl} alt="" width="20" height="20" /> Morphly
         </div>
+
+        <FigureTitle title={title} projectPath={projectPath} dirty={dirty} autosave={autosave} onRename={onRename} />
+
+        <div className="divider" />
 
         <div className="group">
           <button className="ghost" onClick={onNew} title="New figure (Ctrl+N)">New</button>
@@ -196,11 +266,6 @@ export default function Toolbar({
         </div>
 
         <div className="spacer" />
-
-        <div className="filename" title={projectPath ?? "Not saved yet"}>
-          {fileName}
-          {dirty && <span className="dot" title="Unsaved changes">•</span>}
-        </div>
 
         <button className="ghost help-btn" onClick={onHelp} title="Help (F1)">?</button>
         <button className="primary" onClick={onExport}>Export…</button>

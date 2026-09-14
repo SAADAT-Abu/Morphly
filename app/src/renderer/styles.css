@@ -110,6 +110,17 @@ input[type="range"] { padding: 0; }
 .zoom-label { min-width: 46px; text-align: center; color: var(--text-dim); font-variant-numeric: tabular-nums; }
 .filename { color: var(--text-dim); margin-right: 8px; max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .filename .dot { color: var(--accent); margin-left: 4px; font-size: 16px; }
+/* The figure's name, top left: text that turns into a field on click. */
+.figure-title {
+  display: flex; align-items: baseline; gap: 8px;
+  max-width: 340px; padding: 4px 8px;
+  background: transparent; border: 1px solid transparent;
+}
+.figure-title:hover { border-color: var(--border); background: var(--panel-2); }
+.figure-title-text { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.figure-status { font-size: 11px; color: var(--text-dim); white-space: nowrap; }
+.figure-status.pending { color: var(--accent); }
+.figure-title-input { width: 260px; font-weight: 600; }
 
 /* -------------------------------------------------------------- workspace */
 

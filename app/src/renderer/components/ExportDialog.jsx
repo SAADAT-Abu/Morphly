@@ -18,6 +18,9 @@ export default function ExportDialog({ stageRef, onClose }) {
   const zoom = useStore((s) => s.zoom);
   const stagePos = useStore((s) => s.stagePos);
   const citations = useStore((s) => s.citations);
+  // Exports are named after the figure, and land in the default folder.
+  const title = useStore((s) => s.title);
+  const baseName = title.replace(/[\\/:*?"<>|]/g, " ").trim() || "figure";
 
   const [format, setFormat] = useState("png");
   const [scale, setScale] = useState(2);
@@ -59,7 +62,7 @@ export default function ExportDialog({ stageRef, onClose }) {
         result = await window.morphly.exportFile({
           content: dataUrl.split(",")[1],
           encoding: "base64",
-          defaultName: "figure.png",
+          defaultName: `${baseName}.png`,
           filters: [{ name: "PNG image", extensions: ["png"] }],
         });
       } else if (format === "svg") {
@@ -67,7 +70,7 @@ export default function ExportDialog({ stageRef, onClose }) {
         result = await window.morphly.exportFile({
           content: svg,
           encoding: "utf8",
-          defaultName: "figure.svg",
+          defaultName: `${baseName}.svg`,
           filters: [{ name: "SVG image", extensions: ["svg"] }],
         });
       } else {
@@ -79,7 +82,7 @@ export default function ExportDialog({ stageRef, onClose }) {
           svg,
           widthPt: Math.round(canvas.width * ptPerPx),
           heightPt: Math.round((canvas.height + extra) * ptPerPx),
-          defaultName: "figure.pdf",
+          defaultName: `${baseName}.pdf`,
         });
       }
 

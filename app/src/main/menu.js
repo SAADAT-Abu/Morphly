@@ -32,6 +32,15 @@ function buildMenu(getWindow) {
         { type: "separator" },
         { label: "Save", accelerator: "CmdOrCtrl+S", click: send("save") },
         { label: "Save as…", accelerator: "CmdOrCtrl+Shift+S", click: send("saveAs") },
+        // Its tick is set from settings once they are read (main.js).
+        {
+          label: "Autosave",
+          id: "autosave",
+          type: "checkbox",
+          checked: true,
+          click: (item) => getWindow()?.webContents.send("menu:action", `autosave:${item.checked}`),
+        },
+        { label: "Default save folder…", click: send("chooseSaveFolder") },
         { type: "separator" },
         { label: "Export…", accelerator: "CmdOrCtrl+E", click: send("export") },
         { type: "separator" },

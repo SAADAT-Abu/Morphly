@@ -24,7 +24,21 @@ const DEFAULTS = {
    *  the only network request Morphly ever makes; everything else is local. */
   checkForUpdates: true,
   lastUpdateCheck: 0,
+  /** Where figures are autosaved and where save and export dialogs open.
+   *  Null means the default below, so it follows the user's own Pictures
+   *  folder wherever their system keeps it. */
+  saveFolder: null,
+  /** Save figures automatically as they change. */
+  autosave: true,
 };
+
+/** Pictures/Morphly: ~/Pictures/Morphly on Linux and macOS, Pictures\Morphly on Windows. */
+function defaultSaveFolder() {
+  return path.join(app.getPath("pictures"), "Morphly");
+}
+
+/** The folder figures go to, from settings. */
+const saveFolderFrom = (settings) => settings.saveFolder || defaultSaveFolder();
 
 const settingsPath = () => path.join(app.getPath("userData"), "settings.json");
 
@@ -105,4 +119,4 @@ async function libraryDirFor(key) {
   return libraries.find((l) => l.key === key)?.dir ?? null;
 }
 
-module.exports = { readSettings, writeSettings, settingsPath, libraryKey, libraryDirFor };
+module.exports = { readSettings, writeSettings, settingsPath, libraryKey, libraryDirFor, defaultSaveFolder, saveFolderFrom };

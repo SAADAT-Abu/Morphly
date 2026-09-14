@@ -13,7 +13,8 @@ const fs = require("node:fs/promises");
 const fsSync = require("node:fs");
 const path = require("node:path");
 
-const { readSettings, writeSettings, libraryKey, libraryDirFor } = require("./settings");
+const { readSettings, writeSettings, libraryKey, libraryDirFor, defaultSaveFolder, saveFolderFrom } = require("./settings");
+const { safeTitle, uniquePath, writeAtomic, renameFigure } = require("./figureFiles");
 const { loadLibraries, readSvg } = require("./library");
 const { checkForUpdate } = require("./updates");
 const artpacks = require("./artpacks");
@@ -21,6 +22,18 @@ const { prepareSvg, MAX_IMPORT_BYTES } = require("./svgImport");
 
 const ok = (data) => ({ ok: true, ...data });
 const fail = (err) => ({ ok: false, error: String(err?.message ?? err) });
+
+/** The folder figures and exports go to, created if it is not there yet, so
+ *  dialogs open in it rather than somewhere arbitrary. */
+async function ensureSaveFolder() {
+  const folder = saveFolderFrom(await readSettings());
+  try {
+    await fs.mkdir(folder, { recursive: true });
+  } catch {
+    /* an unreachable folder still works as a starting point for a dialog */
+  }
+  return folder;
+}
 
 function registerIpc({ recovery } = {}) {
   // -- settings ------------------------------------------------------------
@@ -289,6 +302,65 @@ function registerIpc({ recovery } = {}) {
     }
   });
 
+  // -- figure files: default folder, autosave, rename -----------------------
+
+  ipcMain.handle("files:settings", async () => {
+    const settings = await readSettings();
+    return ok({
+      saveFolder: saveFolderFrom(settings),
+      isDefaultFolder: !settings.saveFolder,
+      autosave: settings.autosave !== false,
+    });
+  });
+
+  ipcMain.handle("files:chooseSaveFolder", async (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    const current = await ensureSaveFolder();
+    const result = await dialog.showOpenDialog(win, {
+      title: "Default folder for figures and exports",
+      defaultPath: current,
+      buttonLabel: "Use this folder",
+      properties: ["openDirectory", "createDirectory"],
+    });
+    if (result.canceled || result.filePaths.length === 0) return { ok: false, canceled: true };
+    const folder = result.filePaths[0];
+    // Choosing the default folder itself stores nothing, so it keeps following
+    // the system's Pictures folder.
+    await writeSettings({ saveFolder: folder === defaultSaveFolder() ? null : folder });
+    return ok({ saveFolder: folder });
+  });
+
+  ipcMain.handle("files:setAutosave", async (_event, enabled) => {
+    await writeSettings({ autosave: Boolean(enabled) });
+    const item = Menu.getApplicationMenu()?.getMenuItemById("autosave");
+    if (item) item.checked = Boolean(enabled);
+    return ok({ autosave: Boolean(enabled) });
+  });
+
+  /**
+   * Save without asking. A figure that has never been saved is written to the
+   * default folder under its title (numbered if that name is taken); one that
+   * has a file is written back to it.
+   */
+  ipcMain.handle("project:autosave", async (_event, { json, filePath, title }) => {
+    try {
+      const target = filePath || (await uniquePath(await ensureSaveFolder(), title));
+      await writeAtomic(target, json);
+      return ok({ filePath: target });
+    } catch (err) {
+      return fail(err);
+    }
+  });
+
+  /** Renaming a saved figure renames its file. */
+  ipcMain.handle("project:rename", async (_event, { filePath, title }) => {
+    try {
+      return ok({ filePath: await renameFigure(filePath, title) });
+    } catch (err) {
+      return fail(err);
+    }
+  });
+
   // -- clipboard and context menu -------------------------------------------
 
   /** What is on the system clipboard: text, and a picture if there is one, so
@@ -423,13 +495,14 @@ function registerIpc({ recovery } = {}) {
 
   // -- projects ------------------------------------------------------------
 
-  ipcMain.handle("project:save", async (event, { json, filePath }) => {
+  ipcMain.handle("project:save", async (event, { json, filePath, title }) => {
     const win = BrowserWindow.fromWebContents(event.sender);
     let target = filePath;
     if (!target) {
+      const folder = await ensureSaveFolder();
       const result = await dialog.showSaveDialog(win, {
         title: "Save Morphly figure",
-        defaultPath: "figure.morphly",
+        defaultPath: path.join(folder, `${safeTitle(title)}.morphly`),
         filters: [{ name: "Morphly figure", extensions: ["morphly"] }],
       });
       if (result.canceled || !result.filePath) return { ok: false, canceled: true };
@@ -447,6 +520,7 @@ function registerIpc({ recovery } = {}) {
     const win = BrowserWindow.fromWebContents(event.sender);
     const result = await dialog.showOpenDialog(win, {
       title: "Open Morphly figure",
+      defaultPath: await ensureSaveFolder(),
       properties: ["openFile"],
       filters: [{ name: "Morphly figure", extensions: ["morphly"] }],
     });
@@ -469,7 +543,7 @@ function registerIpc({ recovery } = {}) {
     const win = BrowserWindow.fromWebContents(event.sender);
     const result = await dialog.showSaveDialog(win, {
       title: "Export figure",
-      defaultPath: defaultName,
+      defaultPath: path.join(await ensureSaveFolder(), path.basename(String(defaultName ?? "figure"))),
       filters,
     });
     if (result.canceled || !result.filePath) return { ok: false, canceled: true };
@@ -491,7 +565,7 @@ function registerIpc({ recovery } = {}) {
     const win = BrowserWindow.fromWebContents(event.sender);
     const result = await dialog.showSaveDialog(win, {
       title: "Export PDF",
-      defaultPath: defaultName,
+      defaultPath: path.join(await ensureSaveFolder(), path.basename(String(defaultName ?? "figure.pdf"))),
       filters: [{ name: "PDF", extensions: ["pdf"] }],
     });
     if (result.canceled || !result.filePath) return { ok: false, canceled: true };

@@ -63,6 +63,10 @@ const documentSlice = (state) => ({
 
 const INITIAL_PAGE = makePage("Figure 1");
 
+/** A figure's title from its file: "Figure 1" for ".../Figure 1.morphly". */
+export const titleFromPath = (filePath) =>
+  String(filePath ?? "").split(/[/\\]/).pop().replace(/\.morphly$/i, "") || "Untitled figure";
+
 export const useStore = create((set, get) => ({
   // -- document ------------------------------------------------------------
   /** The active page's contents, live. */
@@ -102,6 +106,9 @@ export const useStore = create((set, get) => ({
    *  Purely a view concern, so it is never saved or undone. */
   highlight: null,
   projectPath: null,
+  /** The figure's name, shown in the toolbar. Once saved it is the file's
+   *  name, so renaming the figure renames its file. */
+  title: "Untitled figure",
   dirty: false,
 
   // -- history -------------------------------------------------------------
@@ -1235,6 +1242,7 @@ export const useStore = create((set, get) => ({
       past: [],
       future: [],
       projectPath,
+      title: projectPath ? titleFromPath(projectPath) : "Untitled figure",
       dirty: false,
     });
   },
@@ -1251,11 +1259,26 @@ export const useStore = create((set, get) => ({
       past: [],
       future: [],
       projectPath: null,
+      title: "Untitled figure",
       dirty: false,
     });
   },
 
-  markSaved: (projectPath) => set({ projectPath, dirty: false }),
+  markSaved: (projectPath) => set({ projectPath, title: titleFromPath(projectPath), dirty: false }),
+
+  /** Point at a file (after a rename, or a save overtaken by new edits)
+   *  without claiming everything in it is saved. */
+  setProjectPath: (projectPath) => set({ projectPath, title: titleFromPath(projectPath) }),
+
+  /**
+   * Rename a figure that has no file yet. It counts as a change, so autosave
+   * saves it under the new name. (A saved figure is renamed through its file.)
+   */
+  setTitle: (title) => {
+    const next = String(title ?? "").trim() || "Untitled figure";
+    if (next === get().title) return;
+    set({ title: next, dirty: true });
+  },
 
   /**
    * Attribution for every distinct asset currently on the canvas.

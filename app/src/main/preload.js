@@ -78,7 +78,15 @@ contextBridge.exposeInMainWorld("morphly", {
   },
 
   // projects
-  saveProject: (json, filePath) => ipcRenderer.invoke("project:save", { json, filePath }),
+  saveProject: (json, filePath, title) => ipcRenderer.invoke("project:save", { json, filePath, title }),
+  /** Save without a dialog: to the figure's file, or new into the default folder. */
+  autosaveProject: (opts) => ipcRenderer.invoke("project:autosave", opts),
+  /** Rename a saved figure's file to match its new title. */
+  renameProject: (opts) => ipcRenderer.invoke("project:rename", opts),
+  /** { saveFolder, isDefaultFolder, autosave } */
+  fileSettings: () => ipcRenderer.invoke("files:settings"),
+  chooseSaveFolder: () => ipcRenderer.invoke("files:chooseSaveFolder"),
+  setAutosave: (enabled) => ipcRenderer.invoke("files:setAutosave", enabled),
   openProject: () => ipcRenderer.invoke("project:open"),
 
   // export

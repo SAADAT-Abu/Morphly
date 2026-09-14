@@ -213,7 +213,11 @@ export const GETTING_STARTED = [
       "each figure is exported as its own file. Figures saved before pages existed open " +
       "as a single-page document. While you have unsaved changes, Morphly keeps a spare " +
       "copy in its own data folder, never in your file. If it ever stops without closing " +
-      "properly, it offers that copy back the next time it starts.",
+      "properly, it offers that copy back the next time it starts. The figure's name sits in " +
+      "the top-left corner: click it to rename the figure, which renames its file too. " +
+      "Figures save themselves as you work, into Pictures/Morphly unless you choose another " +
+      "folder with File → Default save folder, which is also where exports go. Turn this " +
+      "off with File → Autosave if you prefer to save by hand.",
   },
   {
     title: "7. Art Packs",

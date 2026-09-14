@@ -379,7 +379,7 @@ const LABELLABLE = ["rect", "ellipse", "triangle"];
 // Stage
 // ---------------------------------------------------------------------------
 
-export default function CanvasStage({ stageRef, onRequestTextEdit, onExternalDrop, onDropFiles }) {
+export default function CanvasStage({ stageRef, onRequestTextEdit, onExternalDrop, onDropFiles, onContextMenu }) {
   const elements = useStore((s) => s.elements);
   const canvas = useStore((s) => s.canvas);
   const selectedIds = useStore((s) => s.selectedIds);
@@ -550,6 +550,8 @@ export default function CanvasStage({ stageRef, onRequestTextEdit, onExternalDro
 
   const handleStageMouseDown = useCallback(
     (e) => {
+      // The right button opens the context menu; it neither draws nor starts a band.
+      if (e.evt?.button === 2) return;
       const clickedEmpty = e.target === e.target.getStage() || e.target.name() === "canvas-bg";
       if (!clickedEmpty) return;
 
@@ -969,6 +971,35 @@ export default function CanvasStage({ stageRef, onRequestTextEdit, onExternalDro
         y={stagePos.y}
         draggable={isPanning}
         onWheel={handleWheel}
+        onContextMenu={(e) => {
+          e.evt.preventDefault();
+          if (activeTool !== "select") return;
+          const stage = e.target.getStage();
+          const at = pointerOnCanvas(stage);
+
+          // The element under the pointer, found from whatever shape was hit.
+          let hit = null;
+          for (let node = e.target; node && node !== stage; node = node.getParent()) {
+            const id = node.id?.();
+            if (id && elementsById.has(id)) {
+              hit = elementsById.get(id);
+              break;
+            }
+          }
+          const onHandle = !hit && e.target !== stage && e.target.name() !== "canvas-bg";
+
+          if (hit) {
+            // Right-clicking something outside the selection selects it first,
+            // including a locked element, so it can be unlocked from the menu.
+            if (!selectedIds.includes(hit.id)) {
+              if (hit.locked) useStore.getState().setSelection([hit.id]);
+              else selectWithGroups([hit.id]);
+            }
+          } else if (!onHandle) {
+            clearSelection();
+          }
+          onContextMenu?.(at, Boolean(hit) || onHandle);
+        }}
         onMouseDown={handleStageMouseDown}
         onTouchStart={handleStageMouseDown}
         onMouseMove={handleStageMouseMove}

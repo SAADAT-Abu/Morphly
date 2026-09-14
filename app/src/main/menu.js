@@ -47,6 +47,13 @@ function buildMenu(getWindow) {
         { label: "Undo", accelerator: "CmdOrCtrl+Z", click: send("undo") },
         { label: "Redo", accelerator: "CmdOrCtrl+Shift+Z", click: send("redo") },
         { type: "separator" },
+        // Shown but not registered: the page handles these keys, so copy and
+        // paste inside a text field keep working as usual.
+        { label: "Cut", accelerator: "CmdOrCtrl+X", registerAccelerator: false, click: send("cut") },
+        { label: "Copy", accelerator: "CmdOrCtrl+C", registerAccelerator: false, click: send("copy") },
+        { label: "Paste", accelerator: "CmdOrCtrl+V", registerAccelerator: false, click: send("paste") },
+        { label: "Paste in place", accelerator: "CmdOrCtrl+Shift+V", registerAccelerator: false, click: send("pasteInPlace") },
+        { type: "separator" },
         { label: "Duplicate", accelerator: "CmdOrCtrl+D", click: send("duplicate") },
         { label: "Delete", accelerator: "Delete", click: send("delete") },
         { label: "Select all", accelerator: "CmdOrCtrl+A", click: send("selectAll") },
@@ -92,6 +99,14 @@ function buildMenu(getWindow) {
         { type: "separator" },
         { label: "Distribute horizontally", click: send("distribute:h-gaps") },
         { label: "Distribute vertically", click: send("distribute:v-gaps") },
+        { type: "separator" },
+        { label: "Bring to front", accelerator: "CmdOrCtrl+Shift+]", registerAccelerator: false, click: send("order:front") },
+        { label: "Bring forward", accelerator: "CmdOrCtrl+]", registerAccelerator: false, click: send("order:forward") },
+        { label: "Send backward", accelerator: "CmdOrCtrl+[", registerAccelerator: false, click: send("order:backward") },
+        { label: "Send to back", accelerator: "CmdOrCtrl+Shift+[", registerAccelerator: false, click: send("order:back") },
+        { type: "separator" },
+        { label: "Lock", click: send("lock") },
+        { label: "Unlock", click: send("unlock") },
       ],
     },
     {

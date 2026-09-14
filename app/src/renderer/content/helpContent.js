@@ -72,6 +72,12 @@ export const SHORTCUTS = [
     items: [
       ["Ctrl + Z", "Undo"],
       ["Ctrl + Shift + Z", "Redo"],
+      ["Ctrl + C / Ctrl + X", "Copy / cut"],
+      ["Ctrl + V", "Paste (also pictures and SVG copied elsewhere)"],
+      ["Ctrl + Shift + V", "Paste in place"],
+      ["Ctrl + ] / Ctrl + [", "Bring forward / send backward"],
+      ["Ctrl + Shift + ] / [", "Bring to front / send to back"],
+      ["Right-click", "Menu for the selection or the page"],
       ["Ctrl + D", "Duplicate"],
       ["Ctrl + A", "Select all"],
       ["Ctrl + G", "Group selection"],
@@ -157,7 +163,9 @@ export const GETTING_STARTED = [
       "become equal. Hold Ctrl to move freely, or turn snapping off with the magnet " +
       "button. The Arrange buttons in the toolbar align and distribute the selection " +
       "relative to the page, the selection, its panel, the first object selected or the " +
-      "biggest one. Select several things and press Ctrl+G to " +
+      "biggest one. Right-click an object for cut, copy, paste, grouping, alignment, " +
+      "stacking order and locking; right-click the page to paste where you clicked. " +
+      "Select several things and press Ctrl+G to " +
       "group them, so they move and scale as one piece. To select several at once, drag a "
       + "band across empty space and everything it touches is caught; hold shift to add to "
       + "what is already selected. A selected line or arrow shows a handle on each end: drag "

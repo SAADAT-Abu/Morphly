@@ -53,6 +53,12 @@ contextBridge.exposeInMainWorld("morphly", {
   /** Close the window for real, after saving or discarding. */
   closeWindow: () => ipcRenderer.invoke("app:close"),
 
+  // clipboard and right-click menu
+  readClipboard: () => ipcRenderer.invoke("clipboard:read"),
+  writeClipboardText: (text) => ipcRenderer.invoke("clipboard:writeText", text),
+  /** Show a native context menu; chosen items arrive through onMenuAction. */
+  showContextMenu: (items) => ipcRenderer.invoke("contextMenu:show", items),
+
   // crash recovery: a spare copy in Morphly's data folder, never the user's file
   writeRecovery: (json) => ipcRenderer.invoke("recovery:write", json),
   clearRecovery: () => ipcRenderer.invoke("recovery:clear"),

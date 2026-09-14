@@ -17,6 +17,7 @@ import { cellBox, isHeaderCell } from "./lib/tableLayout";
 import { migrate, serialise, DocumentError } from "./lib/document";
 import { watchForRecovery } from "./lib/recovery";
 import { isPanel } from "./lib/panelLayout";
+import { movableUnits, ALIGN_REFERENCES } from "./lib/align";
 
 /** React's StrictMode runs effects twice in development; the recovery offer
  *  must only ever appear once per launch. */
@@ -255,6 +256,131 @@ export default function App() {
     }
   }, [addImageFromDataUrl, placeSvgArtwork, flash]);
 
+  // -- clipboard ------------------------------------------------------------
+
+  /**
+   * The clipboard is Morphly's own, so copied elements keep everything they
+   * are (groups, glue, recolouring), and it survives switching pages. A token
+   * is also put on the system clipboard: if something else has been copied
+   * since, in any program, the token is gone and that newer thing is pasted
+   * instead when Morphly can use it (a picture, or SVG markup).
+   */
+  const clipboardToken = useRef(null);
+
+  const handleCopy = useCallback(
+    (cut) => {
+      const s = store.getState();
+      if (s.selectedIds.length === 0) return;
+      if (cut) s.cutSelected();
+      else s.copySelected();
+      const token = `morphly-clipboard:${Date.now().toString(36)}`;
+      clipboardToken.current = token;
+      window.morphly.writeClipboardText(token);
+    },
+    [store]
+  );
+
+  const handlePaste = useCallback(
+    async ({ inPlace = false, at = null } = {}) => {
+      const s = store.getState();
+      let system = { text: "", image: null };
+      try {
+        const res = await window.morphly.readClipboard();
+        if (res.ok) system = res;
+      } catch {
+        /* an unreadable system clipboard just means Morphly's own is used */
+      }
+
+      if (system.text !== clipboardToken.current || !s.clipboard?.length) {
+        if (system.image) {
+          await addImageFromDataUrl(system.image, "Pasted image", at);
+          return;
+        }
+        const text = (system.text ?? "").trim();
+        if (/^(?:<\?xml[\s\S]*?\?>\s*)?(?:<!--[\s\S]*?-->\s*)*(?:<!DOCTYPE[\s\S]*?>\s*)?<svg\b/i.test(text)) {
+          const res = await window.morphly.prepareSvg(text);
+          if (res.ok) placeSvgArtwork(res, "Pasted SVG", at);
+          else flash(`Could not paste the SVG: ${res.error}`);
+          return;
+        }
+      }
+      if (s.clipboard?.length) s.pasteClipboard({ inPlace, at });
+    },
+    [store, addImageFromDataUrl, placeSvgArtwork, flash]
+  );
+
+  // -- right-click menu -----------------------------------------------------
+
+  /** Where the last right-click landed, for "Paste here". */
+  const contextPointRef = useRef(null);
+
+  const handleCanvasContextMenu = useCallback(
+    (at, onObject) => {
+      contextPointRef.current = at;
+      const s = store.getState();
+      const selected = s.elements.filter((el) => s.selectedIds.includes(el.id));
+      const separator = { type: "separator" };
+
+      if (!onObject || selected.length === 0) {
+        window.morphly.showContextMenu([
+          { label: "Paste here", accelerator: "CmdOrCtrl+V", action: "pasteHere" },
+          { label: "Paste in place", accelerator: "CmdOrCtrl+Shift+V", action: "pasteInPlace" },
+          { label: "Select all", accelerator: "CmdOrCtrl+A", action: "selectAll" },
+          separator,
+          { label: "Show grid", checked: s.grid.visible, action: "toggleGrid" },
+          { label: "Snap to guides", checked: s.snapping, action: "toggleSnapping" },
+          { label: "Fit to screen", accelerator: "CmdOrCtrl+0", action: "fit" },
+        ]);
+        return;
+      }
+
+      const units = movableUnits(s.elements, s.selectedIds).length;
+      const spread = units >= (s.alignTo === "page" || s.alignTo === "panel" ? 2 : 3);
+      const reference = ALIGN_REFERENCES.find(([value]) => value === s.alignTo)?.[1] ?? "Selection";
+      const allLocked = selected.every((el) => el.locked);
+
+      window.morphly.showContextMenu([
+        { label: "Cut", accelerator: "CmdOrCtrl+X", action: "cut" },
+        { label: "Copy", accelerator: "CmdOrCtrl+C", action: "copy" },
+        { label: "Paste", accelerator: "CmdOrCtrl+V", action: "paste" },
+        { label: "Paste in place", accelerator: "CmdOrCtrl+Shift+V", action: "pasteInPlace" },
+        { label: "Duplicate", accelerator: "CmdOrCtrl+D", action: "duplicate" },
+        { label: "Delete", accelerator: "Delete", action: "delete" },
+        separator,
+        { label: "Group", accelerator: "CmdOrCtrl+G", action: "group", enabled: selected.length >= 2 },
+        { label: "Ungroup", accelerator: "CmdOrCtrl+Shift+G", action: "ungroup", enabled: selected.some((el) => el.groupId) },
+        separator,
+        {
+          label: `Align to ${reference.toLowerCase()}`,
+          submenu: [
+            { label: "Align left", action: "align:left", enabled: units > 0 },
+            { label: "Centre horizontally", action: "align:hcenter", enabled: units > 0 },
+            { label: "Align right", action: "align:right", enabled: units > 0 },
+            separator,
+            { label: "Align top", action: "align:top", enabled: units > 0 },
+            { label: "Centre vertically", action: "align:vcenter", enabled: units > 0 },
+            { label: "Align bottom", action: "align:bottom", enabled: units > 0 },
+            separator,
+            { label: "Distribute horizontally", action: "distribute:h-gaps", enabled: spread },
+            { label: "Distribute vertically", action: "distribute:v-gaps", enabled: spread },
+          ],
+        },
+        {
+          label: "Order",
+          submenu: [
+            { label: "Bring to front", accelerator: "CmdOrCtrl+Shift+]", action: "order:front" },
+            { label: "Bring forward", accelerator: "CmdOrCtrl+]", action: "order:forward" },
+            { label: "Send backward", accelerator: "CmdOrCtrl+[", action: "order:backward" },
+            { label: "Send to back", accelerator: "CmdOrCtrl+Shift+[", action: "order:back" },
+          ],
+        },
+        separator,
+        allLocked ? { label: "Unlock", action: "unlock" } : { label: "Lock", action: "lock" },
+      ]);
+    },
+    [store]
+  );
+
   // -- fit to screen --------------------------------------------------------
 
   const fitToScreen = useCallback(() => {
@@ -367,6 +493,19 @@ export default function App() {
       } else if (mod && e.key.toLowerCase() === "n") {
         e.preventDefault();
         handleNew();
+      } else if (mod && (e.key.toLowerCase() === "c" || e.key.toLowerCase() === "x")) {
+        // With nothing selected, leave the keys alone.
+        if (s.selectedIds.length === 0) return;
+        e.preventDefault();
+        handleCopy(e.key.toLowerCase() === "x");
+      } else if (mod && e.key.toLowerCase() === "v") {
+        e.preventDefault();
+        handlePaste({ inPlace: e.shiftKey });
+      } else if (mod && (e.code === "BracketRight" || e.code === "BracketLeft")) {
+        // By key position, so Shift (which turns ] into } on many layouts) still works.
+        e.preventDefault();
+        const up = e.code === "BracketRight";
+        s.reorderSelected(e.shiftKey ? (up ? "front" : "back") : up ? "forward" : "backward");
       } else if (mod && e.key.toLowerCase() === "d") {
         e.preventDefault();
         s.duplicateSelected();
@@ -414,7 +553,7 @@ export default function App() {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [store, handleSave, handleOpen, handleNew, fitToScreen]);
+  }, [store, handleSave, handleOpen, handleNew, fitToScreen, handleCopy, handlePaste]);
 
   // Menu items are dispatched here rather than acting in the main process, so
   // each command has exactly one implementation shared with its shortcut.
@@ -453,6 +592,15 @@ export default function App() {
         case "toggleGrid": return s.toggleGrid();
         case "undo": return s.undo();
         case "redo": return s.redo();
+        case "copy": return handleCopy(false);
+        case "cut": return handleCopy(true);
+        case "paste": return handlePaste();
+        case "pasteInPlace": return handlePaste({ inPlace: true });
+        case "pasteHere": return handlePaste({ at: contextPointRef.current });
+        case "order:front": case "order:forward": case "order:backward": case "order:back":
+          return s.reorderSelected(action.slice("order:".length));
+        case "lock": return s.setSelectedLocked(true);
+        case "unlock": return s.setSelectedLocked(false);
         case "duplicate": return s.duplicateSelected();
         case "delete": return s.deleteSelected();
         case "selectAll": return s.selectAll();
@@ -470,7 +618,7 @@ export default function App() {
       }
     });
     return unsubscribe;
-  }, [store, handleNew, handleOpen, handleSave, fitToScreen, addLibrary, handleInsertImage, runUpdateCheck]);
+  }, [store, handleNew, handleOpen, handleSave, fitToScreen, addLibrary, handleInsertImage, runUpdateCheck, handleCopy, handlePaste]);
 
 
   // Unsaved-changes guard.
@@ -542,6 +690,7 @@ export default function App() {
             onRequestTextEdit={(id, cell = null) => setEditing({ id, cell })}
             onExternalDrop={handleExternalDrop}
             onDropFiles={handleDropFiles}
+            onContextMenu={handleCanvasContextMenu}
           />
 
           {editingElement && (

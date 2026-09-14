@@ -14,6 +14,7 @@ import { isConnector, relayoutConnectors, remapGlue, unglueExcept } from "./lib/
 import { isPanel, layoutPanels, reletterPanels } from "./lib/panelLayout";
 import { alignMoves, distributeMoves, applyMoves } from "./lib/align";
 import { measuredHeight } from "./lib/measure";
+import { copyElements, pasteElements, offsetToCentre, reorderSelection } from "./lib/clipboard";
 
 let groupCounter = 0;
 
@@ -87,6 +88,10 @@ export const useStore = create((set, get) => ({
   alignTo: "selection",
   /** Smart guides while moving and resizing (lib/snapping.js). */
   snapping: true,
+  /** Copied elements (lib/clipboard.js). Kept across pages, never undone. */
+  clipboard: null,
+  /** How many times the clipboard has been pasted, so copies step away. */
+  pasteCount: 0,
   library: null,
   libraryError: null,
   /** Which colour part to highlight on canvas: { elementId, hex } or null.
@@ -842,6 +847,72 @@ export const useStore = create((set, get) => ({
     if (Object.keys(moves).length === 0) return;
     get().commit();
     set((st) => ({ elements: applyMoves(st.elements, moves), dirty: true }));
+  },
+
+  // -- clipboard and order ---------------------------------------------------
+
+  /** Copy the selection. Returns whether there was anything to copy. */
+  copySelected: () => {
+    const { elements, selectedIds } = get();
+    if (selectedIds.length === 0) return false;
+    set({ clipboard: copyElements(elements, selectedIds), pasteCount: 0 });
+    return true;
+  },
+
+  cutSelected: () => {
+    if (get().copySelected()) get().deleteSelected();
+  },
+
+  /**
+   * Paste the clipboard as one undo step, and select what was pasted.
+   *   default    each paste steps 24 units further from the original
+   *   inPlace    exactly where the originals were
+   *   at         centred on a canvas point ("Paste here")
+   */
+  pasteClipboard: ({ inPlace = false, at = null } = {}) => {
+    const { clipboard, pasteCount } = get();
+    if (!clipboard?.length) return [];
+    let offset = { dx: 0, dy: 0 };
+    let count = pasteCount;
+    if (at) {
+      offset = offsetToCentre(clipboard, at, measuredHeight);
+    } else if (!inPlace) {
+      count += 1;
+      offset = { dx: 24 * count, dy: 24 * count };
+    }
+    const pasted = pasteElements(clipboard, {
+      newId: nextId,
+      newGroupId: () => `g_${Date.now().toString(36)}_${(groupCounter++).toString(36)}`,
+      ...offset,
+    });
+    get().commit();
+    set((s) => ({
+      elements: [...s.elements, ...pasted],
+      selectedIds: pasted.map((el) => el.id),
+      pasteCount: count,
+      activeTool: "select",
+      dirty: true,
+    }));
+    return pasted.map((el) => el.id);
+  },
+
+  /** "front" | "forward" | "backward" | "back", for the whole selection. */
+  reorderSelected: (direction) => {
+    const { elements, selectedIds } = get();
+    const next = reorderSelection(elements, selectedIds, direction);
+    if (next === elements) return;
+    get().commit();
+    set({ elements: next, dirty: true });
+  },
+
+  setSelectedLocked: (locked) => {
+    const { selectedIds } = get();
+    if (selectedIds.length === 0) return;
+    get().commit();
+    set((s) => ({
+      elements: s.elements.map((el) => (selectedIds.includes(el.id) ? { ...el, locked } : el)),
+      dirty: true,
+    }));
   },
 
   setAlignTo: (alignTo) => set({ alignTo }),

@@ -8,7 +8,7 @@
  * the IPC boundary, so the UI can show a message instead of a dead promise.
  */
 
-const { ipcMain, dialog, BrowserWindow, shell, net } = require("electron");
+const { ipcMain, dialog, BrowserWindow, shell, net, Menu, clipboard } = require("electron");
 const fs = require("node:fs/promises");
 const fsSync = require("node:fs");
 const path = require("node:path");
@@ -287,6 +287,52 @@ function registerIpc({ recovery } = {}) {
     } catch (err) {
       return fail(err);
     }
+  });
+
+  // -- clipboard and context menu -------------------------------------------
+
+  /** What is on the system clipboard: text, and a picture if there is one, so
+   *  an image or SVG copied in another program can be pasted into a figure. */
+  ipcMain.handle("clipboard:read", () => {
+    const image = clipboard.readImage();
+    return ok({ text: clipboard.readText(), image: image.isEmpty() ? null : image.toDataURL() });
+  });
+
+  ipcMain.handle("clipboard:writeText", (_event, text) => {
+    clipboard.writeText(String(text ?? ""));
+    return ok({});
+  });
+
+  /**
+   * A native right-click menu.
+   *
+   * The renderer knows what is selected, so it describes the menu; this only
+   * builds it. Choosing an item sends its action back down the same channel
+   * as the application menu, so every command still has one implementation.
+   * Shortcuts are shown but not registered here: the page handles the keys.
+   */
+  ipcMain.handle("contextMenu:show", (event, items) => {
+    const toTemplate = (list) =>
+      (Array.isArray(list) ? list : []).slice(0, 60).map((item) => {
+        if (item?.type === "separator") return { type: "separator" };
+        const entry = { label: String(item?.label ?? ""), enabled: item?.enabled !== false };
+        if (item?.accelerator) {
+          entry.accelerator = String(item.accelerator);
+          entry.registerAccelerator = false;
+        }
+        if (typeof item?.checked === "boolean") {
+          entry.type = "checkbox";
+          entry.checked = item.checked;
+        }
+        if (Array.isArray(item?.submenu)) entry.submenu = toTemplate(item.submenu);
+        else if (typeof item?.action === "string") {
+          entry.click = () => event.sender.send("menu:action", item.action);
+        }
+        return entry;
+      });
+    const win = BrowserWindow.fromWebContents(event.sender);
+    Menu.buildFromTemplate(toTemplate(items)).popup({ window: win });
+    return ok({});
   });
 
   // -- crash recovery --------------------------------------------------------

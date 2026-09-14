@@ -162,21 +162,21 @@ function elementToSvg(element, stage, lookup) {
     case "rect":
       body =
         `<rect x="0" y="0" width="${element.width}" height="${element.height}" ` +
-        `rx="${element.cornerRadius ?? 0}" fill="${element.fill}" ` +
+        `rx="${element.cornerRadius ?? 0}" fill="${element.fill || "none"}" ` +
         `stroke="${element.stroke}" stroke-width="${element.strokeWidth}"/>`;
       break;
 
     case "ellipse":
       body =
         `<ellipse cx="${element.width / 2}" cy="${element.height / 2}" ` +
-        `rx="${element.width / 2}" ry="${element.height / 2}" fill="${element.fill}" ` +
+        `rx="${element.width / 2}" ry="${element.height / 2}" fill="${element.fill || "none"}" ` +
         `stroke="${element.stroke}" stroke-width="${element.strokeWidth}"/>`;
       break;
 
     case "triangle":
       body =
         `<polygon points="${element.width / 2},0 ${element.width},${element.height} 0,${element.height}" ` +
-        `fill="${element.fill}" stroke="${element.stroke}" stroke-width="${element.strokeWidth}"/>`;
+        `fill="${element.fill || "none"}" stroke="${element.stroke}" stroke-width="${element.strokeWidth}"/>`;
       break;
 
     case "line":
@@ -279,6 +279,15 @@ function elementToSvg(element, stage, lookup) {
       `<text font-family="${escapeXml(element.labelFont ?? "Helvetica")}" ` +
       `font-size="${size}" fill="${element.labelColor ?? "#ffffff"}" ` +
       `text-anchor="middle" xml:space="preserve">${tspans}</text>`;
+  }
+
+  // A panel's letter, where the canvas draws it: top-left, just inside.
+  if (element.type === "rect" && element.panel && element.panelLabel) {
+    const size = element.panelLetterSize ?? 32;
+    body +=
+      `<text x="${size * 0.35}" y="${size * 0.3 + size * 0.85}" font-family="Helvetica" ` +
+      `font-size="${size}" font-weight="bold" fill="${element.panelLetterColor ?? "#111111"}">` +
+      `${escapeXml(element.panelLabel)}</text>`;
   }
 
   return `${open}${body}</g>`;

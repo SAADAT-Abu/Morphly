@@ -23,6 +23,7 @@ const ICON = {
     </>
   ),
   image: <path d="M3.5 5.5h17v13h-17zM3.5 15l4.5-4.5 4 4 3-2.5 5.5 4.5M15.5 9.5h.01" />,
+  panels: <path d="M3.5 4.5h7.5v7h-7.5zM13 4.5h7.5v7H13zM3.5 13.5h17v6h-17z" />,
   grid: <path d="M8 3v18M16 3v18M3 8h18M3 16h18" />,
   // A droplet, not a page: a page outline reads as the image button, and these
   // two sit next to each other.
@@ -67,6 +68,7 @@ export default function Toolbar({
   onFitToScreen,
   onHelp,
   onInsertTable,
+  onInsertPanels,
   onInsertImage,
 }) {
   const activeTool = useStore((s) => s.activeTool);
@@ -135,6 +137,14 @@ export default function Toolbar({
           aria-label="Insert a table"
         >
           <ToolIcon name="table" />
+        </button>
+        <button
+          className="tool"
+          onClick={onInsertPanels}
+          title="Insert a panel layout (Ctrl+Shift+L)"
+          aria-label="Insert a panel layout"
+        >
+          <ToolIcon name="panels" />
         </button>
         <button
           className="tool"

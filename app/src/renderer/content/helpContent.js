@@ -61,6 +61,7 @@ export const SHORTCUTS = [
       ["A", "Arrow"],
       ["T", "Text"],
       ["Ctrl + Shift + T", "Insert a table"],
+      ["Ctrl + Shift + L", "Insert a panel layout"],
       ["Ctrl + Shift + M", "Insert an image"],
       ["Ctrl + Shift + P", "New figure page"],
       ["F2", "Rename the current page"],
@@ -155,7 +156,7 @@ export const GETTING_STARTED = [
       + "band across empty space and everything it touches is caught; hold shift to add to "
       + "what is already selected. A selected line or arrow shows a handle on each end: drag "
       + "an end onto a shape, image, table or icon and it glues to the nearest glue point, "
-      + "so it follows when that element moves (hold Alt to place it without gluing). The "
+      + "so it follows when that element moves (hold Ctrl to place it without gluing). The "
       + "properties panel makes a line straight, curved or elbowed; a curve has a handle to "
       + "bend it, and an elbow one to slide its middle leg. The Layers panel handles stacking " +
       "order, renaming, hiding and locking.",
@@ -175,7 +176,10 @@ export const GETTING_STARTED = [
       "lighter. Imported images are stored " +
       "inside the .morphly file, so a saved figure still opens after the original file has " +
       "moved. The grid button in the toolbar shows a grid at any spacing, with an option " +
-      "to snap elements to it. The grid is a guide only and never appears in an export.",
+      "to snap elements to it. The grid is a guide only and never appears in an export. " +
+      "The panel button, or Insert → Panel layout, divides the page into lettered panels " +
+      "with even spacing, including wide and tall panels for a main result. Letters follow " +
+      "reading order and update by themselves when a panel is moved or deleted.",
   },
   {
     title: "6. Keep several figures in one document",

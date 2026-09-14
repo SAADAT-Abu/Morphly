@@ -96,6 +96,16 @@ describe("buildSvg elements", () => {
     expect(svg).toContain('d="M0 0Q50 80 100 0"');
   });
 
+  it("writes a panel's letter and leaves an unfilled box empty", () => {
+    const svg = exportOf([
+      el({ type: "rect", width: 300, height: 200, fill: "", stroke: "#c9cfdb", strokeWidth: 1, panel: true, panelLabel: "B", panelLetterSize: 40, panelLetterColor: "#222222" }),
+    ]);
+    wellFormed(svg);
+    expect(svg).toContain('fill="none"');
+    expect(svg).toContain('font-weight="bold" fill="#222222">B</text>');
+    expect(svg).not.toContain('fill=""');
+  });
+
   it("escapes text and writes one line per row", () => {
     const svg = exportOf([el({ type: "text", text: "A & B <C>\nsecond line", width: 200, fontSize: 20, fontFamily: "Helvetica", fontStyle: "bold", align: "left", fill: "#111111" })]);
     wellFormed(svg);

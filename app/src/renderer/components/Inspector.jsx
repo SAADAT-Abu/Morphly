@@ -11,6 +11,7 @@
 
 import React from "react";
 import { useStore, CANVAS_PRESETS } from "../store";
+import { isPanel } from "../lib/panelLayout";
 import { extractPalette } from "../lib/svgPalette";
 
 export default function Inspector() {
@@ -48,6 +49,8 @@ export default function Inspector() {
           {single && ["rect", "ellipse", "triangle", "line", "arrow"].includes(single.type) && (
             <ShapeFields element={single} />
           )}
+
+          {single && isPanel(single) && <PanelFields element={single} />}
 
           {single && single.type === "table" && <TableFields element={single} />}
 
@@ -347,6 +350,50 @@ function TextFields({ element }) {
   );
 }
 
+const PANEL_LETTER_STYLES = [
+  ["upper", "A, B"],
+  ["lower", "a, b"],
+  ["none", "None"],
+];
+
+/** Letters are shared by every panel on the page, so a figure stays consistent. */
+function PanelFields({ element }) {
+  const setPanelLetters = useStore((s) => s.setPanelLetters);
+  return (
+    <Section title="Panel letter">
+      <div className="segmented" role="group" aria-label="Panel letters">
+        {PANEL_LETTER_STYLES.map(([value, label]) => (
+          <button
+            key={value}
+            className={(element.panelLetterStyle ?? "upper") === value ? "active" : ""}
+            onClick={() => setPanelLetters({ panelLetterStyle: value })}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      <div className="field-grid">
+        <NumberField
+          label="Size"
+          value={element.panelLetterSize ?? 32}
+          onChange={(v) => setPanelLetters({ panelLetterSize: Math.max(4, v) })}
+        />
+        <Field label="Colour">
+          <input
+            type="color"
+            value={element.panelLetterColor ?? "#111111"}
+            onChange={(e) => setPanelLetters({ panelLetterColor: e.target.value })}
+          />
+        </Field>
+      </div>
+      <p className="hint">
+        Letters follow reading order and update by themselves. Changes here apply to every
+        panel on this page.
+      </p>
+    </Section>
+  );
+}
+
 const LINE_ROUTES = [
   ["straight", "∕", "Straight"],
   ["curved", "⌒", "Curved"],
@@ -404,13 +451,23 @@ function ShapeFields({ element }) {
           {element.start || element.end
             ? `Glued at the ${[element.start && "start", element.end && "end"].filter(Boolean).join(" and ")}. ` +
               "Drag a glued end away to let go."
-            : "Drag an end onto a shape, image, table or icon to glue it. Hold Alt to place it without gluing."}
+            : "Drag an end onto a shape, image, table or icon to glue it. Hold Ctrl to place it without gluing."}
         </p>
       )}
       <div className="field-grid">
         <Field label={isLine ? "Colour" : "Fill"}>
-          <input type="color" value={element.fill} onChange={(e) => set({ fill: e.target.value })} />
+          <input type="color" value={element.fill || "#ffffff"} onChange={(e) => set({ fill: e.target.value })} />
         </Field>
+        {!isLine && (
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={!element.fill}
+              onChange={(e) => set({ fill: e.target.checked ? "" : "#ffffff" })}
+            />
+            No fill
+          </label>
+        )}
         {!isLine && (
           <Field label="Stroke">
             <input type="color" value={element.stroke} onChange={(e) => set({ stroke: e.target.value })} />

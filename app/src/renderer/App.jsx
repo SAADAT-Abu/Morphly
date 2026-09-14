@@ -10,11 +10,13 @@ import ExportDialog from "./components/ExportDialog";
 import HelpDialog from "./components/HelpDialog";
 import WelcomeDialog from "./components/WelcomeDialog";
 import TableDialog from "./components/TableDialog";
+import PanelLayoutDialog from "./components/PanelLayoutDialog";
 import ArtStore from "./components/ArtStore";
 import { useStore } from "./store";
 import { cellBox, isHeaderCell } from "./lib/tableLayout";
 import { migrate, serialise, DocumentError } from "./lib/document";
 import { watchForRecovery } from "./lib/recovery";
+import { isPanel } from "./lib/panelLayout";
 
 /** React's StrictMode runs effects twice in development; the recovery offer
  *  must only ever appear once per launch. */
@@ -33,6 +35,7 @@ export default function App() {
   const [helpTab, setHelpTab] = useState(null);
   const [welcomeOpen, setWelcomeOpen] = useState(false);
   const [tableDialogOpen, setTableDialogOpen] = useState(false);
+  const [panelDialogOpen, setPanelDialogOpen] = useState(false);
   const [storeOpen, setStoreOpen] = useState(false);
   /** { latest, url } when Zenodo has a newer release than this build. */
   const [update, setUpdate] = useState(null);
@@ -47,6 +50,7 @@ export default function App() {
   const addAsset = useStore((s) => s.addAsset);
   const addImage = useStore((s) => s.addImage);
   const addSvgArtwork = useStore((s) => s.addSvgArtwork);
+  const addPanelLayout = useStore((s) => s.addPanelLayout);
   const addTable = useStore((s) => s.addTable);
   const setZoom = useStore((s) => s.setZoom);
   const setStagePos = useStore((s) => s.setStagePos);
@@ -438,6 +442,7 @@ export default function App() {
         case "pageNext": return s.stepPage(1);
         case "pagePrev": return s.stepPage(-1);
         case "insertTable": return setTableDialogOpen(true);
+        case "insertPanels": return setPanelDialogOpen(true);
         case "insertImage": return handleInsertImage();
         case "toggleGrid": return s.toggleGrid();
         case "undo": return s.undo();
@@ -511,6 +516,7 @@ export default function App() {
         onFitToScreen={fitToScreen}
         onHelp={() => setHelpTab("start")}
         onInsertTable={() => setTableDialogOpen(true)}
+        onInsertPanels={() => setPanelDialogOpen(true)}
         onInsertImage={handleInsertImage}
       />
 
@@ -560,6 +566,17 @@ export default function App() {
         />
       )}
 
+      {panelDialogOpen && (
+        <PanelLayoutDialog
+          canvas={canvas}
+          hasPanels={elements.some(isPanel)}
+          onClose={() => setPanelDialogOpen(false)}
+          onInsert={(options) => {
+            addPanelLayout(options);
+            setPanelDialogOpen(false);
+          }}
+        />
+      )}
       {tableDialogOpen && (
         <TableDialog
           onClose={() => setTableDialogOpen(false)}

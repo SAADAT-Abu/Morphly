@@ -32,6 +32,7 @@ import { useStore } from "../store";
 import { useSvgImage, useSvgImageFromText, useRasterImage } from "../lib/useSvgImage";
 import { offsets, cellAtPoint, cellCorners, isHeaderCell } from "../lib/tableLayout";
 import { buildIsolationSvg, effectiveColorMap } from "../lib/svgPalette";
+import { isPanel } from "../lib/panelLayout";
 import { computeSnap, pointsBounds } from "../lib/geometry";
 import {
   isConnector,
@@ -260,7 +261,12 @@ function ElementShape({ element, lookup }) {
         <Rect
           width={element.width}
           height={element.height}
-          fill={element.fill}
+          // An empty fill means none, as on a panel. Such a box is picked up by
+          // its outline only, so a selection band can still be started inside
+          // a panel to catch the artwork in it.
+          fill={element.fill || undefined}
+          fillEnabled={Boolean(element.fill)}
+          hitStrokeWidth={element.fill ? "auto" : Math.max(10, (element.strokeWidth ?? 0) + 8)}
           stroke={element.stroke}
           strokeWidth={element.strokeWidth}
           cornerRadius={element.cornerRadius ?? 0}
@@ -338,6 +344,24 @@ function ShapeLabel({ element }) {
       listening={false}
       wrap="word"
       padding={4}
+    />
+  );
+}
+
+/** A panel's letter, in its top-left corner. */
+function PanelLetter({ element }) {
+  if (!element.panelLabel) return null;
+  const size = element.panelLetterSize ?? 32;
+  return (
+    <KonvaText
+      text={element.panelLabel}
+      x={size * 0.35}
+      y={size * 0.3}
+      fontSize={size}
+      fontFamily="Helvetica"
+      fontStyle="bold"
+      fill={element.panelLetterColor ?? "#111111"}
+      listening={false}
     />
   );
 }
@@ -953,6 +977,7 @@ export default function CanvasStage({ stageRef, onRequestTextEdit, onExternalDro
             >
               <ElementShape element={isConnector(element) ? connectorNow(element) : element} lookup={lookup} />
               {LABELLABLE.includes(element.type) && <ShapeLabel element={element} />}
+              {isPanel(element) && <PanelLetter element={element} />}
               {highlight?.elementId === element.id && element.type === "asset" && (
                 <ColorHighlight element={element} hex={highlight.hex} />
               )}
@@ -1043,7 +1068,7 @@ export default function CanvasStage({ stageRef, onRequestTextEdit, onExternalDro
  *
  * Round handles sit on the two ends. Dragging an end near a shape, image,
  * table or icon shows its glue points, and letting go on one glues the end
- * there, so it follows that element from then on. Alt places the end without
+ * there, so it follows that element from then on. Ctrl places the end without
  * gluing. A curved line adds a handle on the curve to bend it; an elbow whose
  * ends run the same way adds one on its middle leg to slide it.
  *
@@ -1064,7 +1089,10 @@ function ConnectorHandles({ element, elements, lookup, zoom, commit, updateEleme
     const node = e.target;
     let point = { x: node.x(), y: node.y() };
     const exclude = [element.id];
-    const snap = e.evt?.altKey ? null : nearestAnchor(elements, point, GLUE_RADIUS / zoom, { exclude });
+    // Ctrl (Cmd on a Mac) places the end without gluing. Alt works too, but
+    // several Linux desktops take Alt plus drag for moving windows.
+    const free = e.evt?.ctrlKey || e.evt?.metaKey || e.evt?.altKey;
+    const snap = free ? null : nearestAnchor(elements, point, GLUE_RADIUS / zoom, { exclude });
     if (snap) {
       point = { x: snap.x, y: snap.y };
       node.position(point);

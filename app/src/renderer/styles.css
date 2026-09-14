@@ -571,6 +571,42 @@ table.credits-table td:last-child {
 }
 .picker-cell.on { background: var(--accent); border-color: var(--accent); }
 
+/* Panel layout dialog ------------------------------------------------------ */
+.panel-modal { width: 460px; max-width: calc(100vw - 32px); }
+.panel-presets {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.panel-preset {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 4px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: 10.5px;
+  line-height: 1.2;
+  text-align: center;
+}
+.panel-preset svg { width: 60px; height: 42px; display: block; }
+.panel-preset:hover { background: var(--accent-dim); }
+.panel-preset.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+.panel-preview {
+  display: block;
+  width: 100%;
+  max-height: 220px;
+  margin: 4px 0 10px;
+}
+.sketch-page { fill: #ffffff; stroke: var(--border); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.sketch-panel { fill: #eef2f8; stroke: #8b93a7; stroke-width: 1; vector-effect: non-scaling-stroke; }
+.panel-preset.active .sketch-panel { fill: #d9e6ff; stroke: var(--accent); }
+.sketch-letter { fill: #111111; font-family: Helvetica, Arial, sans-serif; font-weight: bold; }
+
 /* Table and image property panels ------------------------------------------ */
 .table-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
 .preset-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; margin-top: 8px; }

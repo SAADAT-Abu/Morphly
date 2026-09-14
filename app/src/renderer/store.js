@@ -11,6 +11,7 @@
 import { create } from "zustand";
 import { extractPalette, intrinsicSize } from "./lib/svgPalette";
 import { isConnector, relayoutConnectors, remapGlue, unglueExcept } from "./lib/connectors";
+import { isPanel, layoutPanels, reletterPanels } from "./lib/panelLayout";
 
 let groupCounter = 0;
 
@@ -494,6 +495,63 @@ export const useStore = create((set, get) => ({
     if (commit) get().commit();
     set((s) => ({
       elements: s.elements.map((el) => (el.id === id ? { ...el, ...patch } : el)),
+      dirty: true,
+    }));
+  },
+
+  /**
+   * Lay out lettered panels over the page (lib/panelLayout.js).
+   *
+   * Panels go underneath everything already on the page, so existing artwork
+   * stays visible on top of them, and are selected so they can be nudged as a
+   * set straight away. With `replace`, panels from an earlier layout are
+   * removed first. The whole insertion is one undo step.
+   */
+  addPanelLayout: ({ rows, cols, cells, gap, margin, letterStyle = "upper", replace = true }) => {
+    const { canvas, elements } = get();
+    const base = Math.min(canvas.width, canvas.height);
+    const boxes = layoutPanels(
+      { rows, cols, cells },
+      { x: margin, y: margin, width: canvas.width - 2 * margin, height: canvas.height - 2 * margin, gap }
+    );
+    const panels = boxes.map((box) =>
+      get()._base({
+        type: "rect",
+        name: "Panel",
+        ...box,
+        // No fill, so the page colour shows through and nothing is hidden.
+        fill: "",
+        stroke: "#c9cfdb",
+        strokeWidth: 1,
+        cornerRadius: 0,
+        label: "",
+        labelSize: Math.round(base * 0.028),
+        labelColor: "#111111",
+        labelFont: "Helvetica",
+        panel: true,
+        panelLetterStyle: letterStyle,
+        panelLetterSize: Math.max(14, Math.round(base * 0.04)),
+        panelLetterColor: "#111111",
+      })
+    );
+
+    get().commit();
+    const kept = replace ? elements.filter((el) => !isPanel(el)) : elements;
+    set({
+      elements: [...panels, ...kept],
+      selectedIds: panels.map((p) => p.id),
+      activeTool: "select",
+      dirty: true,
+    });
+    return panels.map((p) => p.id);
+  },
+
+  /** Letter style, size or colour, applied to every panel on the page at once,
+   *  because a figure whose panels are lettered differently looks unfinished. */
+  setPanelLetters: (patch) => {
+    get().commit();
+    set((s) => ({
+      elements: s.elements.map((el) => (isPanel(el) ? { ...el, ...patch } : el)),
       dirty: true,
     }));
   },
@@ -1058,7 +1116,8 @@ export const useStore = create((set, get) => ({
 }));
 
 /**
- * Glued connector ends follow their targets.
+ * Glued connector ends follow their targets, and panel letters follow the
+ * panels' order on the page.
  *
  * This runs after every change rather than inside each action that can move
  * something, so nothing that moves an element (dragging, the inspector, align,
@@ -1068,7 +1127,7 @@ export const useStore = create((set, get) => ({
  */
 useStore.subscribe((state, previous) => {
   if (state.elements === previous.elements) return;
-  const next = relayoutConnectors(state.elements);
+  const next = reletterPanels(relayoutConnectors(state.elements));
   if (next !== state.elements) useStore.setState({ elements: next });
 });
 

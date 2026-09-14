@@ -220,7 +220,8 @@ function PartsPanel({ element }) {
       </div>
       <p className="hint">
         Click a part to select it. Shift adds more, Ctrl picks a single shape, and double-click
-        opens a group. Drag or use the arrow keys to move; Delete hides; Esc goes back.
+        opens a group. Click a selected part again to reach a tint or shading layer drawn
+        over it. Drag or use the arrow keys to move; Delete hides; Esc goes back.
       </p>
 
       {keys.length > 0 && (

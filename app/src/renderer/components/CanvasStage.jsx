@@ -34,7 +34,7 @@ import { offsets, cellAtPoint, cellCorners, isHeaderCell } from "../lib/tableLay
 import { buildIsolationSvg, effectiveColorMap } from "../lib/svgPalette";
 import { isPanel } from "../lib/panelLayout";
 import { artworkText, analyseSvg, partForLeaf, topContainer, canvasDeltaToUser } from "../lib/svgParts";
-import { useHitMap, pickLeaf, partMask, partBox } from "../lib/useHitMap";
+import { useHitMap, pickLeaf, pickLeafIn, partMask, partBox } from "../lib/useHitMap";
 import { pointsBounds, visualBox, unionBox } from "../lib/geometry";
 import { snapContext, snapMove, snapPoint } from "../lib/snapping";
 import { measuredHeight, rememberHeight } from "../lib/measure";
@@ -1248,10 +1248,10 @@ function PartEditor({ element, partEdit, zoom }) {
     [map, analysis, partEdit.container, top]
   );
 
-  const partAt = (node, evt, { anyLevel = false } = {}) => {
+  const partAt = (node, evt, { anyLevel = false, layer = null } = {}) => {
     if (!map || !analysis) return null;
     const pos = node.getRelativePointerPosition();
-    const leaf = pickLeaf(map, pos.x, pos.y);
+    const leaf = layer === null ? pickLeaf(map, pos.x, pos.y) : pickLeafIn(map, layer, pos.x, pos.y);
     if (leaf === -1) return null;
     const single = evt?.ctrlKey || evt?.metaKey;
     const key = partForLeaf(analysis, leaf, partEdit.container, { single });
@@ -1261,7 +1261,8 @@ function PartEditor({ element, partEdit, zoom }) {
     return outer ? { key: outer, container: top } : null;
   };
 
-  const startDrag = (stage, keys) => {
+  /** Press on selected parts: a drag moves them; a plain click runs `onPlainClick`. */
+  const startDrag = (stage, keys, onPlainClick = null) => {
     const el = useStore.getState().elements.find((e) => e.id === element.id);
     const start = stage.getRelativePointerPosition();
     const origin = Object.fromEntries(keys.map((k) => [k, { dx: el.partEdits?.[k]?.dx ?? 0, dy: el.partEdits?.[k]?.dy ?? 0 }]));
@@ -1290,7 +1291,9 @@ function PartEditor({ element, partEdit, zoom }) {
     const onUp = () => {
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
+      const plain = dragRef.current && !dragRef.current.moved;
       dragRef.current = null;
+      if (plain) onPlainClick?.();
       setHitText(artworkText(useStore.getState().elements.find((e) => e.id === element.id) ?? element));
     };
     window.addEventListener("mousemove", onMove);
@@ -1358,7 +1361,22 @@ function PartEditor({ element, partEdit, zoom }) {
             useStore.setState((s) => ({ partEdit: { ...s.partEdit, container: hit.container } }));
           }
           setPartSelection(next);
-          if (next.includes(hit.key)) startDrag(e.target.getStage(), next);
+          // Clicking the selected part again reaches a see-through shape drawn
+          // over it, such as a tint or shading layer.
+          const again = !e.evt.shiftKey && selected.length === 1 && selected[0] === hit.key;
+          const node = e.target;
+          const evt = e.evt;
+          const reachUnder = again
+            ? () => {
+                const over = partAt(node, evt, { anyLevel: true, layer: 1 });
+                if (!over || over.key === hit.key) return;
+                if (over.container !== undefined) {
+                  useStore.setState((s) => ({ partEdit: { ...s.partEdit, container: over.container } }));
+                }
+                setPartSelection([over.key]);
+              }
+            : null;
+          if (next.includes(hit.key)) startDrag(e.target.getStage(), next, reachUnder);
         }}
         onDblClick={(e) => {
           e.cancelBubble = true;

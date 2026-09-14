@@ -227,21 +227,51 @@ function parseSelector(selector) {
   return { tag, ids, classes, specificity: ids.length * 10000 + classes.length * 100 + (tag ? 1 : 0) };
 }
 
+/** Properties that decide what a shape looks like and whether it can be clicked. */
+const STYLE_PROPS = ["fill", "stroke", "color", "display", "opacity", "fill-opacity", "stroke-opacity", "mask", "mix-blend-mode"];
+
+/** An opacity value (a number or a percentage) as 0..1; anything unreadable counts as 1. */
+function amount(value) {
+  if (value === undefined) return 1;
+  const v = String(value).trim();
+  const n = v.endsWith("%") ? parseFloat(v) / 100 : parseFloat(v);
+  return Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : 1;
+}
+
+/**
+ * CSS rules that set anything Morphly reads, in cascade order, indexed so
+ * each element only looks at rules that could apply to it. Checking every
+ * rule against every element made drawings with thousands of shapes and
+ * hundreds of rules take over a second to analyse.
+ */
 function parseCss(css) {
   const rules = [];
   const clean = css.replace(/<!\[CDATA\[|\]\]>/g, "").replace(/\/\*[\s\S]*?\*\//g, "");
   let order = 0;
   for (const m of clean.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
     const decls = parseDeclarations(m[2]);
+    if (!STYLE_PROPS.some((prop) => decls.has(prop))) continue;
     for (const raw of m[1].split(",")) {
       const selector = parseSelector(raw.trim());
       if (selector) rules.push({ ...selector, decls, order: (order += 1) });
     }
   }
-  return rules.sort((a, b) => a.specificity - b.specificity || a.order - b.order);
-}
+  rules.sort((a, b) => a.specificity - b.specificity || a.order - b.order);
 
-const STYLE_PROPS = ["fill", "stroke", "color", "display"];
+  const index = { byId: new Map(), byClass: new Map(), byTag: new Map(), universal: [] };
+  const file = (map, name, rule) => {
+    if (!map.has(name)) map.set(name, []);
+    map.get(name).push(rule);
+  };
+  rules.forEach((rule, rank) => {
+    rule.rank = rank;
+    if (rule.ids.length) file(index.byId, rule.ids[0], rule);
+    else if (rule.classes.length) file(index.byClass, rule.classes[0], rule);
+    else if (rule.tag) file(index.byTag, rule.tag, rule);
+    else index.universal.push(rule);
+  });
+  return index;
+}
 
 /** An element's own declared values: attribute, then CSS rules, then inline style. */
 function ownStyle(node, rules) {
@@ -250,12 +280,21 @@ function ownStyle(node, rules) {
     const attr = node.attrs.get(prop);
     if (attr) own[prop] = attr.value;
   }
-  const classes = new Set((node.attrs.get("class")?.value ?? "").split(/\s+/).filter(Boolean));
+  const classList = (node.attrs.get("class")?.value ?? "").split(/\s+/).filter(Boolean);
+  const classes = new Set(classList);
   const id = node.attrs.get("id")?.value;
-  for (const rule of rules) {
-    if (rule.tag && rule.tag !== node.name) continue;
-    if (rule.ids.some((x) => x !== id)) continue;
-    if (rule.classes.some((c) => !classes.has(c))) continue;
+
+  const candidates = [...rules.universal, ...(rules.byTag.get(node.name) ?? []), ...(id ? rules.byId.get(id) ?? [] : [])];
+  for (const name of classList) candidates.push(...(rules.byClass.get(name) ?? []));
+  const matching = [...new Set(candidates)]
+    .filter(
+      (rule) =>
+        (!rule.tag || rule.tag === node.name) &&
+        rule.ids.every((x) => x === id) &&
+        rule.classes.every((c) => classes.has(c))
+    )
+    .sort((a, b) => a.rank - b.rank);
+  for (const rule of matching) {
     for (const prop of STYLE_PROPS) if (rule.decls.has(prop)) own[prop] = rule.decls.get(prop);
   }
   const inline = parseDeclarations(node.attrs.get("style")?.value ?? "");
@@ -317,7 +356,22 @@ function analyse(text) {
     const node = nodes[index];
     const own = ownStyle(node, rules);
     const pick = (prop) => (own[prop] === undefined || own[prop] === "inherit" ? inherited[prop] : own[prop]);
-    const effective = { fill: pick("fill"), stroke: pick("stroke"), color: pick("color") };
+    const effective = {
+      fill: pick("fill"),
+      stroke: pick("stroke"),
+      color: pick("color"),
+      "fill-opacity": pick("fill-opacity"),
+      "stroke-opacity": pick("stroke-opacity"),
+      // Opacity multiplies down through groups; a mask anywhere above softens.
+      alpha: inherited.alpha * amount(own.opacity),
+      masked: inherited.masked || (own.mask !== undefined && own.mask.trim() !== "none"),
+      // Many BioArt drawings lay a tint or shading shape over the whole drawing
+      // with a blend mode; it changes the colours beneath rather than covering
+      // them. Only a shape's own blend mode counts: inside a blended group the
+      // shapes paint normally among themselves, and the hit copy switches the
+      // group's blending off, so they are picked like any solid shape.
+      blended: own["mix-blend-mode"] !== undefined && own["mix-blend-mode"].trim() !== "normal",
+    };
 
     node.key = key;
     node.hidden = hidden || own.display === "none";
@@ -334,6 +388,14 @@ function analyse(text) {
         fill: normalisePaint(effective.fill, currentColor),
         stroke: normalisePaint(effective.stroke, currentColor),
       };
+      // See-through or masked shapes are picked only where nothing solid is
+      // under the pointer (buildHitSvg's "back" layer).
+      node.translucent =
+        effective.alpha < 0.999 ||
+        effective.masked ||
+        effective.blended ||
+        (node.paint.fill !== "none" && amount(effective["fill-opacity"]) < 0.999) ||
+        (node.paint.stroke !== "none" && amount(effective["stroke-opacity"]) < 0.999);
     }
 
     node.children.forEach((child, position) => {
@@ -343,7 +405,13 @@ function analyse(text) {
     });
     node.last = node.children.length ? nodes[node.children[node.children.length - 1]].last : index;
   };
-  walk(root.index, { fill: "#000000", stroke: "none", color: "#000000" }, "", false, false);
+  walk(
+    root.index,
+    { fill: "#000000", stroke: "none", color: "#000000", "fill-opacity": "1", "stroke-opacity": "1", alpha: 1, masked: false },
+    "",
+    false,
+    false
+  );
 
   return { nodes, leaves, byKey, root };
 }
@@ -520,12 +588,23 @@ export function canvasDeltaToUser(element, dx, dy) {
 
 const num = (v) => String(Math.round(v * 1000) / 1000);
 
-/** Splice insertions into text, from the end backwards so offsets hold. */
+/**
+ * Splice insertions into text in one pass. Re-slicing the whole text for each
+ * insertion is quadratic, and a drawing with thousands of shapes (so thousands
+ * of insertions over megabytes of text) took tens of seconds that way.
+ * Insertions at the same position keep the order they were given in.
+ */
 function applyInsertions(text, insertions) {
-  const sorted = insertions.slice().sort((a, b) => b.at - a.at);
-  let out = text;
-  for (const { at, text: piece } of sorted) out = out.slice(0, at) + piece + out.slice(at);
-  return out;
+  if (insertions.length === 0) return text;
+  const sorted = insertions.map((ins, order) => ({ ...ins, order })).sort((a, b) => a.at - b.at || a.order - b.order);
+  const parts = [];
+  let cursor = 0;
+  for (const { at, text: piece } of sorted) {
+    parts.push(text.slice(cursor, at), piece);
+    cursor = at;
+  }
+  parts.push(text.slice(cursor));
+  return parts.join("");
 }
 
 /** Insertions giving a node extra inline style and a translate in front of its transform. */
@@ -631,33 +710,60 @@ export const hitColour = (i) => `#${(i + 1).toString(16).padStart(6, "0")}`;
 /** The shape number for a pixel of the hit picture, or -1 for none. */
 export const hitIndex = (r, g, b) => ((r << 16) | (g << 8) | b) - 1;
 
+/** Whether a drawing has shapes that belong in the "back" hit layer. */
+export function hasTranslucentShapes(analysis) {
+  return analysis.leaves.some((index) => !analysis.nodes[index].hidden && analysis.nodes[index].translucent);
+}
+
 /**
  * A copy of the drawing (as currently drawn) for finding what is under the
- * pointer: every shape painted one solid colour of its own, without
- * transparency or effects, and without anti-aliasing, so each pixel names
- * exactly one shape. Hidden shapes stay hidden, so they cannot be picked.
- * Embedded pictures cannot be recoloured, so a plain box stands in for them.
+ * pointer: every shape painted one solid colour of its own, without effects
+ * or anti-aliasing, so each pixel names exactly one shape. Hidden shapes stay
+ * hidden. Embedded pictures cannot be recoloured, so a plain box stands in.
+ *
+ * Two layers, because see-through shapes cannot be given exact colours in
+ * place: their colour mixes with whatever is beneath.
+ *
+ *   front   the solid shapes only, drawn with the drawing's real opacity, so
+ *           a click lands on what the eye sees as the part
+ *   back    the see-through, masked and blended shapes only, made fully
+ *           opaque, for clicks where nothing solid is under the pointer, or
+ *           a second click on a part to reach the tint drawn over it
  */
-export function buildHitSvg(text) {
+export function buildHitSvg(text, { layer = "front" } = {}) {
   const analysis = analyseSvg(text);
   if (!analysis) return null;
   const insertions = [];
 
+  // Blending and filters would turn a shape's colour into one that names no
+  // shape, and they can sit on any group, so one rule switches them off
+  // everywhere. The back layer also drops opacity and masks, since everything
+  // in it is see-through by nature. Clipping stays: it decides where a shape
+  // can be clicked at all.
   const root = analysis.root;
+  const prefix = root.prefix ? `${root.prefix}:` : "";
   insertions.push(...nodeInsertions(root, { style: new Map([["shape-rendering", "crispEdges"], ["text-rendering", "optimizeSpeed"]]) }));
+  const back = layer === "back";
+  insertions.push({
+    at: root.tagEnd,
+    text:
+      `<${prefix}style>*{mix-blend-mode:normal!important;isolation:auto!important;` +
+      "filter:none!important;shape-rendering:crispEdges!important" +
+      (back ? ";opacity:1!important;fill-opacity:1!important;stroke-opacity:1!important;mask:none!important" : "") +
+      `}</${prefix}style>`,
+  });
 
   for (const index of analysis.leaves) {
     const leaf = analysis.nodes[index];
     if (leaf.hidden) continue;
+    if (Boolean(leaf.translucent) !== back) {
+      insertions.push(...nodeInsertions(leaf, { style: new Map([["display", "none"]]) }));
+      continue;
+    }
     const colour = hitColour(leaf.leafIndex);
     const style = new Map([
       ["fill", leaf.paint.fill === "none" ? "none" : colour],
       ["stroke", leaf.paint.stroke === "none" ? "none" : colour],
-      ["opacity", "1"],
-      ["fill-opacity", "1"],
-      ["stroke-opacity", "1"],
-      ["filter", "none"],
-      ["mask", "none"],
     ]);
 
     if (leaf.name === "image") {

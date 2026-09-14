@@ -4,13 +4,14 @@
  * lib/svgParts.js builds a copy of the drawing with every shape painted its
  * own solid colour. This draws that copy once, at a resolution that follows
  * the element's size, and keeps for each pixel the number of the shape on
- * top there. Picking is then a lookup, and so are the highlights: a part's
+ * top there (in two layers: solid shapes, then see-through ones; see
+ * buildHitSvg). Picking is then a lookup, and so are the highlights: a part's
  * pixels are exactly the pixels of its shapes, so the pink hover and the
  * selection tint follow the true outline of what will change.
  */
 
 import { useEffect, useState } from "react";
-import { analyseSvg, buildHitSvg, hitIndex, leavesUnder } from "./svgParts";
+import { analyseSvg, buildHitSvg, hasTranslucentShapes, hitIndex, leavesUnder } from "./svgParts";
 import { toDataUrl } from "./svgPalette";
 
 /** Longest side of the map, in pixels: fine enough for small parts, and
@@ -30,54 +31,65 @@ export function useHitMap(text, width, height) {
       return undefined;
     }
     const analysis = analyseSvg(text);
-    const hitSvg = analysis && buildHitSvg(text);
-    if (!hitSvg) {
+    const front = analysis && buildHitSvg(text, { layer: "front" });
+    if (!front) {
       setMap(null);
       return undefined;
     }
+    // Solid shapes first; see-through ones only where nothing solid is.
+    const sources = [front];
+    if (hasTranslucentShapes(analysis)) sources.push(buildHitSvg(text, { layer: "back" }));
 
     let cancelled = false;
     const scale = Math.min(4, MAX_SIDE / Math.max(width, height));
     const W = Math.max(1, Math.round(width * scale));
     const H = Math.max(1, Math.round(height * scale));
-    const image = new Image();
+    const count = analysis.leaves.length;
+    const boxes = new Map();
 
-    image.onload = () => {
-      if (cancelled) return;
-      const canvas = document.createElement("canvas");
-      canvas.width = W;
-      canvas.height = H;
-      const ctx = canvas.getContext("2d", { willReadFrequently: true });
-      ctx.imageSmoothingEnabled = false;
-      ctx.drawImage(image, 0, 0, W, H);
-      const pixels = ctx.getImageData(0, 0, W, H).data;
+    const read = (svg) =>
+      new Promise((resolve, reject) => {
+        const image = new Image();
+        image.onload = () => {
+          const canvas = document.createElement("canvas");
+          canvas.width = W;
+          canvas.height = H;
+          const ctx = canvas.getContext("2d", { willReadFrequently: true });
+          ctx.imageSmoothingEnabled = false;
+          ctx.drawImage(image, 0, 0, W, H);
+          const pixels = ctx.getImageData(0, 0, W, H).data;
+          const ids = new Int32Array(W * H);
+          for (let p = 0, i = 0; p < ids.length; p += 1, i += 4) {
+            // Only fully covered pixels count; a blended edge names no one shape.
+            const id = pixels[i + 3] === 255 ? hitIndex(pixels[i], pixels[i + 1], pixels[i + 2]) : -1;
+            const valid = id >= 0 && id < count ? id : -1;
+            ids[p] = valid;
+            if (valid < 0) continue;
+            const x = p % W;
+            const y = (p / W) | 0;
+            const box = boxes.get(valid);
+            if (!box) boxes.set(valid, [x, y, x, y]);
+            else {
+              if (x < box[0]) box[0] = x;
+              if (y < box[1]) box[1] = y;
+              if (x > box[2]) box[2] = x;
+              if (y > box[3]) box[3] = y;
+            }
+          }
+          resolve(ids);
+        };
+        image.onerror = reject;
+        image.src = toDataUrl(svg);
+      });
 
-      const count = analysis.leaves.length;
-      const ids = new Int32Array(W * H);
-      const boxes = new Map();
-      for (let p = 0, i = 0; p < ids.length; p += 1, i += 4) {
-        // Only fully covered pixels count; a blended edge names no one shape.
-        const id = pixels[i + 3] === 255 ? hitIndex(pixels[i], pixels[i + 1], pixels[i + 2]) : -1;
-        const valid = id >= 0 && id < count ? id : -1;
-        ids[p] = valid;
-        if (valid < 0) continue;
-        const x = p % W;
-        const y = (p / W) | 0;
-        const box = boxes.get(valid);
-        if (!box) boxes.set(valid, [x, y, x, y]);
-        else {
-          if (x < box[0]) box[0] = x;
-          if (y < box[1]) box[1] = y;
-          if (x > box[2]) box[2] = x;
-          if (y > box[3]) box[3] = y;
-        }
+    Promise.all(sources.map(read)).then(
+      (layers) => {
+        if (!cancelled) setMap({ W, H, sx: W / width, sy: H / height, layers, boxes, analysis });
+      },
+      () => {
+        if (!cancelled) setMap(null);
       }
-      setMap({ W, H, sx: W / width, sy: H / height, ids, boxes, analysis });
-    };
-    image.onerror = () => {
-      if (!cancelled) setMap(null);
-    };
-    image.src = toDataUrl(hitSvg);
+    );
     return () => {
       cancelled = true;
     };
@@ -92,18 +104,26 @@ export function pickLeaf(map, lx, ly) {
   if (!map) return -1;
   const cx = Math.floor(lx * map.sx);
   const cy = Math.floor(ly * map.sy);
-  for (let r = 0; r <= 2; r += 1) {
-    for (let dy = -r; dy <= r; dy += 1) {
-      for (let dx = -r; dx <= r; dx += 1) {
-        const x = cx + dx;
-        const y = cy + dy;
-        if (x < 0 || y < 0 || x >= map.W || y >= map.H) continue;
-        const id = map.ids[y * map.W + x];
-        if (id >= 0) return map.analysis.leaves[id];
+  for (const ids of map.layers) {
+    for (let r = 0; r <= 2; r += 1) {
+      for (let dy = -r; dy <= r; dy += 1) {
+        for (let dx = -r; dx <= r; dx += 1) {
+          const x = cx + dx;
+          const y = cy + dy;
+          if (x < 0 || y < 0 || x >= map.W || y >= map.H) continue;
+          const id = ids[y * map.W + x];
+          if (id >= 0) return map.analysis.leaves[id];
+        }
       }
     }
   }
   return -1;
+}
+
+/** Like pickLeaf, but in one layer only: 0 for solid shapes, 1 for see-through ones. */
+export function pickLeafIn(map, layer, lx, ly) {
+  if (!map?.layers[layer]) return -1;
+  return pickLeaf({ ...map, layers: [map.layers[layer]] }, lx, ly);
 }
 
 function shapeNumbers(analysis, keys) {
@@ -126,8 +146,9 @@ export function partMask(map, analysis, keys, [r, g, b, a]) {
   const image = ctx.createImageData(map.W, map.H);
   const out = image.data;
   let any = false;
-  for (let p = 0; p < map.ids.length; p += 1) {
-    if (map.ids[p] < 0 || !wanted.has(map.ids[p])) continue;
+  const total = map.W * map.H;
+  for (let p = 0; p < total; p += 1) {
+    if (!map.layers.some((ids) => ids[p] >= 0 && wanted.has(ids[p]))) continue;
     const i = p * 4;
     out[i] = r;
     out[i + 1] = g;

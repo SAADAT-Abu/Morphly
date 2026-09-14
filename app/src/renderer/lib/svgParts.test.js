@@ -223,6 +223,38 @@ describe("buildHitSvg", () => {
     expect(hit).toContain("shape-rendering:crispEdges");
   });
 
+  it("puts see-through and masked shapes in the back layer only", () => {
+    const drawing =
+      '<svg><path d="M0 0" fill="#111111"/><g opacity="0.5"><path d="M1 1" fill="#222222"/></g>' +
+      '<path d="M2 2" fill="#333333" fill-opacity="40%"/><g mask="url(#m)"><path d="M3 3" fill="#444444"/></g>' +
+      '<path d="M4 4" fill="none" stroke="#555555" fill-opacity="0"/></svg>';
+    const a = analyseSvg(drawing);
+    expect(a.leaves.map((i) => a.nodes[i].translucent)).toEqual([false, true, true, true, false]);
+
+    const paintsOf = (svg) => {
+      const b = analyseSvg(svg);
+      return b.leaves.map((i) => (b.nodes[i].hidden ? "off" : b.nodes[i].paint.fill === "none" ? b.nodes[i].paint.stroke : b.nodes[i].paint.fill));
+    };
+    const front = buildHitSvg(drawing);
+    const back = buildHitSvg(drawing, { layer: "back" });
+    wellFormed(front);
+    wellFormed(back);
+    expect(paintsOf(front)).toEqual([hitColour(0), "off", "off", "off", hitColour(4)]);
+    expect(paintsOf(back)).toEqual(["off", hitColour(1), hitColour(2), hitColour(3), "off"]);
+    expect(back).toContain("mask:none!important");
+    expect(front).not.toContain("opacity:1!important");
+  });
+
+  it("treats shapes drawn with their own blend mode as see-through, like the tints over many BioArt drawings", () => {
+    const drawing =
+      '<svg><style>.tint{fill:#009447;mix-blend-mode:color}</style><path d="M0 0" fill="#111111"/>' +
+      '<g style="mix-blend-mode:multiply"><path d="M1 1"/></g><path class="tint" d="M2 2"/>' +
+      '<path d="M3 3" style="mix-blend-mode:normal"/></svg>';
+    const a = analyseSvg(drawing);
+    // A blended group's shapes paint normally among themselves, so they stay solid.
+    expect(a.leaves.map((i) => a.nodes[i].translucent)).toEqual([false, false, true, false]);
+  });
+
   it("stands a box in for an embedded picture", () => {
     const hit = buildHitSvg('<svg><image x="1" y="2" width="3" height="4" href="data:image/png;base64,AA=="/></svg>');
     wellFormed(hit);

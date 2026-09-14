@@ -276,7 +276,7 @@ creators.
 
 ## Roadmap
 
-### Version 0.4 (next): diagrams and a safety net
+### Version 0.4 (next): diagrams, editing and a safety net
 
 - **Glue points.** Arrow and line ends attach to shapes, illustrations, images
   and tables at fixed connection points, as in BioRender, and follow them when
@@ -284,21 +284,33 @@ creators.
 - **Curved lines and elbow connectors.** Curves with one draggable control
   point, and right-angle elbow connectors for pathway and workflow diagrams.
   Both work with glue points and export as true vectors.
+- **Editing parts of an illustration.** Double-click an illustration to select,
+  recolour, move or hide its individual pieces, such as one organelle of a cell.
+  Changes are stored alongside the original file, so any part can be reset, and
+  they carry through to SVG and PDF export.
+- **Alignment.** Smart guides while moving and resizing show when objects line up
+  with each other, with the page centre or with the centre of the panel they sit
+  in, and mark equal spacing. Align and distribute buttons work relative to the
+  page, the selection, a panel, the first selected or the biggest object.
+- **Cut, copy, paste and a right-click menu.** Copy and paste keep groups and
+  glued arrows together and work across pages, and pictures or SVG copied in
+  other programs can be pasted in. Right-click an object for editing, grouping,
+  alignment, stacking order and locking.
 - **SVG import as editable vector artwork.** Plots exported from R (svglite,
   ggplot2) or Python (matplotlib) arrive recolourable, with removable colour
   parts, and stay vector in SVG and PDF export. Imported files are checked and
-  cleaned the same way as Art Packs. A plot arrives as one object: you can
-  recolour and resize it, but not yet edit its individual labels. Very heavy
-  files, such as a scatter plot with 100,000 points, are simplified on import by
-  merging identical marks into a single path, and Morphly warns when a file is
-  too large.
+  cleaned the same way as Art Packs. Heavy plots are simplified on import by
+  merging identical marks into a single path where that does not enlarge the
+  file, and Morphly warns when a file is still heavy.
 - **Panel layouts.** Split a page into a grid of panels with automatic panel
   letters (A, B, C) and consistent spacing, the way journal figures are laid out.
-- **Crash recovery.** Morphly keeps a recovery snapshot of the open figure in its
-  own data folder and offers to restore it after a crash. It never writes to
-  your file unless you save.
+- **Autosave and crash recovery.** Name a figure in the top-left corner and it
+  saves itself as you work, into Pictures/Morphly or a folder of your choice
+  (autosave can be switched off). A recovery copy is also kept in Morphly's own
+  data folder and offered back after a crash.
 - **Foundations.** A versioned file format with migrations, so figures made in
-  older versions keep opening, and automated tests for geometry and SVG export.
+  older versions keep opening, and automated tests for geometry, alignment and
+  SVG export.
 
 ### Version 0.5: data and graphs
 

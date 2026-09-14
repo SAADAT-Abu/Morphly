@@ -17,6 +17,7 @@ const { readSettings, writeSettings, libraryKey, libraryDirFor } = require("./se
 const { loadLibraries, readSvg } = require("./library");
 const { checkForUpdate } = require("./updates");
 const artpacks = require("./artpacks");
+const { prepareSvg, MAX_IMPORT_BYTES } = require("./svgImport");
 
 const ok = (data) => ({ ok: true, ...data });
 const fail = (err) => ({ ok: false, error: String(err?.message ?? err) });
@@ -254,14 +255,31 @@ function registerIpc() {
     try {
       const images = [];
       for (const filePath of result.filePaths) {
+        const name = path.basename(filePath);
         const ext = path.extname(filePath).toLowerCase();
         const mime = MIME[ext];
         if (!mime) {
-          return fail(`${path.basename(filePath)} is not an image type Morphly can read`);
+          return fail(`${name} is not an image type Morphly can read`);
         }
+
+        // SVGs come in as editable artwork rather than as a flat picture, so
+        // they are checked, sanitised and lightened here before the renderer
+        // ever sees them. A file that fails is reported and the rest still load.
+        if (ext === ".svg") {
+          const { size } = await fs.stat(filePath);
+          if (size > MAX_IMPORT_BYTES) {
+            images.push({ name, error: "the file is larger than 100 MB" });
+            continue;
+          }
+          const prepared = prepareSvg(await fs.readFile(filePath, "utf8"));
+          images.push(prepared.ok ? { name, kind: "svg", ...prepared } : { name, error: prepared.error });
+          continue;
+        }
+
         const data = await fs.readFile(filePath);
         images.push({
-          name: path.basename(filePath),
+          name,
+          kind: "image",
           dataUrl: `data:${mime};base64,${data.toString("base64")}`,
         });
       }
@@ -269,6 +287,15 @@ function registerIpc() {
     } catch (err) {
       return fail(err);
     }
+  });
+
+  /** An SVG dropped onto the canvas, read as text by the renderer. It gets the
+   *  same checks as one chosen through Insert > Image. */
+  ipcMain.handle("svg:prepare", async (_event, text) => {
+    if (typeof text !== "string") return fail("That file could not be read as text");
+    if (Buffer.byteLength(text, "utf8") > MAX_IMPORT_BYTES) return fail("the file is larger than 100 MB");
+    const prepared = prepareSvg(text);
+    return prepared.ok ? ok(prepared) : fail(prepared.error);
   });
 
   /**

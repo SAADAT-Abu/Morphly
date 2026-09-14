@@ -409,21 +409,58 @@ export const useStore = create((set, get) => ({
    * is stored separately as `colorMap` so the original is always recoverable
    * and the user can reset any swatch.
    */
-  addAsset: ({ asset, variant, svgSource, at }) => {
+  addAsset: ({ asset, variant, svgSource, at }) =>
+    get()._placeSvg({
+      svgSource,
+      name: variant.caption || asset.title,
+      at,
+      // A library icon is one ingredient of a figure, so it arrives small.
+      fraction: 0.28,
+      fields: {
+        assetId: asset.id,
+        variantGroupId: variant.groupId,
+        svgPath: variant.svgPath,
+        source: asset.source,
+        // Attribution details are copied onto the element rather than looked up
+        // later, so a saved figure still knows what it owes even if the library
+        // folder is unmounted or moved.
+        collection: asset.collection,
+        creator: asset.creator,
+        citation: asset.citation,
+        license: asset.license,
+        licenseUrl: asset.licenseUrl,
+        requiresAttribution: asset.requiresAttribution,
+        shareAlike: asset.shareAlike,
+        sourcePage: asset.sourcePage,
+      },
+    }),
+
+  /**
+   * An SVG the user imported: a plot, a diagram, their own drawing. It becomes
+   * the same kind of element as a library asset, so recolouring, hiding parts
+   * and vector export all work on it. It carries no citation, because Morphly
+   * cannot know where it came from.
+   */
+  addSvgArtwork: ({ svgSource, name = "Imported SVG", at }) =>
+    get()._placeSvg({ svgSource, name, at, fraction: 0.45, fields: { imported: true } }),
+
+  /** Shared by addAsset and addSvgArtwork. `svgSource` is the untouched file
+   *  text; recolouring is stored separately so the original is never lost. */
+  _placeSvg: ({ svgSource, name, at, fraction, fields }) => {
     const { canvas } = get();
     const box = intrinsicSize(svgSource);
-    // Scale so a placed asset occupies a sensible fraction of the canvas
+    // Scale so the artwork occupies a sensible fraction of the canvas
     // regardless of its native viewBox units.
-    const target = Math.min(canvas.width, canvas.height) * 0.28;
+    const target = Math.min(canvas.width, canvas.height) * fraction;
     const scale = target / Math.max(box.width, box.height);
     const width = box.width * scale;
     const height = box.height * scale;
 
     const element = get()._base({
       type: "asset",
-      name: variant.caption || asset.title,
+      name,
       // `at` is the point to centre on (the cursor, for a drop); with no
-      // point given the asset lands in the middle of the page.
+      // point given the artwork lands in the middle of the page.
       x: (at?.x ?? canvas.width / 2) - width / 2,
       y: (at?.y ?? canvas.height / 2) - height / 2,
       width,
@@ -432,21 +469,7 @@ export const useStore = create((set, get) => ({
       colorMap: {},
       hiddenColors: [],
       palette: extractPalette(svgSource),
-      assetId: asset.id,
-      variantGroupId: variant.groupId,
-      svgPath: variant.svgPath,
-      source: asset.source,
-      // Attribution details are copied onto the element rather than looked up
-      // later, so a saved figure still knows what it owes even if the library
-      // folder is unmounted or moved.
-      collection: asset.collection,
-      creator: asset.creator,
-      citation: asset.citation,
-      license: asset.license,
-      licenseUrl: asset.licenseUrl,
-      requiresAttribution: asset.requiresAttribution,
-      shareAlike: asset.shareAlike,
-      sourcePage: asset.sourcePage,
+      ...fields,
     });
 
     get().commit();

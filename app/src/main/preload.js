@@ -37,8 +37,11 @@ contextBridge.exposeInMainWorld("morphly", {
     "morphly-asset://asset/" +
     [source, ...relPath.split("/")].map(encodeURIComponent).join("/"),
 
-  /** Pick image files and read them back as data URLs. */
+  /** Pick image files. Bitmaps come back as data URLs, SVGs as checked and
+   *  sanitised markup ready to place as artwork. */
   importImage: () => ipcRenderer.invoke("image:import"),
+  /** Check and sanitise the text of an SVG dropped onto the canvas. */
+  prepareSvg: (text) => ipcRenderer.invoke("svg:prepare", text),
 
   /** Tell the main process whether the figure has unsaved changes, so it can
    *  prompt before the window closes. */

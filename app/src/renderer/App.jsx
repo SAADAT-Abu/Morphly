@@ -41,6 +41,7 @@ export default function App() {
 
   const addAsset = useStore((s) => s.addAsset);
   const addImage = useStore((s) => s.addImage);
+  const addSvgArtwork = useStore((s) => s.addSvgArtwork);
   const addTable = useStore((s) => s.addTable);
   const setZoom = useStore((s) => s.setZoom);
   const setStagePos = useStore((s) => s.setStagePos);
@@ -170,6 +171,37 @@ export default function App() {
     [addImage, flash]
   );
 
+  /** Place an SVG that has been through the main process checks, and say what
+   *  happened to it when that is worth knowing. */
+  const placeSvgArtwork = useCallback(
+    (prepared, fileName, at) => {
+      addSvgArtwork({ svgSource: prepared.svg, name: fileName.replace(/\.svg$/i, ""), at });
+      const count = (n) => n.toLocaleString("en-US");
+      if (prepared.heavy) {
+        flash(`${fileName} has ${count(prepared.drawn)} shapes, so recolouring it may be slow`);
+      } else if (prepared.drawn < prepared.marks) {
+        flash(`${fileName}: combined ${count(prepared.marks)} shapes into ${count(prepared.drawn)}`);
+      }
+    },
+    [addSvgArtwork, flash]
+  );
+
+  const placeSvgFile = useCallback(
+    async (file, at) => {
+      if (file.size > 100 * 1024 * 1024) {
+        flash(`Could not import ${file.name}: the file is larger than 100 MB`);
+        return;
+      }
+      const res = await window.morphly.prepareSvg(await file.text());
+      if (!res.ok) {
+        flash(`Could not import ${file.name}: ${res.error}`);
+        return;
+      }
+      placeSvgArtwork(res, file.name, at);
+    },
+    [placeSvgArtwork, flash]
+  );
+
   const placeImageFile = useCallback(
     (file, at) =>
       new Promise((resolve) => {
@@ -191,10 +223,12 @@ export default function App() {
       // Several files dropped at once are offset slightly so they do not land
       // exactly on top of each other.
       for (const [i, file] of files.entries()) {
-        await placeImageFile(file, { x: at.x + i * 24, y: at.y + i * 24 });
+        const spot = { x: at.x + i * 24, y: at.y + i * 24 };
+        const isSvg = file.type === "image/svg+xml" || /\.svg$/i.test(file.name);
+        await (isSvg ? placeSvgFile(file, spot) : placeImageFile(file, spot));
       }
     },
-    [placeImageFile]
+    [placeImageFile, placeSvgFile]
   );
 
   /** Insert > Image, via the main process file picker. */
@@ -206,9 +240,11 @@ export default function App() {
       return;
     }
     for (const image of res.images) {
-      await addImageFromDataUrl(image.dataUrl, image.name, null);
+      if (image.error) flash(`Could not import ${image.name}: ${image.error}`);
+      else if (image.kind === "svg") placeSvgArtwork(image, image.name, null);
+      else await addImageFromDataUrl(image.dataUrl, image.name, null);
     }
-  }, [addImageFromDataUrl, flash]);
+  }, [addImageFromDataUrl, placeSvgArtwork, flash]);
 
   // -- fit to screen --------------------------------------------------------
 

@@ -165,7 +165,10 @@ export const GETTING_STARTED = [
       "removes rows and columns, sets column width and row height, and controls headers, " +
       "shading, borders and rounded corners. The image button, or Insert → Image, brings in a plot, a " +
       "micrograph or a photo as PNG, JPEG, GIF, WebP or BMP, and you can also drag image " +
-      "files straight onto the canvas from your file manager. Imported images are stored " +
+      "files straight onto the canvas from your file manager. An SVG comes in as editable " +
+      "artwork rather than a flat picture: you can recolour it and hide parts of it like any " +
+      "library icon, and large plots have their identical points combined so they stay " +
+      "lighter. Imported images are stored " +
       "inside the .morphly file, so a saved figure still opens after the original file has " +
       "moved. The grid button in the toolbar shows a grid at any spacing, with an option " +
       "to snap elements to it. The grid is a guide only and never appears in an export.",

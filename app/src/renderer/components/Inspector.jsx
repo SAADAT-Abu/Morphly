@@ -347,6 +347,12 @@ function TextFields({ element }) {
   );
 }
 
+const LINE_ROUTES = [
+  ["straight", "∕", "Straight"],
+  ["curved", "⌒", "Curved"],
+  ["elbow", "└", "Elbow"],
+];
+
 const ARROW_HEADS = [
   ["none", "⎯", "No heads"],
   ["end", "→", "Single head"],
@@ -356,6 +362,7 @@ const ARROW_HEADS = [
 function ShapeFields({ element }) {
   const updateElement = useStore((s) => s.updateElement);
   const setArrowHeads = useStore((s) => s.setArrowHeads);
+  const setConnectorRoute = useStore((s) => s.setConnectorRoute);
   const set = (patch) => updateElement(element.id, patch);
   const isLine = element.type === "line" || element.type === "arrow";
 
@@ -376,6 +383,29 @@ function ShapeFields({ element }) {
             </button>
           ))}
         </div>
+      )}
+      {isLine && (
+        <div className="segmented" role="group" aria-label="Line route">
+          {LINE_ROUTES.map(([value, glyph, label]) => (
+            <button
+              key={value}
+              className={(element.route ?? "straight") === value ? "active" : ""}
+              title={`${label} line`}
+              onClick={() => setConnectorRoute(element.id, value)}
+            >
+              <span className="seg-glyph">{glyph}</span>
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+      {isLine && (
+        <p className="hint">
+          {element.start || element.end
+            ? `Glued at the ${[element.start && "start", element.end && "end"].filter(Boolean).join(" and ")}. ` +
+              "Drag a glued end away to let go."
+            : "Drag an end onto a shape, image, table or icon to glue it. Hold Alt to place it without gluing."}
+        </p>
       )}
       <div className="field-grid">
         <Field label={isLine ? "Colour" : "Fill"}>

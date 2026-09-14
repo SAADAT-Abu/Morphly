@@ -10,6 +10,7 @@
 
 import { create } from "zustand";
 import { extractPalette, intrinsicSize } from "./lib/svgPalette";
+import { isConnector, relayoutConnectors, remapGlue, unglueExcept } from "./lib/connectors";
 
 let groupCounter = 0;
 
@@ -202,12 +203,15 @@ export const useStore = create((set, get) => ({
   nudgeSelected: (dx, dy, { commit = true } = {}) => {
     if (commit) get().commit();
     const { selectedIds } = get();
+    const moving = new Set(selectedIds);
     set((s) => ({
-      elements: s.elements.map((el) =>
-        selectedIds.includes(el.id) && !el.locked
-          ? { ...el, x: el.x + dx, y: el.y + dy }
-          : el
-      ),
+      elements: s.elements.map((el) => {
+        if (!moving.has(el.id) || el.locked) return el;
+        const moved = { ...el, x: el.x + dx, y: el.y + dy };
+        // A connector moved by hand lets go of anything not moving with it;
+        // otherwise its glued ends would snap straight back.
+        return isConnector(moved) ? unglueExcept(moved, moving) : moved;
+      }),
       dirty: true,
     }));
   },
@@ -277,6 +281,11 @@ export const useStore = create((set, get) => ({
         strokeWidth: 4,
         // points are relative to the element's x/y origin
         points: [0, 0, size, 0],
+        // See lib/connectors.js: how the line runs, and what its ends are
+        // glued to.
+        route: "straight",
+        start: null,
+        end: null,
         ...(type === "arrow" ? { heads: get().lastArrowHeads } : {}),
       });
     } else {
@@ -489,6 +498,27 @@ export const useStore = create((set, get) => ({
     }));
   },
 
+  /**
+   * Straight, curved or elbow. A line turned into a curve starts with a
+   * visible bend, since a curve that looks straight reads as nothing happening.
+   */
+  setConnectorRoute: (id, route) => {
+    get().commit();
+    set((s) => ({
+      elements: s.elements.map((el) => {
+        if (el.id !== id) return el;
+        const patch = { route };
+        if (route === "curved" && !el.bend) {
+          const p = el.points;
+          const length = Math.hypot(p[p.length - 2] - p[0], p[p.length - 1] - p[1]);
+          patch.bend = { along: 0.5, offset: Math.max(24, length * 0.25) };
+        }
+        return { ...el, ...patch };
+      }),
+      dirty: true,
+    }));
+  },
+
   /** Change an arrow's head style, and remember it for the next arrow. */
   setArrowHeads: (id, heads) => {
     get().commit();
@@ -664,9 +694,12 @@ export const useStore = create((set, get) => ({
     // Duplicating a group should produce a new group, not silently add the
     // copies to the original one and not scatter them as loose elements.
     const remap = new Map();
+    const newIds = new Map();
     const copies = elements
       .filter((el) => selectedIds.includes(el.id))
       .map((el) => {
+        const id = nextId();
+        newIds.set(el.id, id);
         let groupId = null;
         if (el.groupId) {
           if (!remap.has(el.groupId)) {
@@ -676,13 +709,16 @@ export const useStore = create((set, get) => ({
         }
         return {
           ...el,
-          id: nextId(),
+          id,
           x: el.x + 24,
           y: el.y + 24,
           name: `${el.name} copy`,
           groupId,
         };
-      });
+      })
+      // A copied connector follows copies of its targets, and lets go of
+      // targets that were not copied, instead of snapping back onto them.
+      .map((copy) => (isConnector(copy) ? remapGlue(copy, newIds) : copy));
     set((s) => ({
       elements: [...s.elements, ...copies],
       selectedIds: copies.map((c) => c.id),
@@ -1020,5 +1056,20 @@ export const useStore = create((set, get) => ({
     );
   },
 }));
+
+/**
+ * Glued connector ends follow their targets.
+ *
+ * This runs after every change rather than inside each action that can move
+ * something, so nothing that moves an element (dragging, the inspector, align,
+ * undo, a page switch) can forget to. It adds no undo step of its own: the
+ * change that moved the target already made one, and every snapshot is taken
+ * after the previous change was laid out.
+ */
+useStore.subscribe((state, previous) => {
+  if (state.elements === previous.elements) return;
+  const next = relayoutConnectors(state.elements);
+  if (next !== state.elements) useStore.setState({ elements: next });
+});
 
 export { documentSlice };

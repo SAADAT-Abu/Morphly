@@ -77,7 +77,23 @@ describe("buildSvg elements", () => {
 
   it("stops the arrow shaft at the base of its head", () => {
     const svg = exportOf([el({ type: "arrow", points: [0, 0, 100, 0], fill: "#000000", strokeWidth: 4, heads: "end" })]);
-    expect(svg).toContain('x2="88"');
+    expect(svg).toContain('d="M0 0L88 0"');
+  });
+
+  it("draws curved and elbow connectors from the same geometry as the canvas", () => {
+    const box = el({ id: "box", type: "rect", x: 200, y: 100, width: 100, height: 50, fill: "#ffffff", stroke: "#000000", strokeWidth: 1 });
+    const elbow = el({
+      type: "arrow", x: 0, y: 0, points: [0, 0, 200, 125], fill: "#000000", strokeWidth: 2, heads: "end",
+      route: "elbow", start: null, end: { elementId: "box", anchor: "left" },
+    });
+    const curve = el({ type: "line", x: 0, y: 0, points: [0, 0, 100, 0], fill: "#000000", strokeWidth: 2, route: "curved", bend: { along: 0.5, offset: 40 } });
+    const svg = exportOf([box, elbow, curve]);
+    wellFormed(svg);
+    // Into the box's left side horizontally, stopped at the head's base. The
+    // glued end runs out a 16 unit stub, so the middle leg sits halfway
+    // between 0 and 184.
+    expect(svg).toContain('d="M0 0L92 0L92 125L194 125"');
+    expect(svg).toContain('d="M0 0Q50 80 100 0"');
   });
 
   it("escapes text and writes one line per row", () => {

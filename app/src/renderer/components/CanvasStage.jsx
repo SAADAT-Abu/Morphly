@@ -20,8 +20,9 @@ import {
   Group,
   Rect,
   Ellipse,
+  Circle,
   Line,
-  Arrow,
+  Path,
   Text as KonvaText,
   Image as KonvaImage,
   Transformer,
@@ -32,9 +33,21 @@ import { useSvgImage, useSvgImageFromText, useRasterImage } from "../lib/useSvgI
 import { offsets, cellAtPoint, cellCorners, isHeaderCell } from "../lib/tableLayout";
 import { buildIsolationSvg, effectiveColorMap } from "../lib/svgPalette";
 import { computeSnap, pointsBounds } from "../lib/geometry";
+import {
+  isConnector,
+  connectorGeometry,
+  nearestAnchor,
+  glueTargetAt,
+  anchorPoints,
+  bendThrough,
+  elbowRatioAt,
+  unglueExcept,
+} from "../lib/connectors";
 import CanvasScrollbars from "./CanvasScrollbars";
 
 const SNAP_THRESHOLD = 6; // canvas units, scaled by zoom at call time
+/** How close, in screen pixels, a dragged line end must come to a glue point. */
+const GLUE_RADIUS = 14;
 
 // ---------------------------------------------------------------------------
 // One element
@@ -215,7 +228,32 @@ function TableShape({ element }) {
   );
 }
 
-function ElementShape({ element }) {
+/**
+ * A line or arrow: straight, curved or elbow, glued or free.
+ *
+ * Drawn from lib/connectors.js, the same geometry the SVG export uses, so the
+ * two always agree. The generous hit width makes a thin line easy to click.
+ */
+function ConnectorShape({ element, lookup }) {
+  const geometry = connectorGeometry(element, lookup);
+  return (
+    <>
+      <Path
+        data={geometry.d}
+        stroke={element.fill}
+        strokeWidth={element.strokeWidth}
+        lineCap="round"
+        lineJoin="round"
+        hitStrokeWidth={Math.max(12, element.strokeWidth + 8)}
+      />
+      {geometry.heads.map((head, i) => (
+        <Line key={i} points={head} closed fill={element.fill} />
+      ))}
+    </>
+  );
+}
+
+function ElementShape({ element, lookup }) {
   switch (element.type) {
     case "rect":
       return (
@@ -251,29 +289,8 @@ function ElementShape({ element }) {
         />
       );
     case "line":
-      return (
-        <Line
-          points={element.points}
-          stroke={element.fill}
-          strokeWidth={element.strokeWidth}
-          lineCap="round"
-        />
-      );
     case "arrow":
-      return (
-        <Arrow
-          points={element.points}
-          stroke={element.fill}
-          fill={element.fill}
-          strokeWidth={element.strokeWidth}
-          pointerLength={element.strokeWidth * 3}
-          pointerWidth={element.strokeWidth * 3}
-          // "none" | "end" (default) | "both"
-          pointerAtEnding={element.heads !== "none"}
-          pointerAtBeginning={element.heads === "both"}
-          lineCap="round"
-        />
-      );
+      return <ConnectorShape element={element} lookup={lookup} />;
     case "text":
       return (
         <KonvaText
@@ -364,6 +381,48 @@ export default function CanvasStage({ stageRef, onRequestTextEdit, onExternalDro
    *  moved as one piece. */
   const dragStartRef = useRef(null);
 
+  /**
+   * Where things are mid-gesture, for connectors only.
+   *
+   * Konva moves nodes during a drag or resize without telling the store, which
+   * only hears about it at the end. Connectors glued to a moving element have
+   * to follow it live, so the moving boxes are kept here, `boxes` by id, and
+   * connectors are drawn against them. `moving` lists what is being dragged,
+   * so a connector dragged by hand can let go of anything left behind.
+   */
+  const [live, setLive] = useState(null);
+
+  const elementsById = useMemo(() => new Map(elements.map((el) => [el.id, el])), [elements]);
+
+  /** Elements some connector is glued to. */
+  const gluedTargets = useMemo(() => {
+    const ids = new Set();
+    for (const el of elements) {
+      if (!isConnector(el)) continue;
+      if (el.start) ids.add(el.start.elementId);
+      if (el.end) ids.add(el.end.elementId);
+    }
+    return ids;
+  }, [elements]);
+
+  const lookup = useCallback(
+    (id) => {
+      const el = elementsById.get(id);
+      const box = live?.boxes[id];
+      return el && box ? { ...el, ...box } : el;
+    },
+    [elementsById, live]
+  );
+
+  /** A connector as it should be drawn right now. */
+  const connectorNow = useCallback(
+    (el) => {
+      if (!live || !live.moving.has(el.id)) return el;
+      return unglueExcept({ ...el, ...live.boxes[el.id] }, live.moving);
+    },
+    [live]
+  );
+
   // Keep the stage sized to its container.
   useEffect(() => {
     const el = containerRef.current;
@@ -376,7 +435,9 @@ export default function CanvasStage({ stageRef, onRequestTextEdit, onExternalDro
     return () => observer.disconnect();
   }, []);
 
-  // Attach the transformer to whatever is selected.
+  // Attach the transformer to whatever is selected. A single line or arrow
+  // gets end handles instead (ConnectorHandles), which do more for a line
+  // than a resize box can.
   useEffect(() => {
     const tr = transformerRef.current;
     if (!tr) return;
@@ -385,6 +446,7 @@ export default function CanvasStage({ stageRef, onRequestTextEdit, onExternalDro
       .filter(Boolean)
       .filter((node) => {
         const el = elements.find((e) => e.id === node.id());
+        if (selectedIds.length === 1 && isConnector(el)) return false;
         return el && !el.locked && el.visible;
       });
     tr.nodes(nodes);
@@ -585,6 +647,7 @@ export default function CanvasStage({ stageRef, onRequestTextEdit, onExternalDro
       node.y(snap.y);
       setGuides(snap.guides);
 
+      const boxes = { [element.id]: { x: snap.x, y: snap.y } };
       if (start) {
         const dx = snap.x - start.origin.x;
         const dy = snap.y - start.origin.y;
@@ -594,10 +657,17 @@ export default function CanvasStage({ stageRef, onRequestTextEdit, onExternalDro
             companion.x(member.x + dx);
             companion.y(member.y + dy);
           }
+          boxes[member.id] = { x: member.x + dx, y: member.y + dy };
         }
       }
+
+      // Only worth a redraw of the connectors when one is involved.
+      const involved = [...movingIds].some(
+        (id) => gluedTargets.has(id) || isConnector(elementsById.get(id))
+      );
+      if (involved) setLive({ moving: movingIds, boxes });
     },
-    [elements, canvas, zoom, grid]
+    [elements, elementsById, gluedTargets, canvas, zoom, grid]
   );
 
   const handleDragEnd = useCallback(
@@ -607,6 +677,10 @@ export default function CanvasStage({ stageRef, onRequestTextEdit, onExternalDro
       const x = e.target.x();
       const y = e.target.y();
 
+      // A connector moved by hand lets go of anything that stayed put.
+      const moving = new Set([element.id, ...(start?.members ?? []).map((m) => m.id)]);
+      const release = (el) => (isConnector(el) ? unglueExcept(el, moving) : el);
+
       if (start && start.members.length > 0) {
         // Commit the whole move in one update, without a second history entry
         // (handleDragStart already pushed one).
@@ -614,18 +688,41 @@ export default function CanvasStage({ stageRef, onRequestTextEdit, onExternalDro
         const dy = y - start.origin.y;
         useStore.setState((s) => ({
           elements: s.elements.map((el) => {
-            if (el.id === element.id) return { ...el, x, y };
+            if (el.id === element.id) return release({ ...el, x, y });
             const member = start.members.find((m) => m.id === el.id);
-            return member ? { ...el, x: member.x + dx, y: member.y + dy } : el;
+            return member ? release({ ...el, x: member.x + dx, y: member.y + dy }) : el;
           }),
           dirty: true,
         }));
       } else {
-        updateElement(element.id, { x, y }, { commit: false });
+        const moved = release({ ...element, x, y });
+        updateElement(element.id, { x, y, ...(isConnector(element) ? { start: moved.start, end: moved.end } : {}) }, { commit: false });
       }
       dragStartRef.current = null;
+      setLive(null);
     },
     [updateElement]
+  );
+
+  /** While resizing or rotating something a connector is glued to, let the
+   *  connector follow the box as it changes. */
+  const handleTransform = useCallback(
+    (e, element) => {
+      if (!gluedTargets.has(element.id)) return;
+      const node = e.target;
+      const box = {
+        x: node.x(),
+        y: node.y(),
+        rotation: node.rotation(),
+        width: (element.width ?? 0) * node.scaleX(),
+        height: (element.height ?? 0) * node.scaleY(),
+      };
+      setLive((current) => ({
+        moving: current?.moving ?? new Set(),
+        boxes: { ...(current?.boxes ?? {}), [element.id]: box },
+      }));
+    },
+    [gluedTargets]
   );
 
   // -- transform (resize / rotate) -----------------------------------------
@@ -670,6 +767,7 @@ export default function CanvasStage({ stageRef, onRequestTextEdit, onExternalDro
         }
       }
       updateElement(element.id, patch);
+      setLive(null);
     },
     [updateElement]
   );
@@ -850,9 +948,10 @@ export default function CanvasStage({ stageRef, onRequestTextEdit, onExternalDro
               onDragMove={(e) => handleDragMove(e, element)}
               onDragEnd={(e) => handleDragEnd(e, element)}
               onTransformStart={() => commit()}
+              onTransform={(e) => handleTransform(e, element)}
               onTransformEnd={(e) => handleTransformEnd(e, element)}
             >
-              <ElementShape element={element} />
+              <ElementShape element={isConnector(element) ? connectorNow(element) : element} lookup={lookup} />
               {LABELLABLE.includes(element.type) && <ShapeLabel element={element} />}
               {highlight?.elementId === element.id && element.type === "asset" && (
                 <ColorHighlight element={element} hex={highlight.hex} />
@@ -873,6 +972,25 @@ export default function CanvasStage({ stageRef, onRequestTextEdit, onExternalDro
             }
           />
         </Layer>
+
+        {/* End handles for a single selected line or arrow */}
+        {(() => {
+          if (activeTool !== "select" || selectedIds.length !== 1) return null;
+          const selected = elementsById.get(selectedIds[0]);
+          if (!isConnector(selected) || selected.locked || !selected.visible) return null;
+          return (
+            <Layer>
+              <ConnectorHandles
+                element={selected}
+                elements={visibleElements}
+                lookup={lookup}
+                zoom={zoom}
+                commit={commit}
+                updateElement={updateElement}
+              />
+            </Layer>
+          );
+        })()}
 
         {/* Snapping guides and the selection band, above everything */}
         <Layer listening={false}>
@@ -917,6 +1035,146 @@ export default function CanvasStage({ stageRef, onRequestTextEdit, onExternalDro
 
       <SpacebarPanHint onChange={setIsPanning} />
     </div>
+  );
+}
+
+/**
+ * Handles for editing one line or arrow.
+ *
+ * Round handles sit on the two ends. Dragging an end near a shape, image,
+ * table or icon shows its glue points, and letting go on one glues the end
+ * there, so it follows that element from then on. Alt places the end without
+ * gluing. A curved line adds a handle on the curve to bend it; an elbow whose
+ * ends run the same way adds one on its middle leg to slide it.
+ *
+ * Each drag is one undo step: the history is written when it starts, and the
+ * live updates in between do not add more.
+ */
+function ConnectorHandles({ element, elements, lookup, zoom, commit, updateElement }) {
+  const [hint, setHint] = useState(null);
+  const geometry = connectorGeometry(element, lookup);
+  const toCanvas = (p) => ({ x: p.x + element.x, y: p.y + element.y });
+  const start = toCanvas(geometry.start);
+  const end = toCanvas(geometry.end);
+
+  const radius = 6 / zoom;
+  const stroke = 1.5 / zoom;
+
+  const dragEnd = (e, which) => {
+    const node = e.target;
+    let point = { x: node.x(), y: node.y() };
+    const exclude = [element.id];
+    const snap = e.evt?.altKey ? null : nearestAnchor(elements, point, GLUE_RADIUS / zoom, { exclude });
+    if (snap) {
+      point = { x: snap.x, y: snap.y };
+      node.position(point);
+    }
+    setHint({
+      target: snap ? elements.find((el) => el.id === snap.elementId) : glueTargetAt(elements, point, 24 / zoom, { exclude }),
+      snap,
+    });
+
+    const points = geometry.points.slice();
+    const i = which === "start" ? 0 : points.length - 2;
+    points[i] = point.x - element.x;
+    points[i + 1] = point.y - element.y;
+    updateElement(
+      element.id,
+      { points, [which]: snap ? { elementId: snap.elementId, anchor: snap.anchor } : null },
+      { commit: false }
+    );
+  };
+
+  const dragBend = (e) => {
+    const node = e.target;
+    const local = { x: node.x() - element.x, y: node.y() - element.y };
+    updateElement(element.id, { bend: bendThrough(geometry.start, geometry.end, local) }, { commit: false });
+  };
+
+  const dragElbow = (e) => {
+    const node = e.target;
+    const handle = geometry.elbowHandle;
+    // The middle leg only slides across, so the handle is held on its line.
+    if (handle.axis === "x") node.y(handle.y + element.y);
+    else node.x(handle.x + element.x);
+    const local = { x: node.x() - element.x, y: node.y() - element.y };
+    updateElement(element.id, { elbowRatio: elbowRatioAt(geometry.route, local) }, { commit: false });
+  };
+
+  const common = {
+    draggable: true,
+    stroke: "#4c8dff",
+    strokeWidth: stroke,
+    onMouseDown: (e) => {
+      e.cancelBubble = true;
+    },
+    onDragStart: () => commit(),
+  };
+
+  const endHandle = (which, point) => (
+    <Circle
+      {...common}
+      x={point.x}
+      y={point.y}
+      radius={radius}
+      // Filled means glued, hollow means free.
+      fill={element[which] ? "#4c8dff" : "#ffffff"}
+      onDragMove={(e) => dragEnd(e, which)}
+      onDragEnd={() => setHint(null)}
+    />
+  );
+
+  return (
+    <>
+      {hint?.target &&
+        anchorPoints(lookup(hint.target.id) ?? hint.target).map((a) => {
+          const chosen = hint.snap?.anchor === a.anchor;
+          return (
+            <Circle
+              key={a.anchor}
+              x={a.x}
+              y={a.y}
+              radius={(chosen ? 6 : 4) / zoom}
+              fill={chosen ? "#4c8dff" : "#ffffff"}
+              stroke="#4c8dff"
+              strokeWidth={stroke}
+              listening={false}
+            />
+          );
+        })}
+
+      {geometry.bendHandle && (
+        <Rect
+          {...common}
+          x={geometry.bendHandle.x + element.x}
+          y={geometry.bendHandle.y + element.y}
+          width={radius * 1.6}
+          height={radius * 1.6}
+          offsetX={radius * 0.8}
+          offsetY={radius * 0.8}
+          rotation={45}
+          fill="#ffcc4d"
+          onDragMove={dragBend}
+        />
+      )}
+
+      {geometry.elbowHandle && (
+        <Rect
+          {...common}
+          x={geometry.elbowHandle.x + element.x}
+          y={geometry.elbowHandle.y + element.y}
+          width={radius * 1.6}
+          height={radius * 1.6}
+          offsetX={radius * 0.8}
+          offsetY={radius * 0.8}
+          fill="#ffcc4d"
+          onDragMove={dragElbow}
+        />
+      )}
+
+      {endHandle("start", start)}
+      {endHandle("end", end)}
+    </>
   );
 }
 

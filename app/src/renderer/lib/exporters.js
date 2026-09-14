@@ -9,6 +9,7 @@
 
 import { applyPalette, effectiveColorMap } from "./svgPalette";
 import { offsets, cellCorners, isHeaderCell } from "./tableLayout";
+import { connectorGeometry } from "./connectors";
 
 const escapeXml = (s) =>
   String(s ?? "")
@@ -28,22 +29,6 @@ function sizedSvg(svgText, width, height) {
     const cleaned = attrs.replace(/\s(width|height|x|y)\s*=\s*["'][^"']*["']/gi, "");
     return `<${prefix ?? ""}svg${cleaned} x="0" y="0" width="${width}" height="${height}">`;
   });
-}
-
-/**
- * Triangle for one arrowhead: tip at (tipX,tipY) pointing along `angle`, with
- * base `size` behind it. Width matches Konva's default pointerWidth so canvas
- * and export agree.
- */
-function arrowHeadPoints(tipX, tipY, angle, size) {
-  const baseX = tipX - Math.cos(angle) * size;
-  const baseY = tipY - Math.sin(angle) * size;
-  const halfW = size / 2;
-  const offX = Math.sin(angle) * halfW;
-  const offY = Math.cos(angle) * halfW;
-  return (
-    `${tipX},${tipY} ${baseX - offX},${baseY + offY} ${baseX + offX},${baseY - offY}`
-  );
 }
 
 /**
@@ -166,7 +151,7 @@ function textLines(element, stage) {
   return String(element.text ?? "").split("\n");
 }
 
-function elementToSvg(element, stage) {
+function elementToSvg(element, stage, lookup) {
   const transform = `translate(${element.x} ${element.y})${
     element.rotation ? ` rotate(${element.rotation})` : ""
   }`;
@@ -194,47 +179,18 @@ function elementToSvg(element, stage) {
         `fill="${element.fill}" stroke="${element.stroke}" stroke-width="${element.strokeWidth}"/>`;
       break;
 
-    case "line": {
-      const pts = element.points.reduce(
-        (acc, v, i) => (i % 2 === 0 ? [...acc, `${v}`] : [...acc.slice(0, -1), `${acc.at(-1)},${v}`]),
-        []
-      );
-      body =
-        `<polyline points="${pts.join(" ")}" fill="none" stroke="${element.fill}" ` +
-        `stroke-width="${element.strokeWidth}" stroke-linecap="round"/>`;
-      break;
-    }
-
+    case "line":
     case "arrow": {
-      const pts = element.points;
-      const [x1, y1, x2, y2] = [pts[0], pts[1], pts.at(-2), pts.at(-1)];
-      const size = element.strokeWidth * 3;
-      const angle = Math.atan2(y2 - y1, x2 - x1);
-
-      // "none" | "end" (default) | "both" -- must mirror how Konva draws it
-      // on canvas, or the export won't match what the user arranged.
-      const heads = element.heads ?? "end";
-      const headAtEnd = heads !== "none";
-      const headAtStart = heads === "both";
-
-      // Stop the shaft at the base of each head so the stroke doesn't show
-      // through the tip.
-      const ex = headAtEnd ? x2 - Math.cos(angle) * size : x2;
-      const ey = headAtEnd ? y2 - Math.sin(angle) * size : y2;
-      const sx = headAtStart ? x1 + Math.cos(angle) * size : x1;
-      const sy = headAtStart ? y1 + Math.sin(angle) * size : y1;
-
+      // Straight, curved or elbow, glued or free: drawn from the same geometry
+      // the canvas uses (lib/connectors.js), so the export cannot drift from
+      // what the user arranged.
+      const geometry = connectorGeometry(element, lookup);
       body =
-        `<line x1="${sx}" y1="${sy}" x2="${ex}" y2="${ey}" stroke="${element.fill}" ` +
-        `stroke-width="${element.strokeWidth}" stroke-linecap="round"/>`;
-
-      if (headAtEnd) {
-        body += `<polygon points="${arrowHeadPoints(x2, y2, angle, size)}" fill="${element.fill}"/>`;
-      }
-      if (headAtStart) {
-        // Same head, pointing the other way.
-        body += `<polygon points="${arrowHeadPoints(x1, y1, angle + Math.PI, size)}" fill="${element.fill}"/>`;
-      }
+        `<path d="${geometry.d}" fill="none" stroke="${element.fill}" ` +
+        `stroke-width="${element.strokeWidth}" stroke-linecap="round" stroke-linejoin="round"/>` +
+        geometry.heads
+          .map((h) => `<polygon points="${h[0]},${h[1]} ${h[2]},${h[3]} ${h[4]},${h[5]}" fill="${element.fill}"/>`)
+          .join("");
       break;
     }
 
@@ -331,7 +287,10 @@ function elementToSvg(element, stage) {
 /** Full SVG document for the current figure. */
 export function buildSvg({ elements, canvas, stage, transparent = false, citationText = null }) {
   const visible = elements.filter((el) => el.visible);
-  const body = visible.map((el) => elementToSvg(el, stage)).join("\n  ");
+  // Glued connectors need to find their targets, hidden or not.
+  const byId = new Map(elements.map((el) => [el.id, el]));
+  const lookup = (id) => byId.get(id);
+  const body = visible.map((el) => elementToSvg(el, stage, lookup)).join("\n  ");
 
   const background = transparent
     ? ""

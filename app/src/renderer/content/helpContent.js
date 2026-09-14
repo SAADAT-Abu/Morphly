@@ -153,7 +153,11 @@ export const GETTING_STARTED = [
       "the page centre or with other elements. Select several things and press Ctrl+G to " +
       "group them, so they move and scale as one piece. To select several at once, drag a "
       + "band across empty space and everything it touches is caught; hold shift to add to "
-      + "what is already selected. The Layers panel handles stacking " +
+      + "what is already selected. A selected line or arrow shows a handle on each end: drag "
+      + "an end onto a shape, image, table or icon and it glues to the nearest glue point, "
+      + "so it follows when that element moves (hold Alt to place it without gluing). The "
+      + "properties panel makes a line straight, curved or elbowed; a curve has a handle to "
+      + "bend it, and an elbow one to slide its middle leg. The Layers panel handles stacking " +
       "order, renaming, hiding and locking.",
   },
   {

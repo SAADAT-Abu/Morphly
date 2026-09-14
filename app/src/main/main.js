@@ -22,6 +22,7 @@ const { pathToFileURL } = require("node:url");
 const { libraryDirFor } = require("./settings");
 const { safeResolve } = require("./library");
 const { registerIpc } = require("./ipc");
+const { createRecovery } = require("./recovery");
 const { buildMenu } = require("./menu");
 
 const isDev = !app.isPackaged;
@@ -68,6 +69,10 @@ function registerAssetProtocol() {
 // ---------------------------------------------------------------------------
 
 let mainWindow = null;
+
+/** Spare copy of the open figure; see recovery.js. Created once the app is
+ *  ready, because userData is only known then. */
+let recovery = null;
 
 /**
  * Unsaved-changes state, mirrored from the renderer.
@@ -124,6 +129,31 @@ function registerCloseGuard(win) {
   });
 }
 
+/**
+ * Keep the recovery copy exactly as long as it is useful.
+ *
+ * A window that closes normally has either saved or been told to discard, so
+ * its copy goes. If the page itself crashes the copy is the whole point, so
+ * the window reloads instead and the fresh page offers to restore it. Reloads
+ * are limited, so a page that crashes on load cannot spin forever.
+ */
+function registerRecovery(win) {
+  recovery.open();
+  let lastReload = 0;
+
+  win.webContents.on("render-process-gone", (_event, details) => {
+    if (details.reason === "clean-exit") return;
+    if (Date.now() - lastReload < 60_000) return;
+    lastReload = Date.now();
+    // The new page starts with nothing unsaved; it reports otherwise if the
+    // user restores their figure.
+    documentDirty = false;
+    win.reload();
+  });
+
+  win.on("closed", () => recovery.close());
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1600,
@@ -143,6 +173,7 @@ function createWindow() {
 
   mainWindow.once("ready-to-show", () => mainWindow.show());
   registerCloseGuard(mainWindow);
+  registerRecovery(mainWindow);
 
   if (isDev) {
     mainWindow.loadURL(DEV_SERVER_URL);
@@ -153,7 +184,8 @@ function createWindow() {
 
 app.whenReady().then(() => {
   registerAssetProtocol();
-  registerIpc();
+  recovery = createRecovery(path.join(app.getPath("userData"), "recovery"));
+  registerIpc({ recovery });
   createWindow();
   buildMenu(() => mainWindow);
 

@@ -53,6 +53,13 @@ contextBridge.exposeInMainWorld("morphly", {
   /** Close the window for real, after saving or discarding. */
   closeWindow: () => ipcRenderer.invoke("app:close"),
 
+  // crash recovery: a spare copy in Morphly's data folder, never the user's file
+  writeRecovery: (json) => ipcRenderer.invoke("recovery:write", json),
+  clearRecovery: () => ipcRenderer.invoke("recovery:clear"),
+  /** Offers a copy left by a crash back to the user; resolves to
+   *  { found, snapshot }. */
+  checkRecovery: () => ipcRenderer.invoke("recovery:check"),
+
   // art packs
   artPackCatalogue: () => ipcRenderer.invoke("artpacks:catalogue"),
   installArtPack: (entry) => ipcRenderer.invoke("artpacks:install", entry),

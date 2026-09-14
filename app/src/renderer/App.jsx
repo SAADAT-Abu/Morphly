@@ -14,6 +14,11 @@ import ArtStore from "./components/ArtStore";
 import { useStore } from "./store";
 import { cellBox, isHeaderCell } from "./lib/tableLayout";
 import { migrate, serialise, DocumentError } from "./lib/document";
+import { watchForRecovery } from "./lib/recovery";
+
+/** React's StrictMode runs effects twice in development; the recovery offer
+ *  must only ever appear once per launch. */
+let recoveryOffered = false;
 
 export default function App() {
   const stageRef = useRef(null);
@@ -469,6 +474,30 @@ export default function App() {
       if (state.dirty !== previous.dirty) window.morphly.setDirty(state.dirty);
     });
   }, [store]);
+
+  // Crash recovery. While there are unsaved changes a spare copy is kept in
+  // Morphly's data folder (never in the user's file); lib/recovery.js decides
+  // when. A copy still there at launch means Morphly stopped without closing.
+  useEffect(() => watchForRecovery(store, window.morphly), [store]);
+
+  useEffect(() => {
+    if (recoveryOffered) return;
+    recoveryOffered = true;
+    (async () => {
+      const res = await window.morphly.checkRecovery();
+      if (!res.ok || !res.found) return;
+      try {
+        loadDocument(migrate(res.snapshot.document), res.snapshot.projectPath ?? null);
+        // The restored work is in no file yet, so it is unsaved: the close
+        // prompt protects it and copies carry on as before.
+        store.setState({ dirty: true });
+        flash("Restored your figure. Save it to keep it.");
+      } catch (err) {
+        // The copy stays where it is, so nothing is lost by a failed restore.
+        flash(`Could not restore your figure: ${err.message}`);
+      }
+    })();
+  }, [store, loadDocument, flash]);
 
   const editingElement = editing ? elements.find((el) => el.id === editing.id) ?? null : null;
 

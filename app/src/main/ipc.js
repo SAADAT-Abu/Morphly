@@ -22,7 +22,7 @@ const { prepareSvg, MAX_IMPORT_BYTES } = require("./svgImport");
 const ok = (data) => ({ ok: true, ...data });
 const fail = (err) => ({ ok: false, error: String(err?.message ?? err) });
 
-function registerIpc() {
+function registerIpc({ recovery } = {}) {
   // -- settings ------------------------------------------------------------
   ipcMain.handle("settings:get", async () => ok({ settings: await readSettings() }));
   ipcMain.handle("settings:set", async (_event, patch) =>
@@ -284,6 +284,61 @@ function registerIpc() {
         });
       }
       return ok({ images });
+    } catch (err) {
+      return fail(err);
+    }
+  });
+
+  // -- crash recovery --------------------------------------------------------
+  // See recovery.js. The renderer decides when a copy is due; these only
+  // store, remove and offer it.
+
+  ipcMain.handle("recovery:write", async (_event, json) => {
+    try {
+      return ok(await recovery.write(json));
+    } catch (err) {
+      return fail(err);
+    }
+  });
+
+  ipcMain.handle("recovery:clear", async () => {
+    try {
+      await recovery.clear();
+      return ok({});
+    } catch (err) {
+      return fail(err);
+    }
+  });
+
+  /** At launch: if a copy was left behind, ask whether to restore it. */
+  ipcMain.handle("recovery:check", async (event) => {
+    try {
+      const snapshot = await recovery.read();
+      if (!snapshot) return ok({ found: false });
+
+      const when = new Date(snapshot.savedAt);
+      const time = Number.isNaN(when.getTime()) ? null : when.toLocaleString();
+      const figure = snapshot.projectPath ? path.basename(snapshot.projectPath) : "an unsaved figure";
+      const win = BrowserWindow.fromWebContents(event.sender);
+      const { response } = await dialog.showMessageBox(win, {
+        type: "question",
+        buttons: ["Restore", "Discard"],
+        defaultId: 0,
+        // Dismissing the dialog restores: throwing work away should take a
+        // deliberate click, never a stray Escape.
+        cancelId: 0,
+        title: "Restore your figure?",
+        message: "Morphly did not close normally last time.",
+        detail:
+          `Unsaved changes to ${figure} were kept${time ? ` (last copied ${time})` : ""}. ` +
+          "Restore them to carry on, or discard them for good.",
+      });
+
+      if (response !== 0) {
+        await recovery.clear();
+        return ok({ found: false });
+      }
+      return ok({ found: true, snapshot });
     } catch (err) {
       return fail(err);
     }

@@ -184,7 +184,9 @@ export const GETTING_STARTED = [
       "its own canvas size and its own undo history, so undo always means what you just " +
       "did on the figure in front of you. Export works on the page you are looking at, so " +
       "each figure is exported as its own file. Figures saved before pages existed open " +
-      "as a single-page document.",
+      "as a single-page document. While you have unsaved changes, Morphly keeps a spare " +
+      "copy in its own data folder, never in your file. If it ever stops without closing " +
+      "properly, it offers that copy back the next time it starts.",
   },
   {
     title: "7. Art Packs",

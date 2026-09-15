@@ -3,25 +3,22 @@
 A single static page: `index.html` plus the images in `assets/`. There is no
 build step, so any static host can serve this folder as it is.
 
-## Publish on GitHub Pages
-
-1. In the repository on GitHub, open Settings, then Pages.
-2. Under Source, choose GitHub Actions.
-3. Push a change to `website/` on `main`, or run the "Website" workflow by
-   hand from the Actions tab.
-
-The workflow in `.github/workflows/pages.yml` uploads this folder. The site
-appears at `https://saadat-abu.github.io/Morphly/`.
-
 ## Publish on Cloudflare Pages
 
-1. In the Cloudflare dashboard, open Workers and Pages, then create a Pages
-   project connected to the GitHub repository.
-2. Production branch: `main`. Build command: leave empty. Build output
-   directory: `website`.
+The live site is served by Cloudflare Pages at `https://morphly.pages.dev`.
 
-Cloudflare reads `_headers` for caching. GitHub Pages ignores that file, and
-`.nojekyll` stops GitHub from running the page through Jekyll.
+1. In the Cloudflare dashboard, open Workers and Pages, then create a Pages
+   project connected to the GitHub repository `SAADAT-Abu/Morphly`.
+2. Project name: `morphly`. Production branch: `main`. Framework preset:
+   None. Build command: leave empty. Build output directory: `website`.
+3. Every push to `main` then publishes the site again. Pushes to other
+   branches get their own preview addresses.
+
+Cloudflare reads `_headers` for caching. `.nojekyll` only matters if the
+folder is ever served from GitHub Pages instead.
+
+If the project name is not `morphly`, change the two `og:` addresses at the
+top of `index.html`, which link previews use.
 
 ## Visit and download counts
 

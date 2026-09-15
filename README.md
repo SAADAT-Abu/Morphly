@@ -184,6 +184,10 @@ its published sha256, unpacked into a data directory and mounted. It can be
 removed again at any time, and figures already made keep working, because each
 element carries its own copy of the artwork it uses.
 
+Know a collection of openly licensed scientific illustrations that should be
+here? [How to add an Art Pack](docs/ADDING_ART_PACKS.md) explains how to
+package one.
+
 | Pack | Contents | Download |
 | --- | --- | --- |
 | Bioicons | 2,830 icons: chemistry, cell biology, lab equipment, sequencing, clinical imagery. Strong on epigenetics. | 180 MB |
@@ -354,6 +358,12 @@ plots.
 Please [open an issue](https://github.com/SAADAT-Abu/Morphly/issues) rather
 than emailing, so other users can see it and chip in. Bug reports are most
 useful with your OS, what you did, and what happened instead.
+
+Want to help build Morphly? [`CONTRIBUTING.md`](CONTRIBUTING.md) explains how
+to set up the code, run the tests and send a pull request, and
+[How to add an Art Pack](docs/ADDING_ART_PACKS.md) shows how to turn a
+collection of scientific illustrations into a library anyone can install from
+the Art Store.
 
 ## Citing Morphly
 

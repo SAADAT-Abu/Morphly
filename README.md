@@ -12,7 +12,7 @@ and export true vector PNG, SVG or PDF.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 ![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Windows%20%7C%20macOS-lightgrey)
-![Status](https://img.shields.io/badge/status-v0.1%20early-orange)
+![Status](https://img.shields.io/badge/status-v0.4%20early-orange)
 
 </div>
 

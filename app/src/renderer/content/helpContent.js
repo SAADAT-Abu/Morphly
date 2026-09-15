@@ -237,7 +237,8 @@ export const GETTING_STARTED = [
   {
     title: "8. Export",
     body:
-      "PNG for a quick look, SVG if you want to keep editing in Illustrator or Inkscape, PDF " +
+      "PNG for a quick look or slides, JPEG where a smaller file matters more than " +
+      "transparency, SVG if you want to keep editing in Illustrator or Inkscape, PDF " +
       "for submission. SVG and PDF stay true vector, so they scale to any size without going " +
       "blurry. Leave “Append asset citations” ticked and your credits are written into " +
       "the file automatically.",

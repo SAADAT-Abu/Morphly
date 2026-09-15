@@ -2,21 +2,25 @@
  * The asset sidebar: browse, search and place assets from one or more scraped
  * libraries.
  *
- * Morphly points at library folders rather than bundling them. Two producers
- * exist -- NIH BioArt (scraper/bioart_scraper.py) and Bioicons
- * (scraper/bioicons_fetcher.py) -- and both emit the same manifest format, so
- * several can be mounted at once and browsed together.
+ * Morphly points at library folders rather than bundling them. Several
+ * producers exist, NIH BioArt (scraper/bioart_scraper.py), Bioicons
+ * (scraper/bioicons_fetcher.py) and SciDraw (scraper/scidraw_fetcher.py), and
+ * all emit the same manifest format, so several can be mounted at once and
+ * browsed together.
  *
- * Licence is shown on every tile because it genuinely differs between the two:
+ * Licence is shown on every tile because it genuinely differs between them:
  * BioArt is mostly Public Domain, while ~83% of Bioicons requires attribution
  * and a few icons are share-alike. That is much easier to respect while
  * choosing an asset than to reconstruct at submission time.
+ *
+ * Results are paged rather than all mounted at once, so 2,000 thumbnails never
+ * load together. A pager under the grid says where you are ("Page 3 of 29")
+ * and jumps to the first, previous, next, last or any typed page.
  */
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "../store";
-
-const PAGE_SIZE = 90;
+import { PAGE_SIZE, clampPage, pageRange } from "../lib/pagination";
 
 /** Compact badge text; full detail goes in the tooltip. */
 function licenceBadge(asset) {
@@ -35,10 +39,11 @@ export default function AssetLibrary({ onPlaceAsset, onOpenStore, onNotice }) {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("All");
   const [collection, setCollection] = useState("All");
-  const [limit, setLimit] = useState(PAGE_SIZE);
+  const [page, setPage] = useState(1);
   const [expandedId, setExpandedId] = useState(null);
   const [loading, setLoading] = useState(false);
   const [managing, setManaging] = useState(false);
+  const gridRef = useRef(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -92,7 +97,14 @@ export default function AssetLibrary({ onPlaceAsset, onOpenStore, onNotice }) {
     });
   }, [library, query, category, collection]);
 
-  useEffect(() => setLimit(PAGE_SIZE), [query, category, collection]);
+  // A new search starts from its first page.
+  useEffect(() => setPage(1), [query, category, collection]);
+
+  // Each page starts at the top of the grid, not wherever the last one was
+  // scrolled to.
+  useEffect(() => {
+    if (gridRef.current) gridRef.current.scrollTop = 0;
+  }, [page, query, category, collection]);
 
   if (!library) {
     return (
@@ -115,6 +127,8 @@ export default function AssetLibrary({ onPlaceAsset, onOpenStore, onNotice }) {
       </div>
     );
   }
+
+  const range = pageRange(page, filtered.length);
 
   return (
     <div className="panel library">
@@ -179,6 +193,12 @@ export default function AssetLibrary({ onPlaceAsset, onOpenStore, onNotice }) {
 
       <div className="library-count">
         {filtered.length.toLocaleString()} of {library.stats.assets.toLocaleString()}
+        {filtered.length > PAGE_SIZE && (
+          <span>
+            {" · showing "}
+            {(range.start + 1).toLocaleString()} to {range.end.toLocaleString()}
+          </span>
+        )}
         {library.stats.shareAlike > 0 && (
           <span title="Share-alike icons can oblige your whole figure to carry the same licence">
             {" · "}
@@ -187,8 +207,8 @@ export default function AssetLibrary({ onPlaceAsset, onOpenStore, onNotice }) {
         )}
       </div>
 
-      <div className="asset-grid">
-        {filtered.slice(0, limit).map((asset) => (
+      <div className="asset-grid" ref={gridRef}>
+        {filtered.slice(range.start, range.end).map((asset) => (
           <AssetTile
             key={asset.id}
             asset={asset}
@@ -199,16 +219,74 @@ export default function AssetLibrary({ onPlaceAsset, onOpenStore, onNotice }) {
         ))}
       </div>
 
-      {filtered.length > limit && (
-        <button className="load-more" onClick={() => setLimit((n) => n + PAGE_SIZE)}>
-          Show {Math.min(PAGE_SIZE, filtered.length - limit)} more
-        </button>
-      )}
+      {range.count > 1 && <Pager page={range.page} count={range.count} onChange={setPage} />}
 
       {filtered.length === 0 && (
         <div className="library-empty small">No assets match that search.</div>
       )}
     </div>
+  );
+}
+
+/**
+ * First, previous, "Page [n] of N", next, last. The page box takes a typed
+ * number and moves there on Enter or when it loses focus; Escape puts the
+ * current page back. It sits under the grid, which scrolls on its own, so the
+ * pager stays in view at any scroll position.
+ */
+function Pager({ page, count, onChange }) {
+  const [draft, setDraft] = useState(String(page));
+  useEffect(() => setDraft(String(page)), [page]);
+
+  const go = (next) => onChange(clampPage(next, count));
+
+  const commitDraft = () => {
+    const next = clampPage(draft, count);
+    setDraft(String(next));
+    if (next !== page) onChange(next);
+  };
+
+  const first = page <= 1;
+  const last = page >= count;
+
+  return (
+    <nav className="pager" aria-label="Library pages">
+      <button className="pager-btn" onClick={() => go(1)} disabled={first} title="First page" aria-label="First page">
+        «
+      </button>
+      <button className="pager-btn" onClick={() => go(page - 1)} disabled={first} title="Previous page" aria-label="Previous page">
+        ‹
+      </button>
+      <label className="pager-page" htmlFor="library-page">
+        Page
+        <input
+          id="library-page"
+          type="text"
+          inputMode="numeric"
+          value={draft}
+          aria-label={`Page number, 1 to ${count}`}
+          onChange={(e) => setDraft(e.target.value.replace(/[^\d]/g, ""))}
+          onBlur={commitDraft}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              commitDraft();
+              e.currentTarget.blur();
+            } else if (e.key === "Escape") {
+              setDraft(String(page));
+              e.currentTarget.blur();
+            }
+          }}
+          onFocus={(e) => e.currentTarget.select()}
+        />
+        of {count.toLocaleString()}
+      </label>
+      <button className="pager-btn" onClick={() => go(page + 1)} disabled={last} title="Next page" aria-label="Next page">
+        ›
+      </button>
+      <button className="pager-btn" onClick={() => go(count)} disabled={last} title="Last page" aria-label="Last page">
+        »
+      </button>
+    </nav>
   );
 }
 

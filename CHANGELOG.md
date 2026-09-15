@@ -11,6 +11,15 @@ and version numbers follow [Semantic Versioning](https://semver.org/).
 
 Planned work is described in the [roadmap](README.md#roadmap).
 
+### Added
+
+- **Page through the asset library.** A pager under the grid shows where you
+  are ("Page 3 of 29") with first, previous, next and last buttons, and a box
+  to type the page to jump to. It replaces "Show 90 more". Requested in
+  [issue #1](https://github.com/SAADAT-Abu/Morphly/issues/1).
+- **JPEG export** at 1×, 2× or 4×, with a choice of quality, alongside PNG,
+  SVG and PDF. Also from issue #1.
+
 ## [0.4.0] - 2026-09-15
 
 Diagrams, editing and a safety net.

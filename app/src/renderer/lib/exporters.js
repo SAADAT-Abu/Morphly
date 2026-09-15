@@ -345,20 +345,43 @@ export function buildSvg({ elements, canvas, stage, transparent = false, citatio
   );
 }
 
+/** Raster formats the export dialog offers, with their MIME type and extension. */
+export const RASTER_FORMATS = {
+  png: { mimeType: "image/png", extension: "png" },
+  jpeg: { mimeType: "image/jpeg", extension: "jpg" },
+};
+
 /**
- * PNG of just the page area.
+ * PNG or JPEG of just the page area, as a data URL.
  *
  * Konva's toDataURL takes a rect in screen coordinates and re-renders the
  * scene into it, so we hand it the page's on-screen box and let pixelRatio do
  * the scaling. That yields exactly canvas.width * scale pixels regardless of
  * the current zoom level or how the page is scrolled.
+ *
+ * JPEG has no transparency: anything transparent would come out black, so the
+ * page background is always drawn for it, whatever `transparent` says.
+ * `quality` (0 to 1) applies to JPEG only.
  */
-export function buildPng({ stage, canvas, zoom, stagePos, scale = 2, transparent = false }) {
+export function buildRaster({
+  stage,
+  canvas,
+  zoom,
+  stagePos,
+  scale = 2,
+  transparent = false,
+  format = "png",
+  quality = 0.92,
+}) {
+  const kind = RASTER_FORMATS[format];
+  if (!kind) throw new Error(`Unknown raster format: ${format}`);
+  const hideBackground = transparent && format === "png";
+
   const bg = stage.findOne(".canvas-bg");
   const transformers = stage.find("Transformer");
 
   const bgWasVisible = bg?.visible();
-  if (transparent && bg) bg.visible(false);
+  if (bg) bg.visible(hideBackground ? false : true);
   transformers.forEach((t) => t.visible(false));
   stage.batchDraw();
 
@@ -369,7 +392,8 @@ export function buildPng({ stage, canvas, zoom, stagePos, scale = 2, transparent
       width: canvas.width * zoom,
       height: canvas.height * zoom,
       pixelRatio: scale / zoom,
-      mimeType: "image/png",
+      mimeType: kind.mimeType,
+      ...(format === "jpeg" ? { quality } : {}),
     });
   } finally {
     if (bg && bgWasVisible !== undefined) bg.visible(bgWasVisible);

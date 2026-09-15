@@ -126,8 +126,8 @@ function Licensing() {
           </li>
         </ul>
         <p className="hint">
-          PNG export does not draw the citation footer. Copy the credit lines from the
-          properties panel instead, or export SVG/PDF.
+          PNG and JPEG exports do not draw the citation footer. Copy the credit lines
+          from the properties panel instead, or export SVG or PDF.
         </p>
       </section>
 
@@ -289,7 +289,7 @@ function About() {
       <section>
         <h3>Figure files</h3>
         <p>
-          Figures are saved as <code>.morphly</code> JSON and export to PNG, SVG and PDF.
+          Figures are saved as <code>.morphly</code> JSON and export to PNG, JPEG, SVG and PDF.
           The format is plain text and documented in the repository, so your work is not
           locked inside this app.
         </p>

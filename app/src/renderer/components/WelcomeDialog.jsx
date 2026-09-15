@@ -59,7 +59,7 @@ export default function WelcomeDialog({ onClose, onOpenHelp, onAddLibrary }) {
             that colour follows, with no need to touch hundreds of paths by hand.
           </Point>
           <Point icon="📄" title="Export figures that stay sharp">
-            PNG, SVG and PDF. Vector output scales to any size, and asset credits can be
+            PNG, JPEG, SVG and PDF. Vector output scales to any size, and asset credits can be
             written into the file for you.
           </Point>
         </div>

@@ -8,7 +8,7 @@
 
 Build publication-ready figures from thousands of openly licensed scientific
 illustrations. Drag them onto a canvas, recolour them, add shapes and labels,
-and export high-resolution PNG, or true vector SVG or PDF.
+and export high-resolution PNG or JPEG, or true vector SVG or PDF.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 ![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Windows%20%7C%20macOS-lightgrey)
@@ -95,8 +95,8 @@ else's server.
 - **Everyday editing**: cut, copy and paste (including pictures and SVG copied
   from other programs), a right-click menu for grouping, alignment, stacking
   order and locking, and band selection across empty space.
-- **True vector export**: PNG at 1×/2×/4×, plus SVG and PDF that stay sharp at
-  any size. Not a rasterised image wrapped in a PDF.
+- **True vector export**: PNG and JPEG at 1×/2×/4×, plus SVG and PDF that stay
+  sharp at any size. Not a rasterised image wrapped in a PDF.
 - **Attribution handled for you**: asset credits can be written into the
   footer of SVG and PDF exports automatically, correctly formatted.
 - **Licence awareness built in**: every asset shows its licence, and Morphly
@@ -243,8 +243,8 @@ file. Both libraries can be mounted at once and are browsed together.
    tables, images or a panel layout from the Insert buttons beside them.
    Guides appear as things line up, and the grid button gives you a
    background grid to work against.
-5. **Export**: PNG for a quick look, SVG to keep editing elsewhere, PDF for
-   submission. Leave *Append asset citations* ticked.
+5. **Export**: PNG or JPEG for a quick look or slides, SVG to keep editing
+   elsewhere, PDF for submission. Leave *Append asset citations* ticked.
 
 Press <kbd>F1</kbd> in the app for full help, including every keyboard
 shortcut. The welcome screen appears on first launch and stays available from

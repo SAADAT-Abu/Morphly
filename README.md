@@ -299,6 +299,8 @@ creators.
 
 ## Roadmap
 
+What each release changed is listed in [`CHANGELOG.md`](CHANGELOG.md).
+
 ### Version 0.4 (done): diagrams, editing and a safety net
 
 Glue points, curved and elbow connectors, line end styles and dashes, editing
@@ -308,20 +310,41 @@ recovery. All of these are described under [Features](#features). Underneath,
 0.4 moved to a versioned file format with migrations, so figures made in older
 versions keep opening, and added automated tests that run before every build.
 
-### Version 0.5 (next): data and graphs
+### Version 0.5 (next): GraphPad-style data and graphs, and a simpler layout
 
 - **Datasets.** Import CSV or TSV files (Excel later), or type data into a
   table. Data is stored inside the figure file, so it travels with the figure.
 - **Graphs as figure elements.** Bar charts with individual points and error
   bars (SD, SEM or CI), box plots, scatter plots and XY line plots, exported as
-  true vectors like everything else in Morphly.
+  true vectors like everything else in Morphly. Change the data and the graph
+  redraws; restyle one graph and apply the same look to the others, the way
+  Prism does.
+- **Common statistics.** t tests, one-way ANOVA with multiple comparisons, and
+  their non-parametric counterparts, checked against R, with significance stars
+  that can be placed on a graph and stay attached to it.
+- **A new layout that is easier to pick up.** Based on how BioRender, Canva,
+  PowerPoint and Figma arrange their tools: a labelled Insert bar, a toolbar
+  that shows only what applies to the current selection, content (library,
+  templates, uploads, layers) in one collapsible side panel, properties split
+  into Style and Arrange, zoom and view controls moved to a status bar, and a
+  search box for every command. New figures start from journal sizes (for
+  example 89 mm and 183 mm columns) rather than pixels.
+
+### Version 0.6: figures from AI assistants
+
+- **An MCP server.** Morphly will expose its editor through the Model Context
+  Protocol, so command-line assistants such as Claude Code and Codex can build
+  figures on request: search the illustration libraries, place and recolour
+  artwork, add text, arrows and panel layouts, load data into graphs, and export
+  to PNG, SVG or PDF. The result is an ordinary .morphly file you can open and
+  keep editing by hand, and everything still runs locally on your machine.
 
 ### Later
 
-Directions we intend to take, not yet scheduled: statistical tests validated
-against R, significance annotations, figure templates, pathway diagrams
-generated from interaction tables (for example ligand-receptor results), and
-biomedical plot types such as Kaplan-Meier, ROC and volcano plots.
+Directions we intend to take, not yet scheduled: figure templates, pathway
+diagrams generated from interaction tables (for example ligand-receptor
+results), and biomedical plot types such as Kaplan-Meier, ROC and volcano
+plots.
 
 ## Found a bug? Want a feature?
 

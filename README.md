@@ -45,8 +45,13 @@ else's server.
   modified and every swatch resets.
 - **Colour variants**: many BioArt entries ship the same drawing in several
   colour schemes; these collapse into one tile with a variant picker.
-- **Shapes and text**: rectangles, ellipses, triangles, lines and arrows
-  (no head, single or double), plus text boxes with inline editing.
+- **Shapes and text**: rectangles, ellipses, triangles and text boxes with
+  inline editing.
+- **Lines and arrows for diagrams**: one line tool with triangle, open, square,
+  dot or bar ends at either side, solid, dashed or dotted, drawn straight,
+  curved or as right-angle elbow connectors. Line ends glue to connection
+  points on shapes, illustrations, images and tables and follow them when they
+  move, as in BioRender.
 - **Tables**: pick the size by pointing at a grid, then edit any cell by
   double-clicking it on the canvas. Rows and columns can be added or removed at
   any time, and headers, row shading, borders, cell padding and rounded corners
@@ -55,6 +60,15 @@ else's server.
   WebP or BMP, from the toolbar or by dragging files onto the canvas.
   Images are stored inside the .morphly file, so a saved figure still opens
   after the original file has been moved or renamed.
+- **SVG import as editable artwork**: plots exported from R (svglite, ggplot2)
+  or Python (matplotlib) arrive recolourable and stay vector on export. Imported
+  files are checked and cleaned, and heavy plots are simplified where that does
+  not enlarge the file.
+- **Edit parts of an illustration**: double-click an illustration to select,
+  recolour, move or hide individual pieces, such as one organelle of a cell.
+  Every change can be reset and carries through to SVG and PDF export.
+- **Panel layouts**: split a page into a grid of panels with automatic panel
+  letters (A, B, C) and consistent spacing, the way journal figures are laid out.
 - **Art Packs**: Morphly ships with NIH BioArt inside it and works offline
   immediately. Further libraries, such as Bioicons, download from the built-in
   Art Store when you want them, so the installer stays small and new packs can
@@ -64,10 +78,18 @@ else's server.
   figure, each with its own canvas size and undo history. Rename by
   double-clicking, drag to reorder, duplicate a page to start from an existing
   figure. Export works on the page you are on.
+- **Autosave and crash recovery**: name a figure in the top-left corner and it
+  saves itself as you work, into Pictures/Morphly or a folder of your choice.
+  A recovery copy is offered back after a crash.
 - **Figure-friendly canvas**: presets for single-column, double-column, slide
-  and poster sizes; snapping guides; alignment tools; layers with lock and
-  hide; undo/redo. Drag a band across empty space to select several elements
-  at once, and group them with Ctrl+G.
+  and poster sizes; smart guides that show when objects line up with each
+  other, the page centre or their panel, and mark equal spacing; align and
+  distribute relative to the page, the selection, a panel, the first selected
+  or the biggest object; layers with lock and hide; undo/redo. Rotation shows
+  its angle as you turn.
+- **Everyday editing**: cut, copy and paste (including pictures and SVG copied
+  from other programs), a right-click menu for grouping, alignment, stacking
+  order and locking, and band selection across empty space.
 - **True vector export**: PNG at 1×/2×/4×, plus SVG and PDF that stay sharp at
   any size. Not a rasterised image wrapped in a PDF.
 - **Attribution handled for you**: asset credits can be written into the
@@ -206,8 +228,9 @@ file. Both libraries can be mounted at once and are browsed together.
 3. **Recolour**: select the illustration and edit the swatches in the Colours
    panel.
 4. **Build the figure**: add shapes, arrows and labels from the toolbar, and
-   tables or images from the toolbar buttons beside them. Pink guides appear as things line up,
-   and the grid button gives you a background grid to work against.
+   tables, images or a panel layout from the Insert buttons beside them.
+   Guides appear as things line up, and the grid button gives you a
+   background grid to work against.
 5. **Export**: PNG for a quick look, SVG to keep editing elsewhere, PDF for
    submission. Leave *Append asset citations* ticked.
 
@@ -276,43 +299,16 @@ creators.
 
 ## Roadmap
 
-### Version 0.4 (next): diagrams, editing and a safety net
+### Version 0.4 (done): diagrams, editing and a safety net
 
-- **Glue points.** Arrow and line ends attach to shapes, illustrations, images
-  and tables at fixed connection points, as in BioRender, and follow them when
-  they move. Deleting the shape leaves the arrow where it was.
-- **Curved lines and elbow connectors.** Curves with one draggable control
-  point, and right-angle elbow connectors for pathway and workflow diagrams.
-  Both work with glue points and export as true vectors.
-- **Editing parts of an illustration.** Double-click an illustration to select,
-  recolour, move or hide its individual pieces, such as one organelle of a cell.
-  Changes are stored alongside the original file, so any part can be reset, and
-  they carry through to SVG and PDF export.
-- **Alignment.** Smart guides while moving and resizing show when objects line up
-  with each other, with the page centre or with the centre of the panel they sit
-  in, and mark equal spacing. Align and distribute buttons work relative to the
-  page, the selection, a panel, the first selected or the biggest object.
-- **Cut, copy, paste and a right-click menu.** Copy and paste keep groups and
-  glued arrows together and work across pages, and pictures or SVG copied in
-  other programs can be pasted in. Right-click an object for editing, grouping,
-  alignment, stacking order and locking.
-- **SVG import as editable vector artwork.** Plots exported from R (svglite,
-  ggplot2) or Python (matplotlib) arrive recolourable, with removable colour
-  parts, and stay vector in SVG and PDF export. Imported files are checked and
-  cleaned the same way as Art Packs. Heavy plots are simplified on import by
-  merging identical marks into a single path where that does not enlarge the
-  file, and Morphly warns when a file is still heavy.
-- **Panel layouts.** Split a page into a grid of panels with automatic panel
-  letters (A, B, C) and consistent spacing, the way journal figures are laid out.
-- **Autosave and crash recovery.** Name a figure in the top-left corner and it
-  saves itself as you work, into Pictures/Morphly or a folder of your choice
-  (autosave can be switched off). A recovery copy is also kept in Morphly's own
-  data folder and offered back after a crash.
-- **Foundations.** A versioned file format with migrations, so figures made in
-  older versions keep opening, and automated tests for geometry, alignment and
-  SVG export.
+Glue points, curved and elbow connectors, line end styles and dashes, editing
+parts of an illustration, smart guides with align and distribute, cut, copy,
+paste and a right-click menu, SVG import, panel layouts, autosave and crash
+recovery. All of these are described under [Features](#features). Underneath,
+0.4 moved to a versioned file format with migrations, so figures made in older
+versions keep opening, and added automated tests that run before every build.
 
-### Version 0.5: data and graphs
+### Version 0.5 (next): data and graphs
 
 - **Datasets.** Import CSV or TSV files (Excel later), or type data into a
   table. Data is stored inside the figure file, so it travels with the figure.

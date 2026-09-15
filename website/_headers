@@ -1,0 +1,7 @@
+# Cloudflare Pages reads this file. GitHub Pages ignores it.
+/assets/*
+  Cache-Control: public, max-age=604800
+
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin

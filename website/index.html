@@ -1,0 +1,1011 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Morphly</title>
+<meta name="description" content="Morphly is a free, offline desktop editor for scientific figures, built on thousands of openly licensed illustrations.">
+<meta property="og:title" content="Morphly">
+<meta property="og:description" content="A free, offline desktop editor for scientific figures.">
+<meta property="og:image" content="https://saadat-abu.github.io/Morphly/assets/screenshot.jpg">
+<meta property="og:url" content="https://saadat-abu.github.io/Morphly/">
+<link rel="icon" type="image/png" href="assets/logo-64.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Figtree:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/*
+  Morphly website. One file, no build step.
+  Colours are taken from the app icon: cyan into blue into violet, with the
+  pink of the DNA strand as a highlight, on a deep navy ground.
+*/
+:root {
+  color-scheme: dark;
+  --ground: #060918;
+  --ground-2: #0b1030;
+  --glass: rgba(120, 150, 255, 0.06);
+  --glass-strong: rgba(120, 150, 255, 0.11);
+  --line: rgba(160, 185, 255, 0.14);
+  --line-strong: rgba(160, 185, 255, 0.28);
+  --text: #e6ecfb;
+  --muted: #97a3c9;
+  --faint: #6873a0;
+  --cyan: #22d3f5;
+  --blue: #1a7cf7;
+  --violet: #7b5cf5;
+  --pink: #e38af9;
+  --grad: linear-gradient(110deg, var(--cyan) 0%, var(--blue) 45%, var(--violet) 80%, var(--pink) 100%);
+  --radius: 18px;
+  --display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --body: "Figtree", "Segoe UI", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--text);
+  font: 400 17px/1.6 var(--body);
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+img { max-width: 100%; display: block; }
+a { color: inherit; }
+[hidden] { display: none !important; }
+:focus-visible { outline: 2px solid var(--cyan); outline-offset: 3px; border-radius: 6px; }
+
+/* Soft coloured light behind the whole page, like a stained slide. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(60vw 50vw at 85% -10%, rgba(123, 92, 245, 0.22), transparent 60%),
+    radial-gradient(50vw 40vw at -10% 30%, rgba(34, 211, 245, 0.10), transparent 60%),
+    radial-gradient(40vw 40vw at 60% 110%, rgba(227, 138, 249, 0.10), transparent 60%),
+    var(--ground);
+}
+
+.wrap { width: 100%; max-width: 1180px; margin: 0 auto; padding-inline: max(20px, 4vw); }
+
+h1, h2, h3 { font-family: var(--display); margin: 0; text-wrap: balance; letter-spacing: -0.02em; }
+h2 { font-size: clamp(2rem, 4.2vw, 3.1rem); line-height: 1.05; font-weight: 700; }
+h3 { font-size: 1.25rem; line-height: 1.2; font-weight: 700; }
+p { margin: 0; }
+.lede { color: var(--muted); font-size: 1.12rem; max-width: 60ch; }
+.grad-text { background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.mono { font-family: var(--mono); font-size: 0.86em; }
+
+/* == Navigation == */
+.nav {
+  position: sticky;
+  top: env(safe-area-inset-top, 0px);
+  z-index: 20;
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  background: rgba(6, 9, 24, 0.62);
+  border-bottom: 1px solid var(--line);
+}
+.nav .wrap { display: flex; align-items: center; gap: 28px; height: 64px; }
+.brand { display: flex; align-items: center; gap: 10px; text-decoration: none; font: 700 1.2rem var(--display); }
+.brand img { width: 34px; height: 34px; }
+.nav-links { display: flex; gap: 22px; margin-left: auto; }
+.nav-links a { text-decoration: none; color: var(--muted); font-weight: 500; font-size: 0.95rem; }
+.nav-links a:hover { color: var(--text); }
+.nav .btn { padding: 8px 16px; font-size: 0.92rem; }
+@media (max-width: 820px) { .nav-links { display: none; } .nav .btn { margin-left: auto; } }
+
+/* == Buttons == */
+.btn {
+  display: inline-flex; align-items: center; gap: 10px;
+  padding: 14px 22px; border-radius: 999px;
+  font: 600 1rem var(--body); text-decoration: none; cursor: pointer;
+  border: 1px solid var(--line-strong); background: var(--glass); color: var(--text);
+  transition: transform .2s ease, background .2s ease, box-shadow .2s ease;
+}
+.btn:hover { background: var(--glass-strong); transform: translateY(-1px); }
+.btn-primary {
+  border: 0; color: #050818;
+  background: var(--grad);
+  box-shadow: 0 10px 40px -10px rgba(26, 124, 247, 0.7), inset 0 1px 0 rgba(255,255,255,.35);
+}
+.btn-primary:hover { background: var(--grad); box-shadow: 0 14px 50px -10px rgba(123, 92, 245, 0.8), inset 0 1px 0 rgba(255,255,255,.35); }
+.btn small { font-weight: 500; opacity: .7; }
+.btn svg { width: 18px; height: 18px; flex: none; }
+
+/* == Hero == */
+.hero { position: relative; padding-block: clamp(40px, 7vw, 90px) clamp(30px, 5vw, 60px); }
+.hero .wrap { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 20px; align-items: center; }
+.hero h1 {
+  font-size: clamp(2.8rem, 6.6vw, 5.4rem);
+  line-height: 0.98;
+  font-weight: 800;
+  letter-spacing: -0.035em;
+}
+.hero .lede { margin-top: 22px; }
+.hero-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 32px; }
+.hero-note { margin-top: 16px; color: var(--faint); font-size: 0.9rem; }
+.hero-note a { color: var(--muted); }
+
+/* The orb canvas sits behind the logo; the glow shows alone without WebGL. */
+.stage { position: relative; height: clamp(360px, 46vw, 580px); display: grid; place-items: center; }
+.stage .orb-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.stage .glow {
+  position: absolute; inset: 12%; border-radius: 50%;
+  background: radial-gradient(circle, rgba(123, 92, 245, .55), rgba(26, 124, 247, .25) 45%, transparent 70%);
+  filter: blur(24px);
+}
+.stage.has-3d .glow { inset: 22%; opacity: .6; }
+.stage-logo {
+  position: relative; width: min(40%, 250px); height: auto;
+  filter: drop-shadow(0 20px 36px rgba(6, 9, 24, .55));
+  animation: float 8s ease-in-out infinite;
+}
+@keyframes float { 50% { transform: translateY(-10px); } }
+
+.stats { display: flex; flex-wrap: wrap; gap: 12px 40px; margin-top: 44px; }
+.stat b { display: block; font: 700 1.9rem/1 var(--display); font-variant-numeric: tabular-nums; }
+.stat span { color: var(--faint); font-size: 0.88rem; }
+
+@media (max-width: 900px) {
+  .hero .wrap { grid-template-columns: 1fr; }
+  .stage { order: -1; height: 340px; margin-block: -10px -20px; }
+}
+
+/* == Sections == */
+section { padding-block: clamp(60px, 9vw, 120px); }
+.section-head { display: grid; gap: 16px; margin-bottom: 48px; }
+/* Section markers borrow journal figure panel letters: A, B, C. */
+.panel-label {
+  display: inline-flex; align-items: center; gap: 12px;
+  font: 500 0.8rem var(--mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted);
+}
+.panel-label i {
+  font: 800 1rem/1 var(--display); font-style: normal; letter-spacing: 0;
+  width: 30px; height: 30px; display: grid; place-items: center;
+  border-radius: 8px; color: #050818; background: var(--grad);
+}
+
+/* == Screenshot == */
+.shot-section { padding-top: 10px; }
+.shot-frame {
+  border-radius: 14px; overflow: hidden;
+  border: 1px solid var(--line-strong);
+  box-shadow: 0 60px 120px -40px rgba(26, 124, 247, .45), 0 0 0 1px rgba(255,255,255,.03);
+  background: #121620;
+}
+/* Width and height attributes reserve space; height auto keeps the proportion. */
+.shot-frame img { width: 100%; height: auto; }
+
+/* == Features == */
+.bento { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 16px; }
+.card {
+  position: relative;
+  grid-column: span 2;
+  padding: 26px;
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, rgba(130, 160, 255, .075), rgba(130, 160, 255, .025));
+  border: 1px solid var(--line);
+  display: flex; flex-direction: column; gap: 10px;
+}
+.card.wide { grid-column: span 3; }
+.card p { color: var(--muted); font-size: 0.98rem; }
+.card .icon {
+  width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center;
+  background: rgba(34, 211, 245, .08); border: 1px solid var(--line); color: var(--cyan); margin-bottom: 6px;
+}
+.card .icon svg { width: 22px; height: 22px; }
+.big-num { font: 800 clamp(3rem, 6vw, 4.6rem)/0.9 var(--display); letter-spacing: -0.04em; font-variant-numeric: tabular-nums; }
+.lib-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; padding-top: 12px; }
+.chip {
+  font: 500 0.8rem var(--mono); padding: 5px 10px; border-radius: 999px;
+  border: 1px solid var(--line); color: var(--muted); background: rgba(6, 9, 24, .5);
+}
+.chip b { color: var(--text); font-weight: 500; }
+
+/* The recolour demo: click a swatch and every part in that colour follows. */
+.recolour { display: grid; grid-template-columns: 150px 1fr; gap: 20px; align-items: center; margin-top: 8px; }
+.recolour svg { width: 150px; height: 150px; }
+.recolour svg * { transition: fill .35s ease, stroke .35s ease; }
+.swatches { display: grid; gap: 10px; }
+.swatch-row { display: flex; align-items: center; gap: 10px; font-size: 0.85rem; color: var(--muted); }
+.swatch-row span { width: 72px; }
+.swatch {
+  width: 26px; height: 26px; border-radius: 8px; border: 1px solid rgba(255,255,255,.2);
+  cursor: pointer; padding: 0; transition: transform .15s ease;
+}
+.swatch:hover { transform: scale(1.12); }
+.swatch[aria-pressed="true"] { outline: 2px solid var(--text); outline-offset: 2px; }
+@media (max-width: 480px) { .recolour { grid-template-columns: 1fr; } }
+
+@media (max-width: 980px) {
+  .bento { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .card, .card.wide { grid-column: span 1; }
+  .card.wide { grid-column: span 2; }
+}
+@media (max-width: 620px) {
+  .bento { grid-template-columns: 1fr; }
+  .card, .card.wide { grid-column: span 1; }
+}
+
+/* == Comparison == */
+.table-scroll { overflow-x: auto; border-radius: var(--radius); border: 1px solid var(--line); background: var(--glass); }
+table { width: 100%; border-collapse: collapse; min-width: 640px; }
+th, td { padding: 16px 20px; text-align: left; border-bottom: 1px solid var(--line); font-size: 0.97rem; vertical-align: top; }
+tr:last-child td { border-bottom: 0; }
+thead th { font: 600 0.8rem var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--faint); }
+tbody th { font-weight: 500; color: var(--muted); width: 26%; }
+td.us { color: var(--text); background: rgba(34, 211, 245, .05); font-weight: 500; }
+thead th.us { color: var(--cyan); background: rgba(34, 211, 245, .05); }
+td:not(.us) { color: var(--muted); }
+.fine { margin-top: 14px; color: var(--faint); font-size: 0.85rem; }
+
+/* == Licences == */
+.licences { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.licence { padding: 26px; border-radius: var(--radius); border: 1px solid var(--line); background: var(--glass); display: grid; gap: 10px; align-content: start; }
+.badge { display: inline-block; width: max-content; font: 700 0.85rem var(--mono); padding: 4px 10px; border-radius: 6px; letter-spacing: .04em; }
+.badge.pd { background: rgba(34, 211, 245, .16); color: var(--cyan); }
+.badge.by { background: rgba(26, 124, 247, .2); color: #7fb5ff; }
+.badge.sa { background: rgba(227, 138, 249, .16); color: var(--pink); }
+.licence p { color: var(--muted); font-size: 0.97rem; }
+@media (max-width: 820px) { .licences { grid-template-columns: 1fr; } }
+
+/* == Roadmap == */
+.timeline { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; position: relative; }
+.timeline::before {
+  content: ""; position: absolute; left: 11px; top: 10px; bottom: 10px; width: 2px;
+  background: linear-gradient(var(--cyan), var(--violet) 60%, rgba(123, 92, 245, .1));
+}
+.step { position: relative; padding: 0 0 38px 52px; display: grid; gap: 8px; }
+.step::before {
+  content: ""; position: absolute; left: 3px; top: 6px; width: 18px; height: 18px; border-radius: 50%;
+  background: var(--ground); border: 2px solid var(--violet);
+}
+.step.done::before { background: var(--cyan); border-color: var(--cyan); box-shadow: 0 0 16px rgba(34, 211, 245, .6); }
+.step.next::before { border-color: var(--pink); box-shadow: 0 0 0 6px rgba(227, 138, 249, .15); }
+.step-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; }
+.step-head .ver { font: 500 0.95rem var(--mono); color: var(--muted); }
+.state { font: 600 0.72rem var(--mono); text-transform: uppercase; letter-spacing: .1em; padding: 3px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--faint); }
+.done .state { color: var(--cyan); border-color: rgba(34, 211, 245, .4); }
+.next .state { color: var(--pink); border-color: rgba(227, 138, 249, .45); }
+.step p { color: var(--muted); max-width: 68ch; }
+
+/* == Downloads == */
+.detected { margin-bottom: 24px; color: var(--muted); min-height: 1.6em; }
+.detected b { color: var(--text); }
+/*
+  Each card spans five rows of the parent grid (icon, name, details, button,
+  install note) through subgrid, so buttons line up across cards however long
+  the text above them runs.
+*/
+.downloads { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0 16px; }
+.dl {
+  position: relative;
+  display: grid; grid-template-rows: subgrid; grid-row: span 5; row-gap: 12px;
+  align-items: start;
+  padding: 26px 22px 22px; margin-bottom: 16px; border-radius: var(--radius);
+  border: 1px solid var(--line); background: var(--glass);
+  transition: opacity .25s ease, box-shadow .25s ease;
+}
+.dl .os-icon { width: 36px; height: 36px; color: var(--text); }
+.dl .meta { color: var(--faint); font-size: 0.86rem; }
+.dl .how { color: var(--muted); font-size: 0.88rem; border-top: 1px solid var(--line); padding-top: 12px; }
+.dl .btn { justify-content: center; align-self: center; width: 100%; padding-inline: 14px; text-align: center; }
+.dl .suggest-tag { display: none; }
+
+/* The card that matches the visitor's computer: a gradient border and a lift. */
+.downloads.has-suggestion .dl:not(.suggested) { opacity: .72; }
+.downloads.has-suggestion .dl:not(.suggested):hover { opacity: 1; }
+.dl.suggested {
+  border-color: transparent;
+  background:
+    linear-gradient(180deg, #111739, #0b1030) padding-box,
+    var(--grad) border-box;
+  border: 1.5px solid transparent;
+  box-shadow: 0 30px 70px -30px rgba(123, 92, 245, .7);
+}
+.dl.suggested .suggest-tag {
+  display: inline-block; position: absolute; top: -13px; left: 20px;
+  font: 600 0.75rem var(--body); padding: 4px 12px; border-radius: 999px;
+  background: var(--grad); color: #050818;
+}
+.dl:not(.suggested) .btn-primary { background: var(--glass-strong); color: var(--text); border: 1px solid var(--line-strong); box-shadow: none; }
+@media (max-width: 1020px) { .downloads { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .downloads { grid-template-columns: 1fr; } .dl.suggested { order: -1; } }
+.unsigned { margin-top: 26px; color: var(--faint); font-size: 0.9rem; max-width: 80ch; }
+
+/* == Cite == */
+.cite-box {
+  display: grid; grid-template-columns: 1fr auto; gap: 16px 24px; align-items: center;
+  padding: 26px; border-radius: var(--radius); border: 1px solid var(--line); background: var(--glass);
+}
+.cite-box blockquote { margin: 0; font-size: 1.05rem; line-height: 1.55; }
+.cite-box .doi { color: var(--cyan); word-break: break-all; }
+@media (max-width: 700px) { .cite-box { grid-template-columns: 1fr; } }
+.links-row { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
+
+/* == Footer == */
+footer { border-top: 1px solid var(--line); padding-block: 36px 44px; }
+footer .wrap { display: flex; flex-wrap: wrap; gap: 16px 30px; align-items: center; justify-content: space-between; color: var(--muted); font-size: 0.95rem; }
+footer .brand { font-size: 1.05rem; }
+footer .brand img { width: 28px; height: 28px; }
+footer a.gh { display: inline-flex; align-items: center; gap: 8px; text-decoration: none; }
+footer a.gh:hover { color: var(--text); }
+footer a.gh svg { width: 20px; height: 20px; }
+footer .privacy { color: var(--faint); font-size: 0.85rem; }
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { transition: none !important; animation: none !important; }
+}
+</style>
+</head>
+<body>
+
+<nav class="nav" aria-label="Main">
+  <div class="wrap">
+    <a class="brand" href="#top"><img src="assets/logo-64.png" alt="" width="34" height="34">Morphly</a>
+    <div class="nav-links">
+      <a href="#features">Features</a>
+      <a href="#compare">Why Morphly</a>
+      <a href="#licences">Licences</a>
+      <a href="#roadmap">Roadmap</a>
+      <a href="#cite">Cite</a>
+    </div>
+    <a class="btn btn-primary" href="#download">Download</a>
+  </div>
+</nav>
+
+<header class="hero" id="top">
+  <div class="wrap">
+    <div>
+      <h1>Scientific figures,<br><span class="grad-text">free and offline.</span></h1>
+      <p class="lede">A desktop figure editor built on thousands of openly licensed illustrations of cells, viruses, organs, molecules and lab equipment. Drag them onto a canvas, recolour them, label them, and export true vector SVG or PDF.</p>
+      <div class="hero-actions">
+        <a class="btn btn-primary" id="hero-download" href="#download">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m0 0l-5-5m5 5l5-5M4 20h16"/></svg>
+          <span id="hero-download-label">Download Morphly</span>
+        </a>
+        <a class="btn" href="https://github.com/SAADAT-Abu/Morphly">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5a11.5 11.5 0 00-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.52-1.33-1.28-1.69-1.28-1.69-1.04-.71.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.76 2.7 1.25 3.36.96.1-.75.4-1.25.73-1.54-2.55-.29-5.24-1.28-5.24-5.68 0-1.25.45-2.28 1.19-3.08-.12-.29-.52-1.46.11-3.04 0 0 .97-.31 3.17 1.18a11 11 0 015.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.58.23 2.75.11 3.04.74.8 1.19 1.83 1.19 3.08 0 4.41-2.69 5.38-5.25 5.67.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0012 .5z"/></svg>
+          Source on GitHub
+        </a>
+      </div>
+      <p class="hero-note">No account, no subscription, completely local. <a href="#download">Windows, macOS and Linux</a>.</p>
+      <div class="stats">
+        <div class="stat"><b>2,531</b><span>NIH BioArt drawings built in</span></div>
+        <div class="stat"><b>3,400+</b><span>more in free Art Packs</span></div>
+        <div class="stat"><b>0 €</b><span>forever, MIT licensed</span></div>
+      </div>
+    </div>
+    <div class="stage" id="stage" aria-hidden="true">
+      <div class="glow"></div>
+      <img class="stage-logo" src="assets/logo-512.png" alt="" width="512" height="512">
+    </div>
+  </div>
+</header>
+
+<section class="shot-section" aria-label="The editor">
+  <div class="wrap">
+    <div class="shot-frame">
+      <img src="assets/screenshot.jpg" alt="The Morphly editor with the asset library on the left, a labelled drawing of a renal corpuscle on the canvas, and the properties panel on the right" width="1920" height="1046" loading="lazy">
+    </div>
+  </div>
+</section>
+
+<section id="features" aria-labelledby="features-title">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="panel-label"><i>A</i> Features</span>
+      <h2 id="features-title">Everything a figure for a paper needs.</h2>
+      <p class="lede">Built for the figures scientists actually make: labelled schematics, multi-panel layouts and graphical abstracts, exported the way journals want them.</p>
+    </div>
+
+    <div class="bento">
+      <article class="card wide">
+        <span class="panel-label">Illustration libraries</span>
+        <div class="big-num grad-text">2,531</div>
+        <h3>Vetted scientific drawings, searchable offline.</h3>
+        <p>NIH BioArt ships inside the app. Add more from the built-in Art Store whenever you want them, each checked on download and labelled with its licence.</p>
+        <div class="lib-list">
+          <span class="chip"><b>NIH BioArt</b> 2,531 · built in</span>
+          <span class="chip"><b>Bioicons</b> 2,830 · Art Pack</span>
+          <span class="chip"><b>SciDraw</b> 609 · Art Pack</span>
+        </div>
+      </article>
+
+      <article class="card wide">
+        <span class="panel-label">Recolour</span>
+        <h3>Change one colour, every part follows.</h3>
+        <p>Morphly reads the palette out of a vector drawing. Try it:</p>
+        <div class="recolour">
+          <svg viewBox="0 0 160 160" role="img" aria-label="A cell drawing whose colours change with the swatches">
+            <ellipse cx="80" cy="82" rx="70" ry="62" data-part="membrane" fill="#cfe9fb" stroke="#4a78c9" stroke-width="3"/>
+            <path d="M40 60c10-12 22-10 26 0s-4 18-14 16-18-6-12-16z" data-part="mito" fill="#b891f2" stroke="#6b44c0" stroke-width="2.5"/>
+            <path d="M104 116c12-6 22 0 20 8s-14 10-22 6-8-10 2-14z" data-part="mito" fill="#b891f2" stroke="#6b44c0" stroke-width="2.5"/>
+            <circle cx="92" cy="74" r="26" data-part="nucleus" fill="#7b5cf5" stroke="#4b33b0" stroke-width="3"/>
+            <circle cx="98" cy="68" r="8" data-part="nucleolus" fill="#4b33b0"/>
+            <circle cx="46" cy="110" r="4" data-part="mito" fill="#b891f2"/>
+            <circle cx="126" cy="54" r="3.5" data-part="mito" fill="#b891f2"/>
+            <circle cx="60" cy="40" r="3" data-part="mito" fill="#b891f2"/>
+          </svg>
+          <div class="swatches" id="swatches"></div>
+        </div>
+      </article>
+
+      <article class="card">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4" width="7" height="6" rx="1.5"/><rect x="15" y="14" width="7" height="6" rx="1.5"/><path d="M9 7h3a2 2 0 012 2v6a2 2 0 002 2"/></svg></div>
+        <h3>Connectors that stay attached</h3>
+        <p>Straight, curved or elbow lines glue to shapes and illustrations and follow them when they move.</p>
+      </article>
+
+      <article class="card">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="8" rx="1.5"/><rect x="3" y="13" width="18" height="8" rx="1.5"/></svg></div>
+        <h3>Panel layouts, lettered</h3>
+        <p>Split a page into panels with automatic A, B, C labels and even spacing, the way journal figures are laid out.</p>
+      </article>
+
+      <article class="card">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z"/><path d="M14 3v5h5M9 15l2 2 4-4"/></svg></div>
+        <h3>True vector export</h3>
+        <p>SVG and PDF that stay sharp at any size, plus PNG and JPEG at 1×, 2× or 4×. Citations can go in the footer.</p>
+      </article>
+
+      <article class="card">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 20h18M6 16l4-5 3 3 5-7"/></svg></div>
+        <h3>Your plots, still editable</h3>
+        <p>SVGs from R (ggplot2, svglite) and Python (matplotlib) arrive as recolourable artwork and stay vector.</p>
+      </article>
+
+      <article class="card">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div>
+        <h3>Autosave and crash recovery</h3>
+        <p>Name a figure and it saves as you work. If something goes wrong, your unsaved changes are offered back.</p>
+      </article>
+
+      <article class="card">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2l3 6 6 .9-4.5 4.3 1 6.3L12 16.6 6.5 19.5l1-6.3L3 8.9 9 8z"/></svg></div>
+        <h3>Edit inside a drawing</h3>
+        <p>Double-click an illustration to recolour, move or hide one piece of it, such as a single organelle.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section id="compare" aria-labelledby="compare-title">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="panel-label"><i>B</i> Why Morphly</span>
+      <h2 id="compare-title">Your figures, on your computer, for free.</h2>
+      <p class="lede">Making a figure for a paper usually means paying for a subscription or fighting general vector software that knows nothing about biology. Morphly is a third option.</p>
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th scope="col"></th><th scope="col" class="us">Morphly</th><th scope="col">BioRender</th><th scope="col">GraphPad Prism</th></tr>
+        </thead>
+        <tbody>
+          <tr><th scope="row">Price</th><td class="us">Free, open source (MIT)</td><td>Paid plans for publication use</td><td>Paid licence</td></tr>
+          <tr><th scope="row">Where it runs</th><td class="us">Desktop, fully offline</td><td>In the browser, with an account</td><td>Desktop</td></tr>
+          <tr><th scope="row">Unpublished work</th><td class="us">Never leaves your machine</td><td>Stored online</td><td>Stays local</td></tr>
+          <tr><th scope="row">Scientific illustrations</th><td class="us">NIH BioArt built in, more as Art Packs</td><td>Large proprietary library</td><td>Not its focus</td></tr>
+          <tr><th scope="row">Graphs and statistics</th><td class="us">Coming in 0.5</td><td>Basic charts</td><td>Its specialty</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="fine">Based on each product's public information in 2026. Plans and features change, so check their sites for current details.</p>
+  </div>
+</section>
+
+<section id="licences" aria-labelledby="licences-title">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="panel-label"><i>C</i> Licences made clear</span>
+      <h2 id="licences-title">Know what you owe before you submit.</h2>
+      <p class="lede">Every illustration carries a badge in the library. Morphly writes the credits for you and warns you before exporting anything with strings attached.</p>
+    </div>
+    <div class="licences">
+      <div class="licence">
+        <span class="badge pd">PD</span>
+        <h3>Public domain</h3>
+        <p>Use it anywhere, for anything. Credit is appreciated but not required. Most of NIH BioArt is here.</p>
+      </div>
+      <div class="licence">
+        <span class="badge by">BY</span>
+        <h3>Attribution</h3>
+        <p>Credit the artist. Tick "Append asset citations" on export and the correctly formatted credits are written into your figure.</p>
+      </div>
+      <div class="licence">
+        <span class="badge sa">SA</span>
+        <h3>Share-alike</h3>
+        <p>Credit required, and your figure may have to carry the same open licence. Fine for open access, worth a thought otherwise.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="roadmap" aria-labelledby="roadmap-title">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="panel-label"><i>D</i> Roadmap</span>
+      <h2 id="roadmap-title">Built in small, steady releases.</h2>
+    </div>
+    <ol class="timeline">
+      <li class="step done">
+        <div class="step-head"><h3>Editor, libraries and Art Packs</h3><span class="ver">0.1 to 0.3</span><span class="state">Released</span></div>
+        <p>The canvas editor, vector recolouring, several figures per file, the Art Store, and builds for Windows, macOS and Linux.</p>
+      </li>
+      <li class="step done">
+        <div class="step-head"><h3>Diagrams and a safety net</h3><span class="ver">0.4</span><span class="state">Released</span></div>
+        <p>Glue points, curved and elbow connectors, smart guides, editing parts of a drawing, SVG import, panel layouts, autosave and crash recovery.</p>
+      </li>
+      <li class="step next">
+        <div class="step-head"><h3>Data, graphs and a simpler layout</h3><span class="ver">0.5</span><span class="state">In progress</span></div>
+        <p>GraphPad-style datasets and graphs (bar charts with points and error bars, box plots, scatter and XY plots), common statistics checked against R, and a layout that is easier to pick up.</p>
+      </li>
+      <li class="step">
+        <div class="step-head"><h3>Figures from AI assistants</h3><span class="ver">0.6</span><span class="state">Planned</span></div>
+        <p>An MCP server, so assistants such as Claude Code and Codex can build figures on request. The result is an ordinary .morphly file you keep editing by hand, and it all runs locally.</p>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<section id="download" aria-labelledby="download-title">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="panel-label"><i>E</i> Download</span>
+      <h2 id="download-title">Get Morphly <span class="grad-text" id="release-version">0.4.0</span></h2>
+    </div>
+    <p class="detected" id="detected" role="status">Pick the installer for your computer.</p>
+
+    <div class="downloads" id="downloads">
+      <article class="dl" data-os="windows">
+        <span class="suggest-tag">Suggested for you</span>
+        <svg class="os-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5.1l7.4-1v7.2H3zm8.3-1.1L21 2.6v8.7h-9.7zM3 12.2h7.4v7.2L3 18.4zm8.3 0H21v8.7l-9.7-1.3z"/></svg>
+        <h3>Windows</h3>
+        <p class="meta">Windows 10 or 11, 64 bit · <span class="mono">.exe</span> · 245 MB</p>
+        <a class="btn btn-primary" data-file="Morphly Setup {v}.exe" href="#">Download for Windows</a>
+        <p class="how">SmartScreen may say "Windows protected your PC". Click More info, then Run anyway.</p>
+      </article>
+
+      <article class="dl" data-os="mac-arm">
+        <span class="suggest-tag">Suggested for you</span>
+        <svg class="os-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.4 12.6c0-2.6 2.1-3.8 2.2-3.9-1.2-1.8-3.1-2-3.7-2-1.6-.2-3.1.9-3.9.9s-2-.9-3.4-.9A5 5 0 003.4 9.3c-1.8 3.1-.5 7.7 1.3 10.2.9 1.2 1.9 2.6 3.2 2.5 1.3 0 1.8-.8 3.3-.8s2 .8 3.4.8 2.2-1.3 3-2.5a10 10 0 001.4-2.8 4.3 4.3 0 01-2.6-4.1zM13.9 5c.7-.9 1.2-2 1-3.2-1 0-2.3.7-3 1.6-.7.8-1.2 2-1.1 3.1 1.1.1 2.3-.6 3.1-1.5z"/></svg>
+        <h3>macOS, Apple Silicon</h3>
+        <p class="meta">M1, M2, M3 and newer · <span class="mono">.dmg</span> · 273 MB</p>
+        <a class="btn btn-primary" data-file="Morphly-{v}-arm64.dmg" href="#">Download for Apple Silicon</a>
+        <p class="how">Drag Morphly to Applications. The first time, right-click it and choose Open.</p>
+      </article>
+
+      <article class="dl" data-os="mac-intel">
+        <span class="suggest-tag">Suggested for you</span>
+        <svg class="os-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.4 12.6c0-2.6 2.1-3.8 2.2-3.9-1.2-1.8-3.1-2-3.7-2-1.6-.2-3.1.9-3.9.9s-2-.9-3.4-.9A5 5 0 003.4 9.3c-1.8 3.1-.5 7.7 1.3 10.2.9 1.2 1.9 2.6 3.2 2.5 1.3 0 1.8-.8 3.3-.8s2 .8 3.4.8 2.2-1.3 3-2.5a10 10 0 001.4-2.8 4.3 4.3 0 01-2.6-4.1zM13.9 5c.7-.9 1.2-2 1-3.2-1 0-2.3.7-3 1.6-.7.8-1.2 2-1.1 3.1 1.1.1 2.3-.6 3.1-1.5z"/></svg>
+        <h3>macOS, Intel</h3>
+        <p class="meta">Macs from before late 2020 · <span class="mono">.dmg</span> · 278 MB</p>
+        <a class="btn btn-primary" data-file="Morphly-{v}.dmg" href="#">Download for Intel Mac</a>
+        <p class="how">Drag Morphly to Applications. The first time, right-click it and choose Open.</p>
+      </article>
+
+      <article class="dl" data-os="linux">
+        <span class="suggest-tag">Suggested for you</span>
+        <svg class="os-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M7 9l3 3-3 3M12.5 15H17"/></svg>
+        <h3>Linux</h3>
+        <p class="meta">Most distributions, x64 · <span class="mono">.AppImage</span> · 281 MB</p>
+        <a class="btn btn-primary" data-file="Morphly-{v}.AppImage" href="#">Download for Linux</a>
+        <p class="how">Make it executable, then run it: <span class="mono">chmod +x Morphly-<span data-version>0.4.0</span>.AppImage</span></p>
+      </article>
+    </div>
+
+    <p class="unsigned">The installers are not code-signed, because Apple and Microsoft charge for certificates and Morphly is a free academic project. The one-time warning is expected. Every release, and every older version, is archived on <a href="https://doi.org/10.5281/zenodo.22238248">Zenodo</a>.</p>
+  </div>
+</section>
+
+<section id="cite" aria-labelledby="cite-title">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="panel-label"><i>F</i> Cite and contribute</span>
+      <h2 id="cite-title">Used Morphly in a paper? Cite it.</h2>
+      <p class="lede">Illustrations should be credited to their own libraries, which Morphly does on export. For Morphly itself:</p>
+    </div>
+    <div class="cite-box">
+      <blockquote id="citation">Saadat, A. (2026). <em>Morphly: a free desktop editor for scientific figures</em> (version 0.4.0) [Software]. Zenodo. <span class="doi">https://doi.org/10.5281/zenodo.22761841</span></blockquote>
+      <button class="btn" id="copy-cite" type="button">Copy citation</button>
+    </div>
+    <div class="links-row">
+      <a class="btn" href="https://github.com/SAADAT-Abu/Morphly/issues">Report a bug or ask for a feature</a>
+      <a class="btn" href="https://github.com/SAADAT-Abu/Morphly/blob/main/CONTRIBUTING.md">Contributing guide</a>
+      <a class="btn" href="https://github.com/SAADAT-Abu/Morphly/blob/main/docs/ADDING_ART_PACKS.md">Add an Art Pack</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <a class="brand" href="#top"><img src="assets/logo-64.png" alt="" width="28" height="28">Morphly</a>
+    <span>Made by Abu Saadat</span>
+    <span class="privacy" id="privacy-note" hidden>Visits are counted anonymously, without cookies.</span>
+    <a class="gh" href="https://github.com/SAADAT-Abu/Morphly">
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5a11.5 11.5 0 00-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.52-1.33-1.28-1.69-1.28-1.69-1.04-.71.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.76 2.7 1.25 3.36.96.1-.75.4-1.25.73-1.54-2.55-.29-5.24-1.28-5.24-5.68 0-1.25.45-2.28 1.19-3.08-.12-.29-.52-1.46.11-3.04 0 0 .97-.31 3.17 1.18a11 11 0 015.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.58.23 2.75.11 3.04.74.8 1.19 1.83 1.19 3.08 0 4.41-2.69 5.38-5.25 5.67.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0012 .5z"/></svg>
+      github.com/SAADAT-Abu/Morphly
+    </a>
+  </div>
+</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+/* ==========================================================================
+   Release details. Update these three lines for a new version; every
+   download link, file name and the citation are filled in from them.
+   ========================================================================== */
+const RELEASE = { version: "0.4.0", record: "22761841" };
+const fileUrl = (name) => `https://zenodo.org/records/${RELEASE.record}/files/${encodeURIComponent(name)}?download=1`;
+
+document.querySelectorAll("[data-file]").forEach((a) => {
+  a.href = fileUrl(a.dataset.file.replace("{v}", RELEASE.version));
+});
+document.querySelectorAll("[data-version]").forEach((el) => { el.textContent = RELEASE.version; });
+
+/* ==========================================================================
+   Operating system detection: highlight the matching download card and
+   point the hero button at it.
+   ========================================================================== */
+const OS_NAMES = {
+  windows: "Windows",
+  "mac-arm": "a Mac with Apple Silicon",
+  "mac-intel": "an Intel Mac",
+  linux: "Linux",
+};
+
+function basicOs() {
+  const ua = navigator.userAgent;
+  const platform = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || "";
+  // iPads report themselves as Macs, but have touch.
+  if (/iPhone|iPad|iPod|Android/i.test(ua) || (/Mac/.test(platform) && navigator.maxTouchPoints > 1)) return "mobile";
+  if (/Win/i.test(platform) || /Windows/.test(ua)) return "windows";
+  if (/Mac/i.test(platform) || /Mac OS X/.test(ua)) return "mac";
+  if (/Linux|X11|CrOS/i.test(platform) || /Linux/.test(ua)) return "linux";
+  return "unknown";
+}
+
+// Browsers do not say which kind of Mac they run on, so ask in two ways:
+// Chromium browsers report the CPU architecture, and elsewhere the graphics
+// driver name usually gives it away. Apple Silicon is the likelier answer.
+async function macArch() {
+  try {
+    if (navigator.userAgentData && navigator.userAgentData.getHighEntropyValues) {
+      const { architecture } = await navigator.userAgentData.getHighEntropyValues(["architecture"]);
+      if (architecture === "arm") return { os: "mac-arm", sure: true };
+      if (architecture === "x86") return { os: "mac-intel", sure: true };
+    }
+  } catch (e) { /* fall through */ }
+  try {
+    const gl = document.createElement("canvas").getContext("webgl");
+    const info = gl && gl.getExtension("WEBGL_debug_renderer_info");
+    const renderer = info ? String(gl.getParameter(info.UNMASKED_RENDERER_WEBGL)) : "";
+    if (/Apple M\d/i.test(renderer)) return { os: "mac-arm", sure: true };
+    if (/Intel|AMD|Radeon|NVIDIA/i.test(renderer)) return { os: "mac-intel", sure: true };
+  } catch (e) { /* fall through */ }
+  return { os: "mac-arm", sure: false };
+}
+
+async function suggestDownload() {
+  const detected = document.getElementById("detected");
+  const base = basicOs();
+  if (base === "mobile") {
+    detected.innerHTML = "Morphly is a desktop app. Open this page on your <b>Windows, Mac or Linux</b> computer to install it.";
+    return;
+  }
+  if (base === "unknown") return;
+
+  const { os, sure } = base === "mac" ? await macArch() : { os: base, sure: true };
+  const card = document.querySelector(`.dl[data-os="${os}"]`);
+  if (!card) return;
+
+  document.getElementById("downloads").classList.add("has-suggestion");
+  card.classList.add("suggested");
+
+  const link = card.querySelector("a.btn");
+  const hero = document.getElementById("hero-download");
+  hero.href = link.href;
+  document.getElementById("hero-download-label").innerHTML =
+    `${link.textContent} <small>${card.querySelector(".meta").textContent.split("·").pop().trim()}</small>`;
+
+  detected.innerHTML = sure
+    ? `Looks like you are on <b>${OS_NAMES[os]}</b>, so that installer is highlighted. Other systems are below too.`
+    : `Looks like you are on a <b>Mac</b>. Newer Macs use Apple Silicon; if yours is from before late 2020, choose Intel.`;
+}
+suggestDownload();
+
+/* ==========================================================================
+   Recolour demo: two parts of the drawing, a few palettes each.
+   ========================================================================== */
+const PARTS = [
+  { label: "Nucleus", selector: '[data-part="nucleus"]', colours: [["#7b5cf5", "#4b33b0"], ["#22d3f5", "#0a7fa0"], ["#e38af9", "#9a3fb5"], ["#f5b94a", "#b07410"]] },
+  { label: "Membrane", selector: '[data-part="membrane"]', colours: [["#cfe9fb", "#4a78c9"], ["#fde2ef", "#c9487f"], ["#dcf7e6", "#2f9a5c"], ["#1a2250", "#7b93ff"]] },
+  { label: "Mitochondria", selector: '[data-part="mito"]', colours: [["#b891f2", "#6b44c0"], ["#ff9f8a", "#c0442a"], ["#8fe3c4", "#1f8a63"], ["#9cc7ff", "#2d5fb8"]] },
+];
+const swatchBox = document.getElementById("swatches");
+PARTS.forEach((part, p) => {
+  const row = document.createElement("div");
+  row.className = "swatch-row";
+  row.innerHTML = `<span>${part.label}</span>`;
+  part.colours.forEach(([fill, stroke], i) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "swatch";
+    b.id = `swatch-${p}-${i}`;
+    b.style.background = fill;
+    b.setAttribute("aria-label", `${part.label} colour ${i + 1}`);
+    b.setAttribute("aria-pressed", i === 0 ? "true" : "false");
+    b.addEventListener("click", () => {
+      row.querySelectorAll(".swatch").forEach((s) => s.setAttribute("aria-pressed", "false"));
+      b.setAttribute("aria-pressed", "true");
+      document.querySelectorAll(part.selector).forEach((el) => {
+        el.setAttribute("fill", fill);
+        if (el.hasAttribute("stroke")) el.setAttribute("stroke", stroke);
+      });
+      if (part.label === "Nucleus") document.querySelector('[data-part="nucleolus"]').setAttribute("fill", stroke);
+    });
+    row.appendChild(b);
+  });
+  swatchBox.appendChild(row);
+});
+
+/* ==========================================================================
+   Copy citation.
+   ========================================================================== */
+document.getElementById("copy-cite").addEventListener("click", async (event) => {
+  const text = document.getElementById("citation").textContent.replace(/\s+/g, " ").trim();
+  const button = event.currentTarget;
+  try {
+    await navigator.clipboard.writeText(text);
+    button.textContent = "Copied";
+  } catch (e) {
+    const range = document.createRange();
+    range.selectNodeContents(document.getElementById("citation"));
+    const sel = getSelection(); sel.removeAllRanges(); sel.addRange(range);
+    button.textContent = "Selected, press Ctrl+C";
+  }
+  setTimeout(() => { button.textContent = "Copy citation"; }, 2200);
+});
+
+/* ==========================================================================
+   Analytics: anonymous visit and download counts with GoatCounter.
+   No cookies and no personal data. Put your GoatCounter code here (the
+   "morphly" in morphly.goatcounter.com) to switch it on; empty means off.
+   GoatCounter then shows visits, countries, referrers, and one event per
+   installer downloaded.
+   ========================================================================== */
+const ANALYTICS = { goatcounter: "abusaadat" };
+
+if (ANALYTICS.goatcounter) {
+  const s = document.createElement("script");
+  s.async = true;
+  s.src = "https://gc.zgo.at/count.js";
+  s.dataset.goatcounter = `https://${ANALYTICS.goatcounter}.goatcounter.com/count`;
+  document.head.appendChild(s);
+  document.getElementById("privacy-note").hidden = false;
+}
+
+// Every installer link points at a Zenodo file, so one listener counts them all,
+// including the top button once it has been pointed at the suggested installer.
+document.addEventListener("click", (event) => {
+  const link = event.target.closest('a[href*="zenodo.org/records/"][href*="/files/"]');
+  if (!link || !window.goatcounter || !window.goatcounter.count) return;
+  const file = decodeURIComponent(link.pathname.split("/files/")[1] || "unknown");
+  window.goatcounter.count({ path: `download/${file}`, title: `Download ${file}`, event: true });
+});
+
+const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/* ==========================================================================
+   The 3D scene: a slowly morphing, iridescent orb in the icon's colours,
+   shaded on the GPU so the surface stays smooth at any size, with the
+   Morphly logo floating in front of it and a faint ring of particles.
+   It leans toward the pointer, pauses when off screen, and draws one still
+   frame for reduced motion. Without WebGL a soft CSS glow stands in.
+   ========================================================================== */
+(function scene() {
+  const stage = document.getElementById("stage");
+  if (!window.THREE || !stage) return;
+  let renderer;
+  try {
+    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
+  } catch (e) { return; }
+  renderer.domElement.className = "orb-canvas";
+  stage.prepend(renderer.domElement);
+  stage.classList.add("has-3d");
+  renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 100);
+  camera.position.set(0, 0, 12);
+
+  // Simplex noise (Ashima Arts, MIT) drives the slow change of shape.
+  const NOISE = `
+    vec3 mod289(vec3 x){return x-floor(x*(1.0/289.0))*289.0;}
+    vec4 mod289(vec4 x){return x-floor(x*(1.0/289.0))*289.0;}
+    vec4 permute(vec4 x){return mod289(((x*34.0)+1.0)*x);}
+    vec4 taylorInvSqrt(vec4 r){return 1.79284291400159-0.85373472095314*r;}
+    float snoise(vec3 v){
+      const vec2 C=vec2(1.0/6.0,1.0/3.0); const vec4 D=vec4(0.0,0.5,1.0,2.0);
+      vec3 i=floor(v+dot(v,C.yyy)); vec3 x0=v-i+dot(i,C.xxx);
+      vec3 g=step(x0.yzx,x0.xyz); vec3 l=1.0-g; vec3 i1=min(g.xyz,l.zxy); vec3 i2=max(g.xyz,l.zxy);
+      vec3 x1=x0-i1+C.xxx; vec3 x2=x0-i2+C.yyy; vec3 x3=x0-D.yyy;
+      i=mod289(i);
+      vec4 p=permute(permute(permute(i.z+vec4(0.0,i1.z,i2.z,1.0))+i.y+vec4(0.0,i1.y,i2.y,1.0))+i.x+vec4(0.0,i1.x,i2.x,1.0));
+      float n_=0.142857142857; vec3 ns=n_*D.wyz-D.xzx;
+      vec4 j=p-49.0*floor(p*ns.z*ns.z); vec4 x_=floor(j*ns.z); vec4 y_=floor(j-7.0*x_);
+      vec4 x=x_*ns.x+ns.yyyy; vec4 y=y_*ns.x+ns.yyyy; vec4 h=1.0-abs(x)-abs(y);
+      vec4 b0=vec4(x.xy,y.xy); vec4 b1=vec4(x.zw,y.zw);
+      vec4 s0=floor(b0)*2.0+1.0; vec4 s1=floor(b1)*2.0+1.0; vec4 sh=-step(h,vec4(0.0));
+      vec4 a0=b0.xzyw+s0.xzyw*sh.xxyy; vec4 a1=b1.xzyw+s1.xzyw*sh.zzww;
+      vec3 p0=vec3(a0.xy,h.x); vec3 p1=vec3(a0.zw,h.y); vec3 p2=vec3(a1.xy,h.z); vec3 p3=vec3(a1.zw,h.w);
+      vec4 norm=taylorInvSqrt(vec4(dot(p0,p0),dot(p1,p1),dot(p2,p2),dot(p3,p3)));
+      p0*=norm.x; p1*=norm.y; p2*=norm.z; p3*=norm.w;
+      vec4 m=max(0.6-vec4(dot(x0,x0),dot(x1,x1),dot(x2,x2),dot(x3,x3)),0.0); m=m*m;
+      return 42.0*dot(m*m,vec4(dot(p0,x0),dot(p1,x1),dot(p2,x2),dot(p3,x3)));
+    }`;
+
+  const orbMaterial = new THREE.ShaderMaterial({
+    uniforms: {
+      uTime: { value: 0 },
+      uCyan: { value: new THREE.Color(0x22d3f5) },
+      uBlue: { value: new THREE.Color(0x1a7cf7) },
+      uViolet: { value: new THREE.Color(0x7b5cf5) },
+      uPink: { value: new THREE.Color(0xe38af9) },
+    },
+    vertexShader: `
+      uniform float uTime;
+      varying vec3 vNormal;
+      varying vec3 vView;
+      varying float vWave;
+      ${NOISE}
+      vec3 displaced(vec3 p) {
+        float n = snoise(p * 0.9 + vec3(uTime * 0.18, uTime * 0.12, 0.0));
+        float n2 = snoise(p * 2.1 - vec3(0.0, uTime * 0.22, uTime * 0.1));
+        return p * (1.0 + n * 0.16 + n2 * 0.035);
+      }
+      void main() {
+        vec3 p = displaced(position);
+        // Normal from two nearby points on the displaced surface.
+        vec3 t = normalize(abs(normal.y) < 0.99 ? cross(normal, vec3(0.0, 1.0, 0.0)) : cross(normal, vec3(1.0, 0.0, 0.0)));
+        vec3 b = normalize(cross(normal, t));
+        float e = 0.01;
+        vec3 pt = displaced(normalize(position + t * e) * length(position));
+        vec3 pb = displaced(normalize(position + b * e) * length(position));
+        vec3 n = normalize(cross(pt - p, pb - p));
+        if (dot(n, normal) < 0.0) n = -n;
+        vNormal = normalize(normalMatrix * n);
+        vec4 mv = modelViewMatrix * vec4(p, 1.0);
+        vView = normalize(-mv.xyz);
+        vWave = snoise(position * 0.9 + vec3(uTime * 0.18, uTime * 0.12, 0.0));
+        gl_Position = projectionMatrix * mv;
+      }`,
+    fragmentShader: `
+      uniform vec3 uCyan, uBlue, uViolet, uPink;
+      varying vec3 vNormal;
+      varying vec3 vView;
+      varying float vWave;
+      void main() {
+        vec3 n = normalize(vNormal);
+        vec3 v = normalize(vView);
+        float facing = max(dot(n, v), 0.0);
+        float fresnel = pow(1.0 - facing, 2.2);
+
+        // Colour flows across the surface: cyan top left, violet bottom right.
+        float k = clamp(0.5 - n.x * 0.45 + n.y * 0.35 + vWave * 0.25, 0.0, 1.0);
+        vec3 col = mix(uViolet, uBlue, smoothstep(0.1, 0.55, k));
+        col = mix(col, uCyan, smoothstep(0.55, 0.95, k));
+        col = mix(col, uPink, smoothstep(0.35, 1.0, fresnel) * 0.75);
+
+        vec3 light = normalize(vec3(-0.5, 0.8, 0.7));
+        float diffuse = 0.55 + 0.45 * max(dot(n, light), 0.0);
+        float spec = pow(max(dot(reflect(-light, n), v), 0.0), 36.0);
+        float sheen = pow(max(dot(reflect(-normalize(vec3(0.7, -0.4, 0.6)), n), v), 0.0), 12.0);
+
+        col = col * diffuse + spec * 0.55 + sheen * uPink * 0.25 + fresnel * 0.25;
+        gl_FragColor = vec4(col, 1.0);
+      }`,
+  });
+  const orb = new THREE.Mesh(new THREE.IcosahedronGeometry(1.75, 64), orbMaterial);
+  scene.add(orb);
+
+  // A tilted ring of soft round particles.
+  const COUNT = 900;
+  const positions = new Float32Array(COUNT * 3);
+  const seeds = new Float32Array(COUNT);
+  for (let i = 0; i < COUNT; i += 1) {
+    const a = Math.random() * Math.PI * 2;
+    const r = 2.55 + (Math.random() - 0.5) * 0.55 + Math.pow(Math.random(), 3) * 0.6;
+    positions[i * 3] = Math.cos(a) * r;
+    positions[i * 3 + 1] = (Math.random() - 0.5) * 0.12;
+    positions[i * 3 + 2] = Math.sin(a) * r;
+    seeds[i] = Math.random();
+  }
+  const ringGeometry = new THREE.BufferGeometry();
+  ringGeometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+  ringGeometry.setAttribute("seed", new THREE.BufferAttribute(seeds, 1));
+  const ring = new THREE.Points(ringGeometry, new THREE.ShaderMaterial({
+    uniforms: { uTime: { value: 0 }, uScale: { value: 1 } },
+    vertexShader: `
+      uniform float uTime, uScale;
+      attribute float seed;
+      varying float vSeed;
+      void main() {
+        vSeed = seed;
+        vec4 mv = modelViewMatrix * vec4(position, 1.0);
+        gl_PointSize = (1.4 + seed * 2.6) * uScale * (9.0 / -mv.z);
+        gl_Position = projectionMatrix * mv;
+      }`,
+    fragmentShader: `
+      uniform float uTime;
+      varying float vSeed;
+      void main() {
+        float d = length(gl_PointCoord - 0.5);
+        float alpha = smoothstep(0.5, 0.0, d);
+        float twinkle = 0.55 + 0.45 * sin(uTime * (0.6 + vSeed) + vSeed * 40.0);
+        vec3 col = mix(vec3(0.13, 0.83, 0.96), vec3(0.89, 0.54, 0.98), vSeed);
+        gl_FragColor = vec4(col, alpha * twinkle * 0.8);
+      }`,
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+  }));
+  const ringPivot = new THREE.Group();
+  ringPivot.rotation.set(1.22, 0, -0.32);
+  ringPivot.add(ring);
+  scene.add(ringPivot);
+
+  function resize() {
+    const w = renderer.domElement.clientWidth, h = renderer.domElement.clientHeight;
+    if (!w || !h) return;
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+    // Keep the orb and ring inside a narrow stage.
+    camera.position.z = w / h < 1 ? 12 / Math.max(0.62, w / h) : 12;
+    camera.updateProjectionMatrix();
+    ring.material.uniforms.uScale.value = renderer.getPixelRatio();
+    draw(lastTime);
+  }
+
+  const target = { x: 0, y: 0 }, current = { x: 0, y: 0 };
+  addEventListener("pointermove", (e) => {
+    target.x = (e.clientX / innerWidth - 0.5);
+    target.y = (e.clientY / innerHeight - 0.5);
+  }, { passive: true });
+
+  let lastTime = 0;
+  function draw(time) {
+    const s = time / 1000;
+    current.x += (target.x - current.x) * 0.04;
+    current.y += (target.y - current.y) * 0.04;
+    orbMaterial.uniforms.uTime.value = s;
+    ring.material.uniforms.uTime.value = s;
+    orb.rotation.y = s * 0.08 + current.x * 0.35;
+    orb.rotation.x = current.y * 0.25;
+    ring.rotation.y = s * 0.06;
+    ringPivot.rotation.x = 1.22 + current.y * 0.15;
+    ringPivot.rotation.z = -0.32 - current.x * 0.12;
+    renderer.render(scene, camera);
+  }
+
+  let running = false, visible = true, frame = 0;
+  function loop(time) { lastTime = time; draw(time); frame = requestAnimationFrame(loop); }
+  function start() { if (!running && visible && !reduceMotion && !document.hidden) { running = true; frame = requestAnimationFrame(loop); } }
+  function stop() { running = false; cancelAnimationFrame(frame); }
+
+  new ResizeObserver(resize).observe(stage);
+  new IntersectionObserver(([entry]) => { visible = entry.isIntersecting; visible ? start() : stop(); }).observe(stage);
+  document.addEventListener("visibilitychange", () => { document.hidden ? stop() : start(); });
+
+  resize();
+  if (reduceMotion) draw(4000); else start();
+})();
+</script>
+</body>
+</html>

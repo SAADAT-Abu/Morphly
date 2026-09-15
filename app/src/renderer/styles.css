@@ -191,20 +191,21 @@ input[type="range"] { padding: 0; }
 }
 .variant-thumb:hover { border-color: var(--accent); }
 .variant-thumb img { max-width: 100%; max-height: 100%; pointer-events: none; }
-.pager {
-  display: flex; align-items: center; justify-content: center; gap: 4px;
-  padding: 8px 12px;
-  border-top: 1px solid var(--border);
-  font-size: 12px; color: var(--text-dim);
-}
-.pager-btn {
-  width: 28px; height: 26px; padding: 0;
+/* Continuous loading: the grid is the positioning context, so each tile's
+   offsetTop is measured from the top of the grid for the "Showing" counter. */
+.library { position: relative; }
+.asset-grid { position: relative; }
+.library-count { font-variant-numeric: tabular-nums; }
+.library-count .muted { color: var(--text-dim); opacity: 0.8; }
+.asset-grid-sentinel { grid-column: 1 / -1; height: 1px; }
+.back-to-top {
+  position: absolute; right: 16px; bottom: 14px;
+  padding: 5px 10px;
   background: var(--panel-2); border-color: var(--border);
-  font-size: 15px; line-height: 1;
+  font-size: 12px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
 }
-.pager-btn:disabled { opacity: 0.35; cursor: default; }
-.pager-page { display: flex; align-items: center; gap: 5px; margin: 0 4px; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.pager-page input { width: 42px; padding: 3px 4px; text-align: center; font-variant-numeric: tabular-nums; }
+.back-to-top:hover { border-color: var(--accent); }
 
 /* ----------------------------------------------------------------- canvas */
 

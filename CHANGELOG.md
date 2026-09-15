@@ -13,9 +13,10 @@ Planned work is described in the [roadmap](README.md#roadmap).
 
 ### Added
 
-- **Page through the asset library.** A pager under the grid shows where you
-  are ("Page 3 of 29") with first, previous, next and last buttons, and a box
-  to type the page to jump to. It replaces "Show 90 more". Requested in
+- **Continuous loading in the asset library.** Thumbnails load as you scroll,
+  replacing the "Show 90 more" button, and a counter above the grid says which
+  illustrations are on screen ("Showing 181 to 225 of 2,531", or "of 1,204
+  matches" after a search). A button returns to the top. Prompted by
   [issue #1](https://github.com/SAADAT-Abu/Morphly/issues/1).
 - **JPEG export** at 1×, 2× or 4×, with a choice of quality, alongside PNG,
   SVG and PDF. Also from issue #1.

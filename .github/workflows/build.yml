@@ -32,15 +32,51 @@ jobs:
             artifacts: "app/release/*.AppImage"
           - os: windows-latest
             name: Windows
-            args: ""
+            args: "--win nsis"
             artifacts: "app/release/*.exe"
+          # Both architectures, because the runner is arm64 and an arm64-only
+          # dmg will not start on an Intel Mac.
           - os: macos-latest
             name: macOS
-            args: ""
-            artifacts: "app/release/*.dmg app/release/*.zip"
+            args: "--mac dmg --arm64 --x64"
+            artifacts: "app/release/*.dmg"
 
     steps:
       - uses: actions/checkout@v4
+
+      # The installers bundle NIH BioArt, but the library is gitignored (it
+      # regenerates from scraper/bioart_scraper.py), so a fresh checkout has
+      # none. Scraping BioArt here would take hours and hammer its site, so the
+      # exact folder the local builds use is archived on Zenodo and fetched
+      # instead. The sha256 pins it: a changed or corrupted download stops the
+      # build rather than shipping different artwork. To update the library,
+      # upload a new snapshot and change both values below.
+      - name: Fetch the NIH BioArt library
+        shell: bash
+        env:
+          BIOART_URL: https://zenodo.org/records/22764906/files/bioart_library-2026-09-15.tar.gz?download=1
+          BIOART_SHA256: 918225ca834f50d9a9e7516a6ba6bdbddb0d7118a40317879d2e52278c0fd3a8
+          BIOART_SVGS: 2531
+        run: |
+          archive="$RUNNER_TEMP/bioart_library.tar.gz"
+          curl -fsSL --retry 5 --retry-delay 10 -o "$archive" "$BIOART_URL"
+          if command -v sha256sum >/dev/null; then
+            actual=$(sha256sum "$archive" | cut -d' ' -f1)
+          else
+            actual=$(shasum -a 256 "$archive" | cut -d' ' -f1)
+          fi
+          if [ "$actual" != "$BIOART_SHA256" ]; then
+            echo "::error::BioArt snapshot sha256 is $actual, expected $BIOART_SHA256"
+            exit 1
+          fi
+          tar -xzf "$archive"
+          svgs=$(find bioart_library -name '*.svg' | wc -l | tr -d ' ')
+          # Fail loudly rather than ship an installer with an empty sidebar.
+          if [ ! -f bioart_library/manifest.json ] || [ "$svgs" -lt "$BIOART_SVGS" ]; then
+            echo "::error::bioart_library is incomplete: manifest present $([ -f bioart_library/manifest.json ] && echo yes || echo no), $svgs svg files"
+            exit 1
+          fi
+          echo "bioart_library: $svgs svg files, sha256 verified"
 
       - uses: actions/setup-node@v4
         with:
@@ -74,10 +110,13 @@ jobs:
         working-directory: app
         # The builds are unsigned: there is no Apple Developer ID or Windows
         # code-signing certificate. Users will see an OS warning on first run.
-        run: npm run dist -- ${{ matrix.args }}
+        # --publish never: electron-builder would otherwise try to publish on
+        # its own and fail without a token, after the installer is finished.
+        # Attaching to the release is done by the step below instead.
+        shell: bash
+        run: npm run dist -- ${{ matrix.args }} --publish never
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4

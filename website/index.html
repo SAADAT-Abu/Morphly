@@ -201,17 +201,6 @@ section { padding-block: clamp(64px, 9vw, 120px); }
 /* Only where the side margin is wide enough to keep it clear of the content. */
 @media (max-width: 1639px) { .stage-caption { display: none; } }
 
-/* == Screenshot == */
-.shot-section { padding-top: 10px; }
-.shot-frame {
-  border-radius: 16px; overflow: hidden;
-  border: 1px solid var(--line-strong);
-  box-shadow: 0 60px 120px -40px rgba(26, 124, 247, .45), 0 0 0 1px rgba(255,255,255,.03);
-  background: #121620;
-}
-/* Width and height attributes reserve space; height auto keeps the proportion. */
-.shot-frame img { width: 100%; height: auto; }
-
 /* == Features == */
 .bento { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 16px; }
 .card { grid-column: span 3; padding: 26px; display: flex; flex-direction: column; gap: 10px; }
@@ -408,14 +397,6 @@ footer .privacy { color: var(--faint); font-size: 0.85rem; }
     <div class="hero-space" aria-hidden="true"></div>
   </div>
 </header>
-
-<section class="shot-section" aria-label="The editor">
-  <div class="wrap">
-    <div class="shot-frame">
-      <img src="assets/screenshot.jpg" alt="The Morphly editor with the asset library on the left, a labelled drawing of a renal corpuscle on the canvas, and the properties panel on the right" width="1920" height="1046" loading="lazy">
-    </div>
-  </div>
-</section>
 
 <section id="features" aria-labelledby="features-title">
   <div class="wrap">

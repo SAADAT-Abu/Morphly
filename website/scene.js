@@ -31,7 +31,8 @@
   canvas.className = "bio-canvas";
   canvas.setAttribute("aria-hidden", "true");
   document.body.prepend(canvas);
-  renderer.setPixelRatio(Math.min(devicePixelRatio || 1, small ? 1.5 : 2));
+  let pixelRatio = Math.min(devicePixelRatio || 1, 1.5);
+  renderer.setPixelRatio(pixelRatio);
   renderer.setClearColor(0x000000, 0);
 
   const scene = new THREE.Scene();
@@ -117,13 +118,16 @@
       float a = acos(clamp(dot(unit, uDir), -1.0, 1.0));
       return exp(-pow((a - uCap) / 0.34, 2.0));
     }
+    float lastSlow;
     vec3 surface(vec3 unit) {
       float a = acos(clamp(dot(unit, uDir), -1.0, 1.0));
       float lip = exp(-pow((a - uCap) / 0.34, 2.0));
       float inside = 1.0 - smoothstep(uCap - 0.2, uCap + 0.05, a);
       float slow = snoise(unit * 1.2 + vec3(uTime * 0.13, 0.0, uTime * 0.09));
-      float fine = snoise(unit * 3.6 + vec3(0.0, uTime * 0.3, 0.0));
-      vec3 p = unit * uRadius * (1.0 + slow * 0.11 + fine * 0.035);
+      // A cheap ripple in place of a second noise field.
+      float fine = sin(unit.x * 9.0 + uTime * 0.7) * sin(unit.y * 8.0 - uTime * 0.5) * sin(unit.z * 7.0 + uTime * 0.4);
+      lastSlow = slow;
+      vec3 p = unit * uRadius * (1.0 + slow * 0.11 + fine * 0.03);
       p += (uDir * 0.85 + unit * 0.35) * lip * uCup * uReach;
       p -= unit * inside * uCup * 0.42;
       return p;
@@ -131,6 +135,7 @@
     void main() {
       vec3 unit = normalize(position);
       vec3 p = surface(unit);
+      float slowHere = lastSlow;
       // The normal of the moved surface, from two nearby points on it.
       vec3 helper = abs(unit.y) < 0.99 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0);
       vec3 t = normalize(cross(unit, helper));
@@ -144,7 +149,7 @@
       vNormalW = normalize(mat3(modelMatrix) * n);
       vViewW = normalize(cameraPosition - world.xyz);
       vLip = lipAt(unit) * uCup;
-      vRuffle = snoise(unit * 1.2 + vec3(uTime * 0.13, 0.0, uTime * 0.09));
+      vRuffle = slowHere;
       gl_Position = projectionMatrix * viewMatrix * world;
     }`;
 
@@ -181,7 +186,7 @@
       gl_FragColor = vec4(col, alpha);
     }`;
 
-  const bodyGeometry = new THREE.IcosahedronGeometry(1, small ? 28 : 48);
+  const bodyGeometry = new THREE.IcosahedronGeometry(1, small ? 24 : 36);
   const membraneBack = new THREE.Mesh(bodyGeometry, new THREE.ShaderMaterial({
     uniforms: membraneUniforms, vertexShader: membraneVertex, fragmentShader: membraneFragment,
     defines: { BACK_FACE: 1 }, side: THREE.BackSide, transparent: true, depthWrite: false,
@@ -195,7 +200,7 @@
   macrophage.add(membraneBack, membraneFront);
 
   // Kidney-shaped nucleus, shaped once on the CPU.
-  const nucleusGeometry = new THREE.SphereGeometry(0.72, 64, 40);
+  const nucleusGeometry = new THREE.SphereGeometry(0.72, 48, 32);
   {
     const pos = nucleusGeometry.attributes.position;
     const v = new THREE.Vector3();
@@ -217,15 +222,13 @@
   macrophage.add(nucleus);
 
   // Lysosomes and other granules, drifting inside the cell.
-  const granuleGeometry = new THREE.SphereGeometry(1, 20, 14);
+  const granuleGeometry = new THREE.SphereGeometry(1, 14, 10);
   const granules = [];
+  const lysosomeMaterial = new THREE.MeshPhysicalMaterial({ color: 0xe38af9, emissive: 0x7a2a90, emissiveIntensity: 0.5, roughness: 0.25, clearcoat: 1 });
+  const vesicleMaterial = new THREE.MeshPhysicalMaterial({ color: 0x55e0ff, emissive: 0x0a5a80, emissiveIntensity: 0.5, roughness: 0.25, clearcoat: 1 });
   for (let i = 0; i < 26; i += 1) {
     const lysosome = i % 3 !== 0;
-    const mesh = new THREE.Mesh(granuleGeometry, new THREE.MeshPhysicalMaterial({
-      color: lysosome ? 0xe38af9 : 0x55e0ff,
-      emissive: lysosome ? 0x7a2a90 : 0x0a5a80, emissiveIntensity: 0.5,
-      roughness: 0.25, clearcoat: 1,
-    }));
+    const mesh = new THREE.Mesh(granuleGeometry, lysosome ? lysosomeMaterial : vesicleMaterial);
     const r = 0.9 + Math.random() * 0.55;
     const theta = Math.random() * Math.PI * 2, phi = Math.acos(2 * Math.random() - 1);
     const home = new THREE.Vector3(Math.sin(phi) * Math.cos(theta), Math.cos(phi), Math.sin(phi) * Math.sin(theta)).multiplyScalar(r);
@@ -642,9 +645,24 @@
   }, { passive: true });
 
   let clockStart = performance.now();
+  // If frames take too long, lower the drawing resolution step by step.
+  let slowFrames = 0, lastNow = 0;
+  function adapt(now) {
+    const dt = lastNow ? now - lastNow : 16;
+    lastNow = now;
+    slowFrames = dt > 24 ? slowFrames + 1 : Math.max(0, slowFrames - 1);
+    if (slowFrames > 45 && pixelRatio > 0.75) {
+      pixelRatio = Math.max(0.75, pixelRatio - 0.25);
+      renderer.setPixelRatio(pixelRatio);
+      layout();
+      slowFrames = 0;
+    }
+  }
+
   function frame(now) {
+    if (!reduceMotion) adapt(now);
     const time = reduceMotion ? 0 : (now - clockStart) / 1000;
-    progress += (target - progress) * (reduceMotion ? 1 : 0.07);
+    progress += (target - progress) * (reduceMotion ? 1 : 0.1);
     if (Math.abs(target - progress) < 0.0005) progress = target;
 
     eased.x += (pointer.x - eased.x) * 0.04;

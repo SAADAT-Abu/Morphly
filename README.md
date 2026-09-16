@@ -31,7 +31,7 @@ machine. No account, no subscription, no upload of unpublished work to anyone
 else's server.
 
 <div align="center">
-<img src="docs/screenshot.png" alt="The Morphly editor: asset library, canvas, properties and layers" width="900">
+<img src="docs/Screenshot_renal_capsule.png" alt="The Morphly editor with a labelled drawing of a renal corpuscle: asset library, canvas, properties and layers" width="900">
 </div>
 
 ## Features

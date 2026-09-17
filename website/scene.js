@@ -486,34 +486,6 @@
   const smooth = (x) => { x = clamp01(x); return x * x * (3 - 2 * x); };
   const span = (p, a, b) => smooth((p - a) / (b - a));
 
-  const STAGES = [
-    { until: 0.18, name: "Sensing", text: "A macrophage picks up the trail of a bacterium." },
-    { until: 0.36, name: "Contact", text: "Filopodia reach out and receptors grip the surface." },
-    { until: 0.62, name: "Engulfment", text: "The membrane wraps around the bacterium and closes." },
-    { until: 0.88, name: "Digestion", text: "Lysosomes fuse with the phagosome and break it down." },
-    { until: 1.01, name: "Resolution", text: "The cell moves on, ready for the next one." },
-  ];
-  const captionName = document.getElementById("stage-name");
-  const captionText = document.getElementById("stage-text");
-  const captionCount = document.getElementById("stage-count");
-  const captionBars = Array.from(document.querySelectorAll(".stage-steps span"));
-  let shownStage = -1;
-  function updateCaption(p) {
-    if (!captionName) return;
-    const index = STAGES.findIndex((s) => p < s.until);
-    if (index !== shownStage) {
-      shownStage = index;
-      captionName.textContent = STAGES[index].name;
-      captionText.textContent = STAGES[index].text;
-      captionCount.textContent = `${index + 1} / ${STAGES.length}`;
-    }
-    let start = 0;
-    STAGES.forEach((s, i) => {
-      captionBars[i].style.transform = `scaleX(${clamp01((p - start) / (Math.min(1, s.until) - start))})`;
-      start = s.until;
-    });
-  }
-
   const M_START = new THREE.Vector3(-1.5, -0.35, 0);
   const M_END = new THREE.Vector3(-0.55, -0.1, 0);
   const APPROACH = new THREE.Vector3(1, 0.42, 0.18).normalize();
@@ -686,7 +658,6 @@
 
     stage.position.x = stageRight + (stageFar - stageRight) * span(progress, 0.02, 0.12);
     pose(progress, time);
-    updateCaption(progress);
     renderer.render(scene, camera);
   }
 

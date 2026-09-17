@@ -186,20 +186,6 @@ section { padding-block: clamp(64px, 9vw, 120px); }
   border-radius: 8px; color: #050818; background: var(--grad);
 }
 
-/* The progress of the phagocytosis story, pinned to the corner. */
-.stage-caption {
-  position: fixed; right: max(16px, 2vw); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); z-index: 15;
-  display: grid; gap: 8px; width: 200px; padding: 12px 14px;
-  font-size: 0.84rem; color: var(--muted);
-  border-radius: 14px;
-}
-.stage-caption .kicker { font: 500 0.7rem var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--faint); display: flex; justify-content: space-between; }
-.stage-caption b { color: var(--text); font: 700 1rem var(--display); }
-.stage-steps { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
-.stage-steps i { height: 3px; border-radius: 3px; background: rgba(160, 185, 255, 0.18); overflow: hidden; position: relative; }
-.stage-steps i span { position: absolute; inset: 0; background: var(--grad); transform-origin: left; transform: scaleX(0); }
-/* Only where the side margin is wide enough to keep it clear of the content. */
-@media (max-width: 1639px) { .stage-caption { display: none; } }
 
 /* == Features == */
 .bento { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 16px; }
@@ -365,13 +351,6 @@ footer .privacy { color: var(--faint); font-size: 0.85rem; }
     <a class="btn btn-primary" href="#download">Download</a>
   </div>
 </nav>
-
-<div class="stage-caption glass" id="stage-caption" aria-hidden="true">
-  <span class="kicker"><span>Phagocytosis</span><span id="stage-count">1 / 5</span></span>
-  <b id="stage-name">Sensing</b>
-  <span id="stage-text">A macrophage picks up the trail of a bacterium.</span>
-  <span class="stage-steps"><i><span></span></i><i><span></span></i><i><span></span></i><i><span></span></i><i><span></span></i></span>
-</div>
 
 <header class="hero" id="top">
   <div class="wrap">

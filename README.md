@@ -13,6 +13,9 @@ and export true vector PNG, SVG or PDF.
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 ![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Windows%20%7C%20macOS-lightgrey)
 ![Status](https://img.shields.io/badge/status-v0.4%20early-orange)
+[![Website](https://img.shields.io/badge/website-morphly.pages.dev-7b5cf5)](https://morphly.pages.dev)
+
+**[Website](https://morphly.pages.dev)** · **[Download](https://morphly.pages.dev/#download)** · **[Changelog](CHANGELOG.md)**
 
 </div>
 

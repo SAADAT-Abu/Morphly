@@ -17,6 +17,8 @@ and export true vector PNG, SVG or PDF.
 
 **[Website](https://morphly.pages.dev)** · **[Download](https://morphly.pages.dev/#download)** · **[Changelog](CHANGELOG.md)**
 
+<a href="https://alternativeto.net/software/morphly--scientific-figures-for-free/about/?utm_source=badge&amp;utm_medium=referral"><img src="https://alternativeto.net/static/badges/badge-wide-color.svg" alt="Morphly on AlternativeTo" width="203" height="37"></a>
+
 </div>
 
 ---

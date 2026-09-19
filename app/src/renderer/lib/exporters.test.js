@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { XMLValidator } from "fast-xml-parser";
 import { buildSvg } from "./exporters";
+import { sampleDataset } from "./datasets";
+import { defaultPlot } from "./plotRender";
 
 const canvas = { width: 400, height: 300, background: "#ffffff" };
 let n = 0;
@@ -194,5 +196,25 @@ describe("buildSvg elements", () => {
     expect(svg).toContain('fill="none"');
     expect(svg).not.toContain("#111111");
     expect(svg).not.toContain("#222222");
+  });
+});
+
+describe("buildSvg graphs", () => {
+  const ds = sampleDataset("groups");
+  const graph = el({ type: "plot", width: 300, height: 220, datasetId: ds.id, plot: defaultPlot("bar", { fontSize: 12 }) });
+
+  it("embeds a graph as vectors, drawn from its dataset", () => {
+    const svg = exportOf([graph], { datasets: [ds] });
+    wellFormed(svg);
+    expect(svg).toContain('<g transform="translate(10 20)">');
+    expect(svg).toContain('data-part="bars"');
+    expect(svg).toContain(">Drug B</text>");
+    expect(svg).toContain('width="300" height="220"');
+  });
+
+  it("says the data is missing rather than failing", () => {
+    const svg = exportOf([graph]);
+    wellFormed(svg);
+    expect(svg).toContain("The data for this graph is missing");
   });
 });

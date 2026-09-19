@@ -16,6 +16,7 @@ import { lineEnds } from "../lib/connectors";
 import { analyseSvg, topContainer, partPalette, partLabel } from "../lib/svgParts";
 import { effectiveColorMap } from "../lib/svgPalette";
 import { extractPalette } from "../lib/svgPalette";
+import GraphPanel from "./GraphPanel";
 
 export default function Inspector() {
   const elements = useStore((s) => s.elements);
@@ -58,6 +59,8 @@ export default function Inspector() {
           {single && single.type === "table" && <TableFields element={single} />}
 
           {single && single.type === "image" && <ImageFields element={single} />}
+
+          {single && single.type === "plot" && <GraphPanel element={single} />}
 
           {single && single.type === "asset" && (
             partEdit?.elementId === single.id ? (

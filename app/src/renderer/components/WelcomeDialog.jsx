@@ -58,6 +58,10 @@ export default function WelcomeDialog({ onClose, onOpenHelp, onAddLibrary }) {
             Every illustration is a real vector. Change one swatch and every shape using
             that colour follows, with no need to touch hundreds of paths by hand.
           </Point>
+          <Point icon="📊" title="Graph your data, with statistics">
+            Paste or import your numbers for bar, dot, box and X and Y graphs. Morphly suggests
+            a test, draws the significance brackets and writes the methods sentence.
+          </Point>
           <Point icon="📄" title="Export figures that stay sharp">
             PNG, JPEG, SVG and PDF. Vector output scales to any size, and asset credits can be
             written into the file for you.

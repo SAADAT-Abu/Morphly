@@ -10,6 +10,7 @@
 import { artworkText } from "./svgParts";
 import { offsets, cellCorners, isHeaderCell } from "./tableLayout";
 import { connectorGeometry } from "./connectors";
+import { graphSvg } from "./graphs";
 
 const escapeXml = (s) =>
   String(s ?? "")
@@ -151,7 +152,7 @@ function textLines(element, stage) {
   return String(element.text ?? "").split("\n");
 }
 
-function elementToSvg(element, stage, lookup) {
+function elementToSvg(element, stage, lookup, datasetOf) {
   const transform = `translate(${element.x} ${element.y})${
     element.rotation ? ` rotate(${element.rotation})` : ""
   }`;
@@ -261,6 +262,12 @@ function elementToSvg(element, stage, lookup) {
       break;
     }
 
+    case "plot":
+      // Drawn from its data by the same code as on the canvas (lib/graphs.js),
+      // so axes, points and brackets come out as real vectors.
+      body = sizedSvg(graphSvg(element, datasetOf(element.datasetId)), element.width, element.height);
+      break;
+
     default:
       return "";
   }
@@ -299,12 +306,13 @@ function elementToSvg(element, stage, lookup) {
 }
 
 /** Full SVG document for the current figure. */
-export function buildSvg({ elements, canvas, stage, transparent = false, citationText = null }) {
+export function buildSvg({ elements, canvas, stage, transparent = false, citationText = null, datasets = [] }) {
   const visible = elements.filter((el) => el.visible);
   // Glued connectors need to find their targets, hidden or not.
   const byId = new Map(elements.map((el) => [el.id, el]));
   const lookup = (id) => byId.get(id);
-  const body = visible.map((el) => elementToSvg(el, stage, lookup)).join("\n  ");
+  const datasetOf = (id) => datasets.find((d) => d.id === id) ?? null;
+  const body = visible.map((el) => elementToSvg(el, stage, lookup, datasetOf)).join("\n  ");
 
   const background = transparent
     ? ""

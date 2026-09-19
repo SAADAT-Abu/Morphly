@@ -23,6 +23,9 @@ const { prepareSvg, MAX_IMPORT_BYTES } = require("./svgImport");
 const ok = (data) => ({ ok: true, ...data });
 const fail = (err) => ({ ok: false, error: String(err?.message ?? err) });
 
+/** Largest table of numbers accepted for a graph. */
+const MAX_TABLE_BYTES = 10 * 1024 * 1024;
+
 /** The folder figures and exports go to, created if it is not there yet, so
  *  dialogs open in it rather than somewhere arbitrary. */
 async function ensureSaveFolder() {
@@ -246,6 +249,35 @@ function registerIpc({ recovery } = {}) {
    * file has been moved or renamed. Pixel dimensions are read in the renderer,
    * which already has an image decoder.
    */
+  /**
+   * Pick a table of numbers (CSV, TSV or text) for a graph. Only the text is
+   * returned: it is split into cells in the renderer, which already works out
+   * separators and decimal commas for pasted data, so one reader serves both.
+   */
+  ipcMain.handle("data:importTable", async (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    const result = await dialog.showOpenDialog(win, {
+      title: "Import data",
+      properties: ["openFile"],
+      filters: [
+        { name: "Tables", extensions: ["csv", "tsv", "txt"] },
+        { name: "All files", extensions: ["*"] },
+      ],
+    });
+    if (result.canceled || result.filePaths.length === 0) return { ok: false, canceled: true };
+    const filePath = result.filePaths[0];
+    try {
+      const { size } = await fs.stat(filePath);
+      // Lab tables are kilobytes; a limit keeps a mistaken pick from
+      // freezing the window or bloating the figure file.
+      if (size > MAX_TABLE_BYTES) return fail("the file is larger than 10 MB");
+      const text = await fs.readFile(filePath, "utf8");
+      return { ok: true, text, name: path.basename(filePath).replace(/\.[^.]+$/, "") };
+    } catch (err) {
+      return fail(err);
+    }
+  });
+
   ipcMain.handle("image:import", async (event) => {
     const win = BrowserWindow.fromWebContents(event.sender);
     const result = await dialog.showOpenDialog(win, {

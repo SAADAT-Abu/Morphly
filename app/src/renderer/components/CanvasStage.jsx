@@ -30,6 +30,7 @@ import {
 
 import { useStore } from "../store";
 import { useSvgImage, useSvgImageFromText, useRasterImage } from "../lib/useSvgImage";
+import { graphSvg } from "../lib/graphs";
 import { offsets, cellAtPoint, cellCorners, isHeaderCell } from "../lib/tableLayout";
 import { buildIsolationSvg, effectiveColorMap } from "../lib/svgPalette";
 import { isPanel } from "../lib/panelLayout";
@@ -121,6 +122,28 @@ function AssetShape({ element }) {
     );
   }
   return <KonvaImage image={image} width={element.width} height={element.height} />;
+}
+
+/**
+ * A graph, drawn from its dataset (lib/graphs.js) and shown as a picture, the
+ * same way an illustration is. The picture is rebuilt only when the graph's
+ * size, settings or numbers change, so dragging a graph costs nothing.
+ */
+function PlotShape({ element }) {
+  const dataset = useStore((s) => s.datasets.find((d) => d.id === element.datasetId) ?? null);
+  const text = useMemo(
+    () => graphSvg(element, dataset),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [element.width, element.height, element.plot, dataset]
+  );
+  const image = useSvgImageFromText(text);
+  return (
+    <>
+      {/* An invisible face, so the whole box can be clicked, not just its ink. */}
+      <Rect width={element.width} height={element.height} fill="#ffffff" opacity={0.001} />
+      {image && <KonvaImage image={image} width={element.width} height={element.height} listening={false} />}
+    </>
+  );
 }
 
 /**
@@ -361,6 +384,8 @@ function ElementShape({ element, lookup }) {
       return <TableShape element={element} />;
     case "asset":
       return <AssetShape element={element} />;
+    case "plot":
+      return <PlotShape element={element} />;
     default:
       return null;
   }
@@ -1138,6 +1163,11 @@ export default function CanvasStage({ stageRef, onRequestTextEdit, onExternalDro
                 }
                 if (element.type === "asset" && !partEdit) {
                   enterPartEdit(element.id);
+                  return;
+                }
+                if (element.type === "plot") {
+                  // A graph's content is its numbers: double-click opens them.
+                  useStore.getState().openData(element.datasetId);
                   return;
                 }
                 if (element.type === "text" || LABELLABLE.includes(element.type)) {

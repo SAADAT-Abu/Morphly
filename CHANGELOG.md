@@ -13,6 +13,30 @@ Planned work is described in the [roadmap](README.md#roadmap).
 
 ### Added
 
+- **Graphs from your data.** Insert → Graph (Ctrl+Shift+B) in three steps: what
+  the data looks like (groups, or X and Y), the numbers (sample data, pasted
+  cells, a CSV file, an empty table or data already in the figure, with a
+  "How Morphly read it" check that handles semicolons and decimal commas), and
+  the graph (bar and points, dot plot, box and whiskers, scatter, or points and
+  lines), previewed with your numbers. A graph can fill the selected panel.
+  Graphs are drawn Prism-style, resize without stretching their text, and
+  export as true vectors to SVG and PDF.
+- **A data table under the canvas.** Type or paste a block of cells and the
+  graph redraws as you go, with each column's mean, SD and n below it.
+  Double-click a graph to open its numbers. An icon in the table's corner pops
+  it out into a separate window for a long table or a second screen.
+- **A Data tab** in the left sidebar lists every table in the figure, shows
+  which graphs use it, and can import a CSV or start an empty table. Several
+  graphs can share one table and stay in step.
+- **Statistics, checked against R 4.6.** A suggested test with its reason
+  (Shapiro-Wilk for normality, Brown-Forsythe for spread), or your own choice:
+  unpaired, Welch's and paired t tests, Mann-Whitney and Wilcoxon (exact below
+  50 values, ties included), one-way ANOVA with Tukey, Welch's ANOVA with
+  Games-Howell, Kruskal-Wallis with Dunn's test (Holm), repeated measures ANOVA
+  and Friedman with Holm-corrected pairwise tests. Ticked comparisons are drawn
+  as brackets with stars; significant ones start ticked. A methods sentence can
+  be copied into a manuscript. X and Y graphs show linear fits, Pearson and
+  Spearman correlations.
 - **Continuous loading in the asset library.** Thumbnails load as you scroll,
   replacing the "Show 90 more" button, and a counter above the grid says which
   illustrations are on screen ("Showing 181 to 225 of 2,531", or "of 1,204
@@ -20,6 +44,13 @@ Planned work is described in the [roadmap](README.md#roadmap).
   [issue #1](https://github.com/SAADAT-Abu/Morphly/issues/1).
 - **JPEG export** at 1×, 2× or 4×, with a choice of quality, alongside PNG,
   SVG and PDF. Also from issue #1.
+
+### Changed
+
+- File format version 4, which stores the figure's data tables. Figures from
+  0.4 open unchanged; Morphly 0.4 declines to open a version 4 file rather
+  than lose its graphs.
+- Help, About shows the real version number instead of "v0.1".
 
 ## [0.4.0] - 2026-09-15
 

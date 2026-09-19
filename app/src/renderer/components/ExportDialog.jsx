@@ -28,6 +28,7 @@ const JPEG_QUALITIES = [
 
 export default function ExportDialog({ stageRef, onClose }) {
   const elements = useStore((s) => s.elements);
+  const datasets = useStore((s) => s.datasets);
   const canvas = useStore((s) => s.canvas);
   const zoom = useStore((s) => s.zoom);
   const stagePos = useStore((s) => s.stagePos);
@@ -98,7 +99,7 @@ export default function ExportDialog({ stageRef, onClose }) {
               : [{ name: "PNG image", extensions: ["png"] }],
         });
       } else if (format === "svg") {
-        const svg = buildSvg({ elements, canvas, stage, transparent, citationText });
+        const svg = buildSvg({ elements, canvas, stage, transparent, citationText, datasets });
         result = await window.morphly.exportFile({
           content: svg,
           encoding: "utf8",
@@ -106,7 +107,7 @@ export default function ExportDialog({ stageRef, onClose }) {
           filters: [{ name: "SVG image", extensions: ["svg"] }],
         });
       } else {
-        const svg = buildSvg({ elements, canvas, stage, transparent: false, citationText });
+        const svg = buildSvg({ elements, canvas, stage, transparent: false, citationText, datasets });
         // SVG user units map 1:1 to CSS px; PDF points are 72/96 of that.
         const ptPerPx = 72 / 96;
         const extra = citationText ? citationText.split("\n").length * canvas.height * 0.021 : 0;

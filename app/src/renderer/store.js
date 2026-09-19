@@ -16,6 +16,8 @@ import { alignMoves, distributeMoves, applyMoves } from "./lib/align";
 import { measuredHeight } from "./lib/measure";
 import { copyElements, pasteElements, offsetToCentre, reorderSelection } from "./lib/clipboard";
 import { analyseSvg, topContainer, parentKey, cleanEdit, canvasDeltaToUser } from "./lib/svgParts";
+import { applyDatasetOp, createDataset, DATASET_KINDS } from "./lib/datasets";
+import { defaultPlot } from "./lib/plotRender";
 
 let groupCounter = 0;
 
@@ -55,11 +57,29 @@ const makePage = (name, canvas = DEFAULT_CANVAS, elements = []) => ({
   elements,
 });
 
-/** Fields that make up a saved document -- everything else is view state. */
+/** Fields that make up a saved document -- everything else is view state.
+ *  Datasets belong to the whole document rather than to a page, but they are
+ *  snapshotted with the page's history, so editing numbers can be undone like
+ *  any other change. */
 const documentSlice = (state) => ({
   elements: state.elements,
   canvas: state.canvas,
+  datasets: state.datasets,
 });
+
+/** A dataset read from a file, checked and brought into shape. Anything that
+ *  is not recognisably a table is dropped rather than trusted. */
+const cleanDataset = (d) =>
+  d && typeof d === "object" && typeof d.id === "string" && Array.isArray(d.columns)
+    ? createDataset({
+        id: d.id,
+        name: typeof d.name === "string" ? d.name : "Data",
+        kind: DATASET_KINDS[d.kind] ? d.kind : "groups",
+        columns: d.columns
+          .filter((c) => c && typeof c === "object")
+          .map((c) => ({ name: String(c.name ?? ""), values: Array.isArray(c.values) ? c.values.map((v) => String(v ?? "")) : [] })),
+      })
+    : null;
 
 const INITIAL_PAGE = makePage("Figure 1");
 
@@ -76,6 +96,8 @@ export const useStore = create((set, get) => ({
    *  through allPages(), which refreshes the active entry first. */
   pages: [INITIAL_PAGE],
   activePageId: INITIAL_PAGE.id,
+  /** The numbers behind graphs (lib/datasets.js), shared by every page. */
+  datasets: [],
 
   // -- view state (never saved, never undone) ------------------------------
   selectedIds: [],
@@ -97,6 +119,15 @@ export const useStore = create((set, get) => ({
   clipboard: null,
   /** How many times the clipboard has been pasted, so copies step away. */
   pasteCount: 0,
+  /** Datasets used by copied graphs, so a graph pasted into another figure
+   *  brings its numbers along. */
+  clipboardDatasets: [],
+  /** The data drawer under the canvas: which dataset it shows, and whether it
+   *  is open, expanded, or popped out into its own window. */
+  dataView: { datasetId: null, open: false, expanded: false, popped: false },
+  /** Which tab the left sidebar shows: "illustrations" or "data". */
+  sidebarTab: "illustrations",
+  setSidebarTab: (sidebarTab) => set({ sidebarTab }),
   /** Editing the parts of one illustration (lib/svgParts.js), or null:
    *  { elementId, container: part key being looked inside, selected: [part keys] } */
   partEdit: null,
@@ -518,6 +549,96 @@ export const useStore = create((set, get) => ({
     set((s) => ({ elements: [...s.elements, element], selectedIds: [element.id] }));
     return element.id;
   },
+
+  // -- graphs and their data -------------------------------------------------
+
+  /**
+   * Insert a graph. `dataset` is a new dataset to add with it; `datasetId`
+   * points at one the document already has instead. With `box`, the graph
+   * fills that area (a panel); otherwise it goes in the middle of the page.
+   * Type and lines are sized for the page, so a graph reads the same on a
+   * poster as in a single column figure.
+   */
+  addGraph: ({ dataset = null, datasetId = null, kind = "bar", box = null, name = "Graph" } = {}) => {
+    const { canvas, datasets, elements } = get();
+    const id = dataset ? dataset.id : datasetId;
+    if (!id) return null;
+    const fontSize = Math.max(10, Math.round(Math.min(canvas.width, canvas.height) * 0.02));
+    let area = box;
+    if (!area) {
+      const width = Math.round(canvas.width * 0.42);
+      const height = Math.round(width * 0.75);
+      area = { x: canvas.width / 2 - width / 2, y: canvas.height / 2 - height / 2, width, height };
+    }
+    const count = elements.filter((el) => el.type === "plot").length + 1;
+    const element = get()._base({
+      type: "plot",
+      name: `${name} ${count}`,
+      x: area.x,
+      y: area.y,
+      width: area.width,
+      height: area.height,
+      datasetId: id,
+      plot: defaultPlot(kind, { fontSize }),
+    });
+    get().commit();
+    set({
+      datasets: dataset ? [...datasets, dataset] : datasets,
+      elements: [...elements, element],
+      selectedIds: [element.id],
+      activeTool: "select",
+      dataView: { ...get().dataView, datasetId: id, open: !get().dataView.popped || get().dataView.open },
+      dirty: true,
+    });
+    return element.id;
+  },
+
+  /** Change a graph's settings (element.plot). */
+  updatePlot: (id, patch, { commit = true } = {}) => {
+    if (commit) get().commit();
+    set((s) => ({
+      elements: s.elements.map((el) => (el.id === id && el.type === "plot" ? { ...el, plot: { ...el.plot, ...patch } } : el)),
+      dirty: true,
+    }));
+  },
+
+  /** Add a dataset on its own, for example one imported from the Data tab. */
+  addDataset: (dataset) => {
+    get().commit();
+    set((s) => ({ datasets: [...s.datasets, dataset], dirty: true }));
+    return dataset.id;
+  },
+
+  /**
+   * Edit a dataset (lib/datasets.js applyDatasetOp). Typing in a cell calls
+   * this on every keystroke with commit=false after the first, so a word typed
+   * is one undo step rather than one per letter.
+   */
+  editDataset: (id, op, { commit = true } = {}) => {
+    const current = get().datasets.find((d) => d.id === id);
+    if (!current) return;
+    const next = applyDatasetOp(current, op);
+    if (next === current) return;
+    if (commit) get().commit();
+    set((s) => ({ datasets: s.datasets.map((d) => (d.id === id ? next : d)), dirty: true }));
+  },
+
+  /** Remove a dataset. Graphs still using it show that their data is missing. */
+  deleteDataset: (id) => {
+    if (!get().datasets.some((d) => d.id === id)) return;
+    get().commit();
+    set((s) => ({
+      datasets: s.datasets.filter((d) => d.id !== id),
+      dataView: s.dataView.datasetId === id ? { ...s.dataView, datasetId: null, open: false } : s.dataView,
+      dirty: true,
+    }));
+  },
+
+  /** Show a dataset in the drawer (or in its window, when popped out). */
+  openData: (datasetId) =>
+    set((s) => ({ dataView: { ...s.dataView, datasetId: datasetId ?? s.dataView.datasetId, open: true } })),
+  closeData: () => set((s) => ({ dataView: { ...s.dataView, open: false } })),
+  setDataView: (patch) => set((s) => ({ dataView: { ...s.dataView, ...patch } })),
 
   // -- element mutation ----------------------------------------------------
 
@@ -1014,7 +1135,13 @@ export const useStore = create((set, get) => ({
   copySelected: () => {
     const { elements, selectedIds } = get();
     if (selectedIds.length === 0) return false;
-    set({ clipboard: copyElements(elements, selectedIds), pasteCount: 0 });
+    const clipboard = copyElements(elements, selectedIds);
+    const used = new Set(clipboard.filter((el) => el.type === "plot").map((el) => el.datasetId));
+    set({
+      clipboard,
+      clipboardDatasets: get().datasets.filter((d) => used.has(d.id)),
+      pasteCount: 0,
+    });
     return true;
   },
 
@@ -1045,7 +1172,11 @@ export const useStore = create((set, get) => ({
       ...offset,
     });
     get().commit();
+    // A graph pasted into a figure that lacks its data brings the data along.
+    const have = new Set(get().datasets.map((d) => d.id));
+    const missing = get().clipboardDatasets.filter((d) => !have.has(d.id));
     set((s) => ({
+      datasets: missing.length ? [...s.datasets, ...missing] : s.datasets,
       elements: [...s.elements, ...pasted],
       selectedIds: pasted.map((el) => el.id),
       pasteCount: count,
@@ -1265,6 +1396,8 @@ export const useStore = create((set, get) => ({
 
     const active = pages.find((p) => p.id === doc.activePageId) ?? pages[0];
     set({
+      datasets: (Array.isArray(doc.datasets) ? doc.datasets : []).map(cleanDataset).filter(Boolean),
+      dataView: { ...get().dataView, datasetId: null, open: false },
       pages,
       activePageId: active.id,
       elements: active.elements,
@@ -1282,6 +1415,8 @@ export const useStore = create((set, get) => ({
   newDocument: () => {
     const page = makePage("Figure 1");
     set({
+      datasets: [],
+      dataView: { ...get().dataView, datasetId: null, open: false },
       pages: [page],
       activePageId: page.id,
       elements: [],

@@ -20,7 +20,7 @@ export const RECOVERY_INTERVAL_MS = 20000;
 export const RECOVERY_MIN_DELAY_MS = 3000;
 
 /** Store fields that belong to the figure, as opposed to the view. */
-const DOCUMENT_KEYS = ["elements", "canvas", "pages", "activePageId", "projectPath", "title"];
+const DOCUMENT_KEYS = ["elements", "canvas", "pages", "activePageId", "datasets", "projectPath", "title"];
 
 /** The copy as written: the figure in the normal file format, plus where it
  *  was last saved so a restored figure saves back to the same file. */
@@ -30,7 +30,7 @@ export function buildSnapshot(state, now = new Date()) {
     savedAt: now.toISOString(),
     projectPath: state.projectPath ?? null,
     title: state.title ?? null,
-    document: serialise({ pages: state.allPages(), activePageId: state.activePageId }),
+    document: serialise({ pages: state.allPages(), activePageId: state.activePageId, datasets: state.datasets }),
   };
 }
 

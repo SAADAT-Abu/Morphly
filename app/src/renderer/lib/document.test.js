@@ -87,7 +87,22 @@ describe("serialise", () => {
       version: CURRENT_VERSION,
       pages: [page()],
       activePageId: "pg_1",
+      datasets: [],
     });
+  });
+
+  it("saves the datasets beside the pages", () => {
+    const datasets = [{ id: "ds_1", name: "Viability", kind: "groups", columns: [{ name: "A", values: ["1"] }] }];
+    const saved = serialise({ pages: [page()], activePageId: "pg_1", datasets });
+    expect(saved.datasets).toBe(datasets);
+    expect(migrate(JSON.parse(JSON.stringify(saved))).datasets).toEqual(datasets);
+  });
+
+  it("gives a 0.4 figure (version 3) an empty list of datasets", () => {
+    const old = { format: FORMAT, version: 3, pages: [page()], activePageId: "pg_1" };
+    const doc = migrate(old);
+    expect(doc.version).toBe(4);
+    expect(doc.datasets).toEqual([]);
   });
 
   it("round-trips through a save and an open", () => {

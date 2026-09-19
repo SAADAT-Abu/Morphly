@@ -61,6 +61,20 @@ else's server.
   double-clicking it on the canvas. Rows and columns can be added or removed at
   any time, and headers, row shading, borders, cell padding and rounded corners
   are all adjustable.
+- **Graphs from your data**: Insert → Graph asks what your data looks like
+  (groups, or X and Y), takes sample data, pasted cells, a CSV file or an empty
+  table, shows how it read each column (semicolons and decimal commas are
+  fine), and previews bar, dot, box, scatter and line graphs drawn from your
+  numbers. The graph is an ordinary element that can fill a panel, and it
+  redraws as you edit the numbers in the table under the canvas, which can pop
+  out into its own window for a long table or a second screen.
+- **Statistics, checked against R**: Morphly suggests a test and says why
+  (Shapiro-Wilk for normality, Brown-Forsythe for spread): unpaired, Welch's and
+  paired t tests, Mann-Whitney, Wilcoxon, one-way, Welch's and repeated measures
+  ANOVA with Tukey, Games-Howell or Holm follow-up, Kruskal-Wallis with Dunn's
+  test, and Friedman; linear fits and correlations for X and Y. Tick a
+  comparison to draw its bracket and stars, and copy a ready-made methods
+  sentence.
 - **Image import**: bring in plots, micrographs and photos as PNG, JPEG, GIF,
   WebP or BMP, from the toolbar or by dragging files onto the canvas.
   Images are stored inside the .morphly file, so a saved figure still opens
@@ -240,8 +254,8 @@ file. Both libraries can be mounted at once and are browsed together.
 3. **Recolour**: select the illustration and edit the swatches in the Colours
    panel.
 4. **Build the figure**: add shapes, arrows and labels from the toolbar, and
-   tables, images or a panel layout from the Insert buttons beside them.
-   Guides appear as things line up, and the grid button gives you a
+   graphs, tables, images or a panel layout from the Insert buttons beside
+   them. Guides appear as things line up, and the grid button gives you a
    background grid to work against.
 5. **Export**: PNG or JPEG for a quick look or slides, SVG to keep editing
    elsewhere, PDF for submission. Leave *Append asset citations* ticked.
@@ -304,6 +318,9 @@ creators.
 | [React](https://react.dev) | User interface | MIT |
 | [Konva](https://konvajs.org) / [react-konva](https://github.com/konvajs/react-konva) | Canvas engine | MIT |
 | [Zustand](https://github.com/pmndrs/zustand) | Editor state | MIT |
+| [stdlib](https://stdlib.io) | Statistical distributions | Apache-2.0 |
+| [d3-array](https://github.com/d3/d3-array) | Graph axis ticks | ISC |
+| [Papa Parse](https://www.papaparse.com) | Reading CSV and pasted tables | MIT |
 | [Vite](https://vite.dev) | Build tooling | MIT |
 | [electron-builder](https://www.electron.build) | Installers | MIT |
 | [Requests](https://requests.readthedocs.io) | Asset fetching | Apache-2.0 |

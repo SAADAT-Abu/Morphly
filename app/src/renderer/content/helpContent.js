@@ -60,6 +60,7 @@ export const SHORTCUTS = [
       ["L", "Line"],
       ["A", "Arrow"],
       ["T", "Text"],
+      ["Ctrl + Shift + B", "Insert a graph"],
       ["Ctrl + Shift + T", "Insert a table"],
       ["Ctrl + Shift + L", "Insert a panel layout"],
       ["Ctrl + Shift + M", "Insert an image"],
@@ -87,6 +88,7 @@ export const SHORTCUTS = [
       ["Shift + arrows", "Nudge 20 px"],
       ["Double-click text", "Edit in place"],
       ["Double-click a cell", "Edit that table cell"],
+      ["Double-click a graph", "Open its data under the canvas"],
       ["Shift + click", "Add to selection"],
       ["Drag on empty space", "Select everything the band touches"],
       ["Shift + drag", "Add the band to the selection"],
@@ -106,6 +108,16 @@ export const SHORTCUTS = [
       ["Ctrl + apostrophe", "Show or hide the grid"],
       ["Ctrl + PageDown", "Next figure page"],
       ["Ctrl + PageUp", "Previous figure page"],
+    ],
+  },
+  {
+    group: "Data table",
+    items: [
+      ["Enter / Down", "Next row"],
+      ["Up", "Previous row"],
+      ["Tab", "Next column"],
+      ["Ctrl + V", "Paste a block of cells from a spreadsheet"],
+      ["Ctrl + Z (data window)", "Undo in the figure"],
     ],
   },
   {
@@ -205,7 +217,31 @@ export const GETTING_STARTED = [
       "reading order and update by themselves when a panel is moved or deleted.",
   },
   {
-    title: "6. Keep several figures in one document",
+    title: "6. Make a graph from your data",
+    body:
+      "The graph button in the toolbar, or Insert → Graph, asks three things. First, what " +
+      "your data looks like: groups (control, treated and so on, one column each) or X and " +
+      "Y (a time course or a dose response, X in the first column). Then the numbers: " +
+      "sample data to try things with, cells pasted from Excel, LibreOffice, R or Python, " +
+      "a CSV file, an empty table, or data already in the figure. Morphly shows how it read " +
+      "each column, and understands semicolons and decimal commas. Last, the kind of graph, " +
+      "previewed with your numbers: bar and points, dot plot, or box and whiskers for " +
+      "groups; scatter, or points and lines, for X and Y. With a panel selected, the graph " +
+      "fills it. The numbers open in a table under the canvas: type, paste a block, and the " +
+      "graph redraws as you go. The icon in the table's top right corner moves it into a " +
+      "window of its own, for a long table or a second screen. Double-click a graph to get " +
+      "its numbers back, and find every table in the figure in the Data tab of the left " +
+      "sidebar. The properties panel sets error bars (SD, SEM or 95% CI), axis titles and " +
+      "limits, text size and colours. For groups it also suggests a test and says why " +
+      "(normality by Shapiro-Wilk, spread by Brown-Forsythe): t tests, Mann-Whitney, " +
+      "one-way, Welch's or repeated measures ANOVA with Tukey, Games-Howell or Holm " +
+      "follow-up, Kruskal-Wallis with Dunn's test, Wilcoxon and Friedman. Tick a comparison " +
+      "to draw it as a bracket with stars; significant ones start ticked. Every p-value is " +
+      "checked against R. Copy the methods sentence into your manuscript. Graphs export as " +
+      "true vectors, like everything else.",
+  },
+  {
+    title: "7. Keep several figures in one document",
     body:
       "The tabs above the canvas are pages, one per figure. A paper's figures are " +
       "usually built together, so they live in a single .morphly file: add a page with " +
@@ -224,7 +260,7 @@ export const GETTING_STARTED = [
       "off with File → Autosave if you prefer to save by hand.",
   },
   {
-    title: "7. Art Packs",
+    title: "8. Art Packs",
     body:
       "The Art Store, in the sidebar header, lists illustration libraries you can add. Each " +
       "card says how many illustrations the pack holds, which subjects it covers, how large " +
@@ -235,7 +271,7 @@ export const GETTING_STARTED = [
       "pack is removed, because each element carries its own copy of the artwork.",
   },
   {
-    title: "8. Export",
+    title: "9. Export",
     body:
       "PNG for a quick look or slides, JPEG where a smaller file matters more than " +
       "transparency, SVG if you want to keep editing in Illustrator or Inkscape, PDF " +
@@ -298,6 +334,9 @@ export const SOFTWARE_CREDITS = [
   { name: "React", version: "19", license: "MIT", what: "User interface" },
   { name: "Konva / react-konva", version: "10 / 19", license: "MIT", what: "Canvas engine" },
   { name: "Zustand", version: "5", license: "MIT", what: "Editor state" },
+  { name: "stdlib", version: "0.2", license: "Apache-2.0", what: "Statistical distributions for p-values" },
+  { name: "d3-array", version: "3", license: "ISC", what: "Graph axis ticks" },
+  { name: "Papa Parse", version: "5", license: "MIT", what: "Reading CSV and pasted tables" },
   { name: "Vite", version: "7", license: "MIT", what: "Build tooling" },
   { name: "electron-builder", version: "26", license: "MIT", what: "Installers" },
   { name: "Requests", version: "2", license: "Apache-2.0", what: "Asset fetching (Python)" },

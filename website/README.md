@@ -37,6 +37,27 @@ cookie banner is needed.
    - one event per installer clicked, listed as `download/Morphly Setup 0.4.0.exe`
      and so on.
 
+## Email updates
+
+Addresses go straight to [MailerLite](https://www.mailerlite.com), which holds
+the list, sends the confirmation email and handles unsubscribing. This site
+never stores or sees them, so there is no database to secure.
+
+1. Create a MailerLite account and a group, for example "Morphly updates".
+2. Build an embedded form there and turn double opt-in on, so every subscriber
+   confirms by email. That is the record of consent.
+3. Copy the form's action address out of the embed code. It looks like
+   `https://assets.mailerlite.com/jsonp/123456/forms/7890123/subscribe`.
+4. In `index.html`, find `const NEWSLETTER` and put that address in `action`.
+
+That switches on both the signup box under the download cards and the small
+ask that appears after a download starts. The ask has a Skip button, closes
+with Escape, and does not come back for anyone who skipped or subscribed.
+An empty `action` keeps both hidden, which is how the site ships.
+
+Removal requests are handled in the MailerLite dashboard, and every email
+carries an unsubscribe link.
+
 The download counts are clicks on this page. Zenodo counts every download of
 the files separately, including links shared elsewhere, on the record page.
 

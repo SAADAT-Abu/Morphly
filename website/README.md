@@ -49,6 +49,7 @@ never stores or sees them, so there is no database to secure.
 3. Copy the form's action address out of the embed code. It looks like
    `https://assets.mailerlite.com/jsonp/123456/forms/7890123/subscribe`.
 4. In `index.html`, find `const NEWSLETTER` and put that address in `action`.
+   This site uses form 199139914384672337 in account 2648022.
 
 That switches on both the signup box under the download cards and the small
 ask that appears after a download starts. The ask has a Skip button, closes

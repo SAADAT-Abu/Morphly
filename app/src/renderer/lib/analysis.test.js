@@ -71,7 +71,15 @@ describe("analyseGroups", () => {
 
   it("explains what is missing instead of testing too little data", () => {
     expect(analyseGroups(groups([1, 2])).error).toMatch(/second group/);
-    expect(analyseGroups(groups([1, 2], [3])).error).toMatch(/at least 2 values/);
+    expect(analyseGroups(groups([1, 2], [3])).error).toMatch(/two groups need 2 or more values/);
+  });
+
+  it("leaves a group too small to test out of it, and says so", () => {
+    const ds = groups([1, 2, 3, 4], [6, 7, 8, 9], [5]);
+    const a = analyseGroups(ds);
+    expect(a.groups).toEqual([0, 1]);
+    expect(a.comparisons).toHaveLength(1);
+    expect(a.warnings[0]).toMatch(/G3 has fewer than 2 values/);
   });
 });
 

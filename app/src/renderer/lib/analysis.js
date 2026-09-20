@@ -155,9 +155,8 @@ const pPhrase = (p) => (p < 0.0001 ? "p < 0.0001" : `p = ${formatP(p)}`);
  * `comparisons` use dataset column indexes, so they line up with the graph.
  */
 export function analyseGroups(dataset, { test = "auto", paired = false } = {}) {
-  const cols = plottedGroups(dataset);
-  const k = cols.length;
-  if (k < 2) return { error: "Add a second group to compare." };
+  let cols = plottedGroups(dataset);
+  if (cols.length < 2) return { error: "Add a second group to compare." };
 
   let groups;
   const warnings = [];
@@ -168,13 +167,26 @@ export function analyseGroups(dataset, { test = "auto", paired = false } = {}) {
     if (rows.length < 2) return { error: "Paired tests need at least 2 complete rows." };
     groups = cols.map((_, j) => rows.map((r) => r[j]));
   } else {
+    // A column with a single value can be drawn but cannot be tested, so it is
+    // left out of the statistics rather than stopping them.
+    const tooSmall = cols.filter((c) => columnNumbers(dataset, c).length < 2);
+    if (tooSmall.length) {
+      const names = tooSmall.map((c) => dataset.columns[c].name || `Group ${c + 1}`);
+      warnings.push(
+        `${names.join(", ")} ${names.length === 1 ? "has" : "have"} fewer than 2 values, so ${
+          names.length === 1 ? "it is" : "they are"
+        } left out of the test.`
+      );
+      cols = cols.filter((c) => !tooSmall.includes(c));
+      if (cols.length < 2) return { error: "At least two groups need 2 or more values each." };
+    }
     groups = cols.map((c) => columnNumbers(dataset, c));
-    if (groups.some((g) => g.length < 2)) return { error: "Every group needs at least 2 values." };
   }
   if (groups.some((g) => Math.max(...g) === Math.min(...g)) && !paired) {
     warnings.push("A group has no spread (all its values are equal), so some tests cannot be run.");
   }
 
+  const k = cols.length;
   const suggestion = suggest(groups, paired);
   const options = availableTests(k, paired).map((t) => t.id);
   const chosen = test !== "auto" && options.includes(test) ? test : suggestion.test;

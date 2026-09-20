@@ -1069,3 +1069,27 @@ input.swatch-hex:focus { border-color: var(--accent); background: var(--panel); 
   font-size: 11px; line-height: 1.5; user-select: text;
 }
 .data-link { text-align: left; width: 100%; }
+
+/* Formatted text: the editor and its little toolbar */
+.rich-overlay {
+  overflow: hidden;
+  white-space: pre-wrap;
+  word-break: normal;
+  caret-color: var(--accent);
+}
+.rich-overlay:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.rich-toolbar {
+  position: absolute; z-index: 30;
+  display: flex; align-items: center; gap: 2px;
+  padding: 3px 4px;
+  background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+.rich-toolbar .tool { width: 28px; height: 26px; display: grid; place-items: center; font-size: 13px; padding: 0; }
+.rich-colour { display: grid; place-items: center; position: relative; width: 28px; height: 26px; border-radius: var(--radius); }
+.rich-colour:hover { background: #333846; }
+.rich-colour span { font-size: 13px; font-weight: 700; pointer-events: none; }
+.rich-colour input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; padding: 0; border: 0; cursor: pointer; }
+.mark-row { display: flex; gap: 3px; }
+.mark-row .tool { flex: 1; height: 26px; display: grid; place-items: center; font-size: 12px; padding: 0; }
+.mark-row .tool.mixed { background: var(--accent-dim); color: #dbe6ff; opacity: 0.75; }

@@ -39,6 +39,8 @@ import { useHitMap, pickLeaf, pickLeafIn, partMask, partBox } from "../lib/useHi
 import { pointsBounds, visualBox, unionBox } from "../lib/geometry";
 import { snapContext, snapMove, snapPoint } from "../lib/snapping";
 import { measuredHeight, rememberHeight } from "../lib/measure";
+import { runsOf, hasFormatting } from "../lib/richText";
+import RichText from "./RichText";
 import {
   isConnector,
   connectorGeometry,
@@ -364,7 +366,25 @@ function ElementShape({ element, lookup }) {
     case "line":
     case "arrow":
       return <ConnectorShape element={element} lookup={lookup} />;
-    case "text":
+    case "text": {
+      // Text carrying marks is laid out and painted by Morphly (lib/richText.js);
+      // plain text stays with Konva, which wraps and measures it as before.
+      const runs = runsOf(element);
+      if (hasFormatting(runs)) {
+        return (
+          <RichText
+            runs={runs}
+            width={element.width}
+            fontSize={element.fontSize}
+            fontFamily={element.fontFamily}
+            align={element.align}
+            lineHeight={element.lineHeight ?? 1.25}
+            fill={element.fill}
+            listening
+            onLayout={(layout) => rememberHeight(element.id, layout.height)}
+          />
+        );
+      }
       return (
         <KonvaText
           text={element.text}
@@ -378,6 +398,7 @@ function ElementShape({ element, lookup }) {
           wrap="word"
         />
       );
+    }
     case "image":
       return <ImageShape element={element} />;
     case "table":
@@ -398,6 +419,23 @@ function ElementShape({ element, lookup }) {
  */
 function ShapeLabel({ element }) {
   if (!element.label) return null;
+  const runs = runsOf(element, { text: "label", runs: "labelRuns" });
+  if (hasFormatting(runs)) {
+    return (
+      <RichText
+        runs={runs}
+        width={element.width - 8}
+        height={element.height}
+        x={4}
+        fontSize={element.labelSize ?? 16}
+        fontFamily={element.labelFont ?? "Helvetica"}
+        align="center"
+        verticalAlign="middle"
+        lineHeight={1.2}
+        fill={element.labelColor ?? "#ffffff"}
+      />
+    );
+  }
   return (
     <KonvaText
       text={element.label}

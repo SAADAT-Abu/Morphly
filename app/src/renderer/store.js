@@ -17,6 +17,7 @@ import { measuredHeight } from "./lib/measure";
 import { copyElements, pasteElements, offsetToCentre, reorderSelection } from "./lib/clipboard";
 import { analyseSvg, topContainer, parentKey, cleanEdit, canvasDeltaToUser } from "./lib/svgParts";
 import { applyDatasetOp, createDataset, DATASET_KINDS } from "./lib/datasets";
+import { applyMarks, baseMarks, hasFormatting, marksIn, plainText, runsOf, withBase } from "./lib/richText";
 import { defaultPlot } from "./lib/plotRender";
 
 let groupCounter = 0;
@@ -855,31 +856,79 @@ export const useStore = create((set, get) => ({
   },
 
   /**
-   * Turn bold or italic on or off (Ctrl+B, Ctrl+I) for the text elements in
-   * the selection, or for one element by id while it is being edited.
+   * Turn a mark on or off for whole text elements: the selection, or one
+   * element by id. "bold", "italic", "underline", "strike", "super" or "sub".
    *
-   * Konva keeps one style for the whole text element, so this applies to all
-   * of it rather than to a stretch of characters. Mixed selections take the
-   * state of the first text element, so one press makes them agree.
+   * The state of the first text element decides, so one press makes a mixed
+   * selection agree. Marking part of the text instead happens in the editor
+   * on the canvas (applyTextMarks).
    */
-  toggleTextStyle: (which, id = null) => {
+  toggleTextStyle: (mark, id = null) => {
     const { elements, selectedIds } = get();
     const targets = elements.filter(
       (el) => el.type === "text" && !el.locked && (id ? el.id === id : selectedIds.includes(el.id))
     );
     if (targets.length === 0) return;
-    const first = String(targets[0].fontStyle ?? "normal");
-    const turnOn = !first.includes(which);
-    get().commit();
+    const marksOfElement = (el) => {
+      const runs = withBase(runsOf(el), baseMarks(el.fontStyle));
+      return marksIn(runs, 0, plainText(runs).length);
+    };
+    const current = marksOfElement(targets[0]);
+    const isBaseline = mark === "super" || mark === "sub";
+    const on = isBaseline ? current.baseline === mark : current[mark] === true;
+    const patch = isBaseline ? { baseline: on ? false : mark } : { [mark]: !on };
+    for (const target of targets) get().applyTextMarks(target.id, patch);
+  },
+
+  /**
+   * Change the text of an element, formatting and all: what the in-place
+   * editor sends back as it is typed in. `field` is "text" for a text element
+   * or "label" for a shape's caption.
+   */
+  setRichText: (id, { text, runs, field = "text", resetStyle = false }, { commit = true } = {}) => {
+    if (commit) get().commit();
+    const runsField = field === "label" ? "labelRuns" : "runs";
     set((s) => ({
       elements: s.elements.map((el) => {
-        if (!targets.some((t) => t.id === el.id)) return el;
-        const style = String(el.fontStyle ?? "normal");
-        const bold = which === "bold" ? turnOn : style.includes("bold");
-        const italic = which === "italic" ? turnOn : style.includes("italic");
-        // The same spellings the properties panel offers, so the two agree.
-        const next = bold && italic ? "italic bold" : bold ? "bold" : italic ? "italic" : "normal";
-        return { ...el, fontStyle: next };
+        if (el.id !== id) return el;
+        const next = { ...el, [field]: text };
+        // Once the marks are in the runs, an element-wide bold or italic would
+        // apply twice and could not be taken off one word.
+        if (resetStyle && field === "text") next.fontStyle = "normal";
+        // Plain text keeps no runs at all, so old figures and old Morphly
+        // versions see exactly what they did before.
+        if (hasFormatting(runs)) next[runsField] = runs;
+        else delete next[runsField];
+        return next;
+      }),
+      dirty: true,
+    }));
+  },
+
+  /**
+   * Apply marks (bold, italic, underline, strike, superscript, subscript,
+   * colour) to part of an element's text, or to all of it when no range is
+   * given. An element-wide fontStyle is folded into the runs first, so the two
+   * cannot fight over the same characters.
+   */
+  applyTextMarks: (id, patch, { start = null, end = null, field = "text" } = {}) => {
+    const el = get().elements.find((e) => e.id === id);
+    if (!el || el.locked) return;
+    const runsField = field === "label" ? "labelRuns" : "runs";
+    const base = field === "text" ? baseMarks(el.fontStyle) : {};
+    const runs = withBase(runsOf(el, { text: field, runs: runsField }), base);
+    const length = plainText(runs).length;
+    const next = applyMarks(runs, start ?? 0, end ?? length, patch);
+    get().commit();
+    set((s) => ({
+      elements: s.elements.map((e) => {
+        if (e.id !== id) return e;
+        const updated = { ...e };
+        if (hasFormatting(next)) updated[runsField] = next;
+        else delete updated[runsField];
+        // The base style now lives in the runs, so it must not apply twice.
+        if (field === "text" && (base.bold || base.italic)) updated.fontStyle = "normal";
+        return updated;
       }),
       dirty: true,
     }));

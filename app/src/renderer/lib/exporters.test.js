@@ -218,3 +218,77 @@ describe("buildSvg graphs", () => {
     expect(svg).toContain("The data for this graph is missing");
   });
 });
+
+describe("buildSvg formatted text", () => {
+  const runs = [
+    { text: "Tp53", italic: true },
+    { text: " in CO" },
+    { text: "2", baseline: "sub" },
+    { text: " and " },
+    { text: "struck", strike: true, underline: true },
+    { text: " ", },
+    { text: "red", color: "#d1495b", bold: true },
+  ];
+  const rich = el({
+    type: "text",
+    width: 400,
+    fontSize: 20,
+    fontFamily: "Helvetica",
+    fill: "#111111",
+    lineHeight: 1.25,
+    align: "left",
+    text: "Tp53 in CO2 and struck red",
+    runs,
+  });
+
+  it("writes one text per line, with a tspan per piece", () => {
+    const svg = exportOf([rich]);
+    wellFormed(svg);
+    expect(svg).toContain('font-style="italic" xml:space="preserve">Tp53</tspan>');
+    expect(svg).toContain('font-weight="bold" fill="#d1495b"');
+    expect(svg).toContain('text-decoration="underline line-through"');
+    // The subscript is smaller and sits below the line, then the next piece
+    // comes back up.
+    expect(svg).toMatch(/<tspan dy="3\.2" font-size="14\.4"/);
+    expect(svg).toMatch(/<tspan dy="-3\.2"/);
+  });
+
+  it("lets the pieces flow, pinning only the line", () => {
+    const svg = exportOf([rich]);
+    // One x per line, not one per piece: the reader spaces the words.
+    expect((svg.match(/<text /g) ?? []).length).toBe(1);
+    expect(svg).toContain('text-anchor="start"');
+  });
+
+  it("anchors centred text in the middle of its box", () => {
+    const svg = exportOf([{ ...rich, align: "center" }]);
+    expect(svg).toContain('text-anchor="middle"');
+    expect(svg).toContain('x="200"');
+  });
+
+  it("formats a shape's caption too, centred in the shape", () => {
+    const svg = exportOf([
+      el({
+        type: "rect",
+        width: 200,
+        height: 80,
+        fill: "#2c6fbb",
+        stroke: "#1f3a63",
+        strokeWidth: 2,
+        label: "Nucleus (Tp53)",
+        labelSize: 18,
+        labelColor: "#ffffff",
+        labelRuns: [{ text: "Nucleus (" }, { text: "Tp53", italic: true }, { text: ")" }],
+      }),
+    ]);
+    wellFormed(svg);
+    expect(svg).toContain(">Tp53</tspan>");
+    expect(svg).toContain('text-anchor="middle"');
+  });
+
+  it("leaves plain text on the path it always used", () => {
+    const plain = exportOf([{ ...rich, runs: undefined }]);
+    expect(plain).not.toContain("font-style=\"italic\"");
+    expect(plain).toContain("Tp53 in CO2 and struck red");
+  });
+});

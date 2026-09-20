@@ -15,6 +15,7 @@ import ArtStore from "./components/ArtStore";
 import GraphDialog from "./components/GraphDialog";
 import DataDrawer, { datasetColours } from "./components/DataDrawer";
 import DataPanel from "./components/DataPanel";
+import RichTextEditor from "./components/RichTextEditor";
 import { useStore } from "./store";
 import { cellBox, isHeaderCell } from "./lib/tableLayout";
 import { migrate, serialise, DocumentError } from "./lib/document";
@@ -1044,15 +1045,26 @@ export default function App() {
             onContextMenu={handleCanvasContextMenu}
           />
 
-          {editingElement && (
-            <TextEditorOverlay
-              element={editingElement}
-              cell={editing.cell}
-              zoom={zoom}
-              stagePos={stagePos}
-              onClose={() => setEditing(null)}
-            />
-            )}
+          {editingElement &&
+            (editingElement.type === "table" && editing.cell ? (
+              <TextEditorOverlay
+                element={editingElement}
+                cell={editing.cell}
+                zoom={zoom}
+                stagePos={stagePos}
+                onClose={() => setEditing(null)}
+              />
+            ) : (
+              // Text and captions can be formatted word by word, so they are
+              // edited in a rich box rather than a plain one.
+              <RichTextEditor
+                element={editingElement}
+                field={editingElement.type === "text" ? "text" : "label"}
+                zoom={zoom}
+                stagePos={stagePos}
+                onClose={() => setEditing(null)}
+              />
+            ))}
           </div>
           <DataDrawer />
         </div>

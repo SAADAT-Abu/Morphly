@@ -86,7 +86,9 @@ export const SHORTCUTS = [
       ["Delete", "Delete selection"],
       ["Arrow keys", "Nudge 2 px"],
       ["Shift + arrows", "Nudge 20 px"],
-      ["Ctrl + B / Ctrl + I", "Bold / italic on the selected text"],
+      ["Ctrl + B / Ctrl + I", "Bold / italic"],
+      ["Ctrl + U", "Underline (while editing text)"],
+      ["Ctrl + = / Ctrl + Shift + =", "Subscript / superscript (while editing text)"],
       ["Double-click text", "Edit in place"],
       ["Double-click a cell", "Edit that table cell"],
       ["Double-click a graph", "Open its data under the canvas"],
@@ -198,7 +200,20 @@ export const GETTING_STARTED = [
       "order, renaming, hiding and locking.",
   },
   {
-    title: "5. Add tables, plots and a grid",
+    title: "5. Formatting inside a text box",
+    body:
+      "Double-click a text box, or a caption inside a shape, and a small toolbar appears above it: " +
+      "bold, italic, underline, strikethrough, superscript, subscript and a colour. " +
+      "They apply to whatever you have selected, so a single word can be italic (a gene or species " +
+      "name), the 2 in CO2 can sit low and the -3 in 10-3 can sit high, and a term can be coloured " +
+      "to match the thing it labels on the canvas. Ctrl+B, Ctrl+I and Ctrl+U work as usual, Ctrl+= " +
+      "makes a subscript and Ctrl+Shift+= a superscript. The same buttons in the properties panel " +
+      "apply to the whole text box at once, and show half lit when only part of it carries the mark. " +
+      "Formatting is kept in the figure file, drawn on the canvas, and exported as real text in SVG " +
+      "and PDF, so it stays editable and selectable wherever the figure goes next.",
+  },
+  {
+    title: "6. Add tables, plots and a grid",
     body:
       "The table button in the toolbar, or Insert → Table, draws a table you can size by "
       + "pointing at the grid in the dialog. " +
@@ -218,7 +233,7 @@ export const GETTING_STARTED = [
       "reading order and update by themselves when a panel is moved or deleted.",
   },
   {
-    title: "6. Make a graph from your data",
+    title: "7. Make a graph from your data",
     body:
       "The graph button in the toolbar, or Insert → Graph, asks three things. First, what " +
       "your data looks like: groups (control, treated and so on, one column each) or X and " +
@@ -242,7 +257,7 @@ export const GETTING_STARTED = [
       "true vectors, like everything else.",
   },
   {
-    title: "7. Keep several figures in one document",
+    title: "8. Keep several figures in one document",
     body:
       "The tabs above the canvas are pages, one per figure. A paper's figures are " +
       "usually built together, so they live in a single .morphly file: add a page with " +
@@ -261,7 +276,7 @@ export const GETTING_STARTED = [
       "off with File → Autosave if you prefer to save by hand.",
   },
   {
-    title: "8. Art Packs",
+    title: "9. Art Packs",
     body:
       "The Art Store, in the sidebar header, lists illustration libraries you can add. Each " +
       "card says how many illustrations the pack holds, which subjects it covers, how large " +
@@ -272,7 +287,7 @@ export const GETTING_STARTED = [
       "pack is removed, because each element carries its own copy of the artwork.",
   },
   {
-    title: "9. Export",
+    title: "10. Export",
     body:
       "PNG for a quick look or slides, JPEG where a smaller file matters more than " +
       "transparency, SVG if you want to keep editing in Illustrator or Inkscape, PDF " +

@@ -5,7 +5,7 @@
  * the user asked for.
  */
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useStore } from "../store";
 import {
   LICENCE_TIERS,
@@ -189,12 +189,20 @@ function ExternalLink({ href, children }) {
 }
 
 function About() {
+  // The main process owns the version, so this cannot drift from the build.
+  const [version, setVersion] = useState("");
+  useEffect(() => {
+    let live = true;
+    window.morphly?.appVersion?.().then((value) => { if (live && value) setVersion(String(value)); }).catch(() => {});
+    return () => { live = false; };
+  }, []);
+
   return (
     <>
       <div className="about-head">
         <img src={iconUrl} alt="" width="72" height="72" />
         <div>
-          <h3 className="about-title">Morphly v0.1</h3>
+          <h3 className="about-title">Morphly{version ? ` v${version}` : ""}</h3>
           <p className="about-sub">
             A free, offline editor for scientific figures, built on openly licensed
             illustration libraries.

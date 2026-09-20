@@ -8,7 +8,7 @@
 
 Build publication-ready figures from thousands of openly licensed scientific
 illustrations. Drag them onto a canvas, recolour them, add shapes and labels,
-and export true vector PNG, SVG or PDF.
+and export high-resolution PNG, or true vector SVG or PDF.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 ![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Windows%20%7C%20macOS-lightgrey)

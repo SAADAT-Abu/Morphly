@@ -13,6 +13,9 @@ contextBridge.exposeInMainWorld("morphly", {
   getSettings: () => ipcRenderer.invoke("settings:get"),
   setSettings: (patch) => ipcRenderer.invoke("settings:set", patch),
 
+  /** The running app version, for the About tab. */
+  appVersion: () => ipcRenderer.invoke("app:version"),
+
   /** Opens http(s) links in the user's browser. */
   openExternal: (url) => ipcRenderer.invoke("shell:openExternal", url),
 

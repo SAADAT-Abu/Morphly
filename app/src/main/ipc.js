@@ -8,7 +8,7 @@
  * the IPC boundary, so the UI can show a message instead of a dead promise.
  */
 
-const { ipcMain, dialog, BrowserWindow, shell, net, Menu, clipboard } = require("electron");
+const { ipcMain, dialog, BrowserWindow, shell, net, Menu, clipboard, app } = require("electron");
 const fs = require("node:fs/promises");
 const fsSync = require("node:fs");
 const path = require("node:path");
@@ -36,6 +36,9 @@ async function ensureSaveFolder() {
 }
 
 function registerIpc({ recovery } = {}) {
+  /** The running version, so the About tab never goes stale. */
+  ipcMain.handle("app:version", () => app.getVersion());
+
   // -- settings ------------------------------------------------------------
   ipcMain.handle("settings:get", async () => ok({ settings: await readSettings() }));
   ipcMain.handle("settings:set", async (_event, patch) =>

@@ -1044,7 +1044,9 @@ input.swatch-hex:focus { border-color: var(--accent); background: var(--panel); 
 .seg-row button:last-child { border-radius: 0 6px 6px 0; }
 .seg-row button.active { background: var(--accent-dim); border-color: var(--accent); color: #fff; position: relative; }
 .section .control-row { margin-bottom: 8px; }
-.section .field + .field, .section .field-grid + .field, .section .field + .field-grid { margin-top: 8px; }
+.section > .field + .field, .section > .field-grid + .field, .section > .field + .field-grid { margin-top: 8px; }
+/* Side by side fields share a row, so they must not push each other down. */
+.field-grid > .field { margin-top: 0; }
 .field-label { font-size: 11px; color: var(--text-dim); margin: 8px 0 4px; }
 .section .check { margin-top: 4px; }
 .stats-card {
@@ -1066,3 +1068,4 @@ input.swatch-hex:focus { border-color: var(--accent); background: var(--panel); 
   margin: 0 0 6px; padding: 8px; background: var(--panel-2); border-radius: 6px;
   font-size: 11px; line-height: 1.5; user-select: text;
 }
+.data-link { text-align: left; width: 100%; }

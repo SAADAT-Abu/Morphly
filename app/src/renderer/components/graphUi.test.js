@@ -3,7 +3,7 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { useStore } from "../store";
 import { sampleDataset } from "../lib/datasets";
-import GraphDialog from "./GraphDialog";
+import GraphDialog, { initialSource } from "./GraphDialog";
 import GraphPanel from "./GraphPanel";
 import DataGrid from "./DataGrid";
 import DataDrawer from "./DataDrawer";
@@ -26,6 +26,13 @@ const html = (el) => {
 
 describe("graph interface", () => {
   beforeEach(() => state().newDocument());
+
+  it("starts on data already in the figure when there is some of that shape", () => {
+    const groups = [sampleDataset("groups")];
+    expect(initialSource([], "groups")).toBe("sample");
+    expect(initialSource(groups, "groups")).toBe("existing");
+    expect(initialSource(groups, "xy")).toBe("sample");
+  });
 
   it("opens the graph dialog on the data shape step", () => {
     const out = html(h(GraphDialog, { datasets: [], onClose() {}, onInsert() {} }));

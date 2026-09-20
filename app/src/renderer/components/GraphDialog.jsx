@@ -55,11 +55,11 @@ const SHAPES = [
 ];
 
 const SOURCES = [
+  ["existing", "Already in this figure"],
   ["sample", "Sample data"],
   ["paste", "Paste"],
   ["csv", "Import CSV"],
   ["blank", "Empty table"],
-  ["existing", "Data in this figure"],
 ];
 
 const SOURCE_HINTS = {
@@ -67,7 +67,8 @@ const SOURCE_HINTS = {
   paste: "Copy cells in Excel, LibreOffice, R or Python, and paste them here. A first row of names is used as column names.",
   csv: "A CSV or TSV file. Semicolons and decimal commas are fine.",
   blank: "An empty table opens under the canvas, and the graph fills in as you type.",
-  existing: "Another graph of the same numbers, so both stay in step when the data changes.",
+  existing:
+    "Data already imported or typed into this figure, including anything from the Data tab. Several graphs can share one table and stay in step.",
 };
 
 function Preview({ kind, dataset }) {
@@ -80,10 +81,21 @@ function Preview({ kind, dataset }) {
   return <img src={url} alt="" width={220} height={160} />;
 }
 
+/**
+ * Which source to start on: data already in the figure when there is some of
+ * the right shape, so a table imported in the Data tab is one click away
+ * rather than needing a second import.
+ */
+export function initialSource(datasets, shape) {
+  return datasets.some((d) => d.kind === shape) ? "existing" : "sample";
+}
+
 export default function GraphDialog({ datasets = [], panelLabel = null, onClose, onInsert, flash }) {
   const [step, setStep] = useState(0);
   const [shape, setShape] = useState("groups");
-  const [source, setSource] = useState("sample");
+  // Data already in the figure is offered first, and chosen to begin with, so
+  // a table imported in the Data tab does not have to be imported again here.
+  const [source, setSource] = useState(() => initialSource(datasets, "groups"));
   const [pasted, setPasted] = useState("");
   const [imported, setImported] = useState(null); // { text, name }
   const [existingId, setExistingId] = useState(null);
@@ -118,6 +130,9 @@ export default function GraphDialog({ datasets = [], panelLabel = null, onClose,
   const chooseShape = (id) => {
     setShape(id);
     setKind(id === "xy" ? "scatter" : "bar");
+    // Keep the source sensible for the new shape.
+    const fits = initialSource(datasets, id);
+    if (source === "existing" || source === "sample") setSource(fits);
   };
 
   const importCsv = async () => {

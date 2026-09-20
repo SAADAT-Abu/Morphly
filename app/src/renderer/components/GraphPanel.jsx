@@ -14,7 +14,7 @@ import React, { useMemo, useRef, useState } from "react";
 import { useStore } from "../store";
 import { graphAnalysis } from "../lib/graphs";
 import { availableTests, methodsSentence, plottedGroups, TESTS } from "../lib/analysis";
-import { GROUP_KINDS, XY_KINDS, GROUP_COLOURS, SERIES_COLOURS } from "../lib/plotRender";
+import { GROUP_KINDS, XY_KINDS, GROUP_COLOURS, SERIES_COLOURS, LEGEND_POSITIONS } from "../lib/plotRender";
 import { formatP, formatStat } from "../lib/stats";
 
 /* global __APP_VERSION__ */
@@ -120,22 +120,26 @@ export default function GraphPanel({ element }) {
   return (
     <>
       <Section title="Graph">
-        <div className="control-row">
-          <select
-            value={dataset.id}
-            aria-label="Data"
-            onChange={(e) => updateElement(element.id, { datasetId: e.target.value })}
-          >
-            {sameKind.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.name || "Untitled data"}
-              </option>
-            ))}
-          </select>
-          <button className="ghost small" onClick={() => openData(dataset.id)}>
-            Edit data
-          </button>
-        </div>
+        {sameKind.length > 1 ? (
+          <label className="field">
+            <span>Data this graph draws</span>
+            <select value={dataset.id} onChange={(e) => updateElement(element.id, { datasetId: e.target.value })}>
+              {sameKind.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name || "Untitled data"}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : (
+          <div className="field">
+            <span>Data this graph draws</span>
+            <button className="ghost small data-link" onClick={() => openData(dataset.id)} title="Show these numbers under the canvas">
+              {dataset.name || "Untitled data"}
+            </button>
+          </div>
+        )}
+        <div className="field-label">Graph type</div>
         <Segments label="Graph type" options={kinds} value={kind} onChange={(id) => set({ kind: id })} />
         {!xy && kind !== "box" && (
           <>
@@ -164,6 +168,18 @@ export default function GraphPanel({ element }) {
           <PlotText element={element} field="yMin" label="Y from" placeholder="Auto" numeric />
           <PlotText element={element} field="yMax" label="Y to" placeholder="Auto" numeric />
         </div>
+        <label className="field">
+          <span>Legend</span>
+          <select value={plot.legend ?? "auto"} onChange={(e) => set({ legend: e.target.value })}>
+            {LEGEND_POSITIONS.map(([id, label]) => (
+              <option key={id} value={id}>
+                {label}
+                {id === "auto" ? (xy ? " (shown for two or more series)" : " (hidden)") : ""}
+              </option>
+            ))}
+          </select>
+        </label>
+        <p className="hint">Legend names are the column names: rename a column in the data table to rename its key.</p>
         <label className="field">
           <span>Text size</span>
           <input

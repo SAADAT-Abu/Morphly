@@ -307,6 +307,22 @@ export default function App() {
   );
 
   /**
+   * The data on show follows the selected graph, so what is typed in the
+   * drawer (or in the data window) always belongs to the graph in front of
+   * you. It never opens the drawer by itself: only what is already open
+   * changes.
+   */
+  useEffect(() => {
+    const s = store.getState();
+    if (!s.dataView.open && !s.dataView.popped) return;
+    if (selectedIds.length !== 1) return;
+    const selected = elements.find((el) => el.id === selectedIds[0]);
+    if (selected?.type === "plot" && selected.datasetId && selected.datasetId !== s.dataView.datasetId) {
+      s.setDataView({ datasetId: selected.datasetId });
+    }
+  }, [selectedIds, elements, store]);
+
+  /**
    * Keep the popped-out data window in step. It shows the dataset in the
    * drawer; each of its edits comes back here as an operation, is applied to
    * the store (so undo, autosave and the graph all see it), and the result

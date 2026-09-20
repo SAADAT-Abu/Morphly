@@ -132,6 +132,7 @@ export function defaultPlot(kind = "bar", { fontSize = 28 } = {}) {
     yMax: "",
     fontSize,
     colors: [],
+    legend: "auto",
     test: "auto",
     paired: false,
     brackets: {},
@@ -168,6 +169,55 @@ function yAxis({ x, y, range, f, sw, title, top, bottom }) {
 }
 
 const maxLabelWidth = (labels, f) => Math.max(0, ...labels.map((l) => textWidth(l, f)));
+
+/** Where a legend can sit, plus "off" and "auto". */
+export const LEGEND_POSITIONS = [
+  ["auto", "Automatic"],
+  ["off", "Hidden"],
+  ["topleft", "Top left"],
+  ["topright", "Top right"],
+  ["bottomleft", "Bottom left"],
+  ["bottomright", "Bottom right"],
+];
+
+/**
+ * Where the legend goes when nobody has said: X and Y graphs of more than one
+ * series get one at the top left, and groups do not, since the names are
+ * already written under the bars.
+ */
+export function legendPlacement(plot, entryCount, isXY) {
+  const chosen = plot.legend ?? "auto";
+  if (chosen === "off") return null;
+  if (chosen !== "auto") return chosen;
+  return isXY && entryCount > 1 ? "topleft" : null;
+}
+
+/**
+ * A legend box inside the plot area. `entries` are { name, colour }, drawn
+ * with a round marker for X and Y series and a square one for groups. Names
+ * come from the data's column names, so renaming a column renames the key.
+ */
+function legendSvg(entries, { position, f, sw, left, right, top, bottom, round }) {
+  if (!position || entries.length === 0) return "";
+  const pad = f * 0.45;
+  const lineHeight = f * 1.35;
+  const marker = f * 0.5;
+  const width = marker + f * 0.5 + maxLabelWidth(entries.map((e) => e.name), f) + pad * 2;
+  const height = entries.length * lineHeight + pad * 2 - (lineHeight - f);
+  const x = position.endsWith("left") ? left + f * 0.4 : Math.max(left, right - width - f * 0.4);
+  const y = position.startsWith("top") ? top + f * 0.3 : Math.max(top, bottom - height - f * 0.3);
+
+  let out = `<g data-part="legend">`;
+  out += `<rect x="${r2(x)}" y="${r2(y)}" width="${r2(width)}" height="${r2(height)}" fill="#ffffff" fill-opacity="0.85" stroke="#c7ccd6" stroke-width="${r2(sw * 0.7)}" rx="${r2(f * 0.2)}"/>`;
+  entries.forEach((entry, i) => {
+    const cy = y + pad + f * 0.5 + i * lineHeight;
+    out += round
+      ? `<circle cx="${r2(x + pad + marker / 2)}" cy="${r2(cy)}" r="${r2(marker / 2)}" fill="${entry.colour}" stroke="${INK}" stroke-width="${r2(sw * 0.5)}"/>`
+      : `<rect x="${r2(x + pad)}" y="${r2(cy - marker / 2)}" width="${r2(marker)}" height="${r2(marker)}" fill="${entry.colour}" stroke="${INK}" stroke-width="${r2(sw * 0.7)}"/>`;
+    out += `<text x="${r2(x + pad + marker + f * 0.5)}" y="${r2(cy + f * 0.35)}" font-family="${FONT}" font-size="${f}" fill="${INK}">${esc(entry.name)}</text>`;
+  });
+  return `${out}</g>`;
+}
 
 // ---------------------------------------------------------------------------
 // Groups: bar, dot plot, box and whiskers
@@ -302,6 +352,20 @@ function groupsSvg(element, dataset, brackets) {
     bracketSvg += `</g>`;
   }
 
+  const legend = legendSvg(
+    names.map((name, i) => ({ name, colour: colourAt(plot, cols[i], GROUP_COLOURS) })),
+    {
+      position: legendPlacement(plot, names.length, false),
+      f,
+      sw,
+      left,
+      right: W - right,
+      top: plotTop,
+      bottom: plotBottom,
+      round: false,
+    }
+  );
+
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">` +
     `<g data-part="bars">${bars.join("")}</g>` +
@@ -309,6 +373,7 @@ function groupsSvg(element, dataset, brackets) {
     `<g data-part="points">${points.join("")}</g>` +
     axes +
     bracketSvg +
+    legend +
     `</svg>`
   );
 }
@@ -411,17 +476,10 @@ function xySvg(element, dataset, fits) {
   }
   axes += `</g>`;
 
-  let legend = "";
-  if (series.length > 1) {
-    legend = `<g data-part="legend">`;
-    series.forEach((s, i) => {
-      const ly = top + f * 0.4 + i * f * 1.35;
-      const lx = left + f * 0.6;
-      legend += `<circle cx="${r2(lx)}" cy="${r2(ly)}" r="${r2(radius)}" fill="${colourAt(plot, s.col, SERIES_COLOURS)}" stroke="${INK}" stroke-width="${r2(sw * 0.5)}"/>`;
-      legend += `<text x="${r2(lx + f * 0.7)}" y="${r2(ly + f * 0.35)}" font-family="${FONT}" font-size="${f}" fill="${INK}">${esc(s.name)}</text>`;
-    });
-    legend += `</g>`;
-  }
+  const legend = legendSvg(
+    series.map((s) => ({ name: s.name, colour: colourAt(plot, s.col, SERIES_COLOURS) })),
+    { position: legendPlacement(plot, series.length, true), f, sw, left, right: plotRight, top, bottom: plotBottom, round: true }
+  );
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${body}${axes}${legend}</svg>`;
 }

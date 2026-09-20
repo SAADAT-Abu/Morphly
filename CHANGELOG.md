@@ -37,6 +37,9 @@ Planned work is described in the [roadmap](README.md#roadmap).
   as brackets with stars; significant ones start ticked. A methods sentence can
   be copied into a manuscript. X and Y graphs show linear fits, Pearson and
   Spearman correlations.
+- **A legend on any graph.** Hidden, or in any corner, from the properties
+  panel. X and Y graphs of two or more series show one automatically. Legend
+  names are the column names, so renaming a column renames its key.
 - **Continuous loading in the asset library.** Thumbnails load as you scroll,
   replacing the "Show 90 more" button, and a counter above the grid says which
   illustrations are on screen ("Showing 181 to 225 of 2,531", or "of 1,204
@@ -44,6 +47,24 @@ Planned work is described in the [roadmap](README.md#roadmap).
   [issue #1](https://github.com/SAADAT-Abu/Morphly/issues/1).
 - **JPEG export** at 1×, 2× or 4×, with a choice of quality, alongside PNG,
   SVG and PDF. Also from issue #1.
+
+### Fixed
+
+- The "Y from" and "Y to" boxes in a graph's properties sat at different
+  heights.
+- The graph's data control looked like a way to choose which graph was being
+  edited. It is now labelled "Data this graph draws", and with only one table
+  in the figure it is simply the table's name, which opens it.
+- The "Edit data" button beside it did nothing when the table was already open,
+  and has been removed. Double-click a graph, or click its data name, to open
+  its numbers.
+- The data table under the canvas now follows the selected graph, so typing
+  always edits the graph in front of you. It never opens by itself.
+- Insert, Graph now offers data already in the figure first, and starts there
+  when there is any of the right shape, so a table imported in the Data tab
+  does not have to be imported a second time.
+- A group with fewer than two values is left out of the statistics with a
+  warning, rather than stopping the test for every group.
 
 ### Changed
 

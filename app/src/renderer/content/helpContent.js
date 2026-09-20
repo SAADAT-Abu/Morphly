@@ -86,6 +86,7 @@ export const SHORTCUTS = [
       ["Delete", "Delete selection"],
       ["Arrow keys", "Nudge 2 px"],
       ["Shift + arrows", "Nudge 20 px"],
+      ["Ctrl + B / Ctrl + I", "Bold / italic on the selected text"],
       ["Double-click text", "Edit in place"],
       ["Double-click a cell", "Edit that table cell"],
       ["Double-click a graph", "Open its data under the canvas"],

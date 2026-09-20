@@ -796,6 +796,11 @@ export default function App() {
         e.preventDefault();
         const up = e.code === "BracketRight";
         s.reorderSelected(e.shiftKey ? (up ? "front" : "back") : up ? "forward" : "backward");
+      } else if (mod && (e.key.toLowerCase() === "b" || e.key.toLowerCase() === "i")) {
+        // Only when text is selected, so the keys stay free otherwise.
+        if (!s.elements.some((el) => el.type === "text" && s.selectedIds.includes(el.id))) return;
+        e.preventDefault();
+        s.toggleTextStyle(e.key.toLowerCase() === "b" ? "bold" : "italic");
       } else if (mod && e.key.toLowerCase() === "d") {
         e.preventDefault();
         s.duplicateSelected();
@@ -1208,6 +1213,10 @@ function TextEditorOverlay({ element, cell, zoom, stagePos, onClose }) {
         height: isLabel ? element.height * zoom : undefined,
         fontSize,
         fontFamily: isLabel ? element.labelFont ?? "Helvetica" : element.fontFamily,
+        // Without these, text being edited lost its bold and italic while the
+        // properties panel still showed them.
+        fontWeight: !isLabel && String(element.fontStyle ?? "").includes("bold") ? 700 : 400,
+        fontStyle: !isLabel && String(element.fontStyle ?? "").includes("italic") ? "italic" : "normal",
         lineHeight: isLabel ? 1.2 : element.lineHeight ?? 1.25,
         textAlign: isLabel ? "center" : element.align,
         color: isLabel ? element.labelColor ?? "#ffffff" : element.fill,
@@ -1222,6 +1231,14 @@ function TextEditorOverlay({ element, cell, zoom, stagePos, onClose }) {
       onChange={(e) => setValue(e.target.value)}
       onBlur={commitText}
       onKeyDown={(e) => {
+        // Bold and italic apply to the whole text element, so they work while
+        // typing as well as from the properties panel.
+        if ((e.ctrlKey || e.metaKey) && !isCell && !isLabel && ["b", "i"].includes(e.key.toLowerCase())) {
+          e.preventDefault();
+          useStore.getState().toggleTextStyle(e.key.toLowerCase() === "b" ? "bold" : "italic", element.id);
+          e.stopPropagation();
+          return;
+        }
         if (e.key === "Escape") onClose();
         // Enter commits a cell (a table cell is one line in practice); text
         // elements and captions keep Enter for a new line and commit on

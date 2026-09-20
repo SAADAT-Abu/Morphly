@@ -37,6 +37,9 @@ Planned work is described in the [roadmap](README.md#roadmap).
   as brackets with stars; significant ones start ticked. A methods sentence can
   be copied into a manuscript. X and Y graphs show linear fits, Pearson and
   Spearman correlations.
+- **Ctrl+B and Ctrl+I** turn bold and italic on and off for the selected text,
+  and while typing in it. Konva keeps one style per text element, so they apply
+  to the whole of it rather than to a stretch of characters.
 - **A legend on any graph.** Hidden, or in any corner, from the properties
   panel. X and Y graphs of two or more series show one automatically. Legend
   names are the column names, so renaming a column renames its key.
@@ -50,6 +53,8 @@ Planned work is described in the [roadmap](README.md#roadmap).
 
 ### Fixed
 
+- Text being edited on the canvas lost its bold and italic while the properties
+  panel still showed them. The editor now matches the text it stands in for.
 - The "Y from" and "Y to" boxes in a graph's properties sat at different
   heights.
 - The graph's data control looked like a way to choose which graph was being

@@ -854,6 +854,37 @@ export const useStore = create((set, get) => ({
     }));
   },
 
+  /**
+   * Turn bold or italic on or off (Ctrl+B, Ctrl+I) for the text elements in
+   * the selection, or for one element by id while it is being edited.
+   *
+   * Konva keeps one style for the whole text element, so this applies to all
+   * of it rather than to a stretch of characters. Mixed selections take the
+   * state of the first text element, so one press makes them agree.
+   */
+  toggleTextStyle: (which, id = null) => {
+    const { elements, selectedIds } = get();
+    const targets = elements.filter(
+      (el) => el.type === "text" && !el.locked && (id ? el.id === id : selectedIds.includes(el.id))
+    );
+    if (targets.length === 0) return;
+    const first = String(targets[0].fontStyle ?? "normal");
+    const turnOn = !first.includes(which);
+    get().commit();
+    set((s) => ({
+      elements: s.elements.map((el) => {
+        if (!targets.some((t) => t.id === el.id)) return el;
+        const style = String(el.fontStyle ?? "normal");
+        const bold = which === "bold" ? turnOn : style.includes("bold");
+        const italic = which === "italic" ? turnOn : style.includes("italic");
+        // The same spellings the properties panel offers, so the two agree.
+        const next = bold && italic ? "italic bold" : bold ? "bold" : italic ? "italic" : "normal";
+        return { ...el, fontStyle: next };
+      }),
+      dirty: true,
+    }));
+  },
+
   updateSelected: (patch) => {
     const { selectedIds } = get();
     if (selectedIds.length === 0) return;

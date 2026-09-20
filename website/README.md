@@ -37,6 +37,23 @@ cookie banner is needed.
    - one event per installer clicked, listed as `download/Morphly Setup 0.4.0.exe`
      and so on.
 
+## Telling search engines about a change
+
+Bing, Yandex and a few others accept an IndexNow ping, which asks them to
+look at a page again straight away rather than waiting for their next crawl.
+
+After a deploy, run from this folder:
+
+```bash
+./indexnow.sh              # the home page
+./indexnow.sh /sitemap.xml # any other path
+```
+
+The key file `8434154834a0eaa5b293528184fca63f.txt` in this folder is
+public on purpose. The engines fetch it to check that whoever pings them
+controls the site, so it must stay published. Google ignores IndexNow; use
+Search Console for that.
+
 ## Email updates
 
 Addresses go straight to [MailerLite](https://www.mailerlite.com), which holds

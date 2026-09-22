@@ -13,6 +13,15 @@ Planned work is described in the [roadmap](README.md#roadmap).
 
 ## [0.5.1] - 2026-09-22
 
+### Fixed
+
+- **A table of large counts no longer freezes the app.** Fisher's exact test
+  works through every table that shares its margins, so counts of the size
+  sequencing produces meant minutes of arithmetic on every keystroke in the
+  data table. Above half a million tables Morphly now uses the chi-square test
+  and says why; at those counts the two agree far beyond the digits anyone
+  reports, and small tables still get the exact test as before.
+
 ### Added
 
 - **Lock the aspect ratio when resizing.** Pictures and library artwork now

@@ -908,11 +908,43 @@ function hypergeometric(a, b, c, d) {
  * people mean by it; R reports a conditional maximum likelihood estimate
  * instead, so the two can differ while the p-value agrees.
  */
+/**
+ * How many tables share this table's margins, which is how much work an exact
+ * test would be. It grows with the counts themselves, not with the size of the
+ * table, so a 2 by 2 of sequencing counts is far more work than a 2 by 2 of
+ * mice.
+ */
+export function fisherTableCount([[a, b], [c, d]]) {
+  const rowOne = a + b;
+  const rowTwo = c + d;
+  const colOne = a + c;
+  return Math.min(colOne, rowOne) - Math.max(0, colOne - rowTwo) + 1;
+}
+
+/**
+ * Past this many tables the enumeration below would stall a redraw, and every
+ * redraw happens again on the next keystroke in the data table. At counts that
+ * large the chi-square approximation agrees with the exact test to more
+ * decimal places than anyone reports, so the caller is told to use that
+ * instead of being left waiting.
+ */
+export const FISHER_MAX_TABLES = 500000;
+
 export function fisherExact([[a, b], [c, d]]) {
   const rowOne = a + b;
   const rowTwo = c + d;
   const colOne = a + c;
   const n = rowOne + rowTwo;
+  const tables = fisherTableCount([[a, b], [c, d]]);
+  if (!(tables <= FISHER_MAX_TABLES)) {
+    return {
+      p: NaN,
+      oddsRatio: (a * d) / (b * c),
+      n,
+      tables,
+      error: "The counts are too large to enumerate every table; use the chi-square test.",
+    };
+  }
   const observed = hypergeometric(a, b, c, d);
   const lowest = Math.max(0, colOne - rowTwo);
   const highest = Math.min(colOne, rowOne);

@@ -255,6 +255,29 @@ describe("the tests added for counts and for judging size", () => {
     expect(a.n).toBe(24);
   });
 
+  it("uses chi-square instead of an exact test on counts too large to enumerate", () => {
+    // Read counts, not mice. Fisher's test walks every table with the same
+    // margins, so a table this size would leave the graph redrawing for
+    // minutes on every keystroke.
+    const reads = createDataset({
+      kind: "contingency",
+      columns: [
+        { name: "Sample", values: ["Tumour", "Normal"] },
+        { name: "Gene", values: ["4200000", "3100000"] },
+        { name: "Rest", values: ["9800000", "11400000"] },
+      ],
+    });
+    const started = Date.now();
+    const a = analyseCounts(reads);
+    expect(Date.now() - started).toBeLessThan(500);
+    expect(a.suggested).toBe("chisq");
+    // Asking for it by name cannot bring it back, since it is not on offer.
+    expect(a.available.map((t) => t.id)).not.toContain("fisher");
+    expect(analyseCounts(reads, { test: "fisher" }).label).toBe("Chi-square test");
+    expect(a.warnings.join(" ")).toMatch(/too many tables to stay responsive/);
+    expect(a.summary).toMatch(/^χ²\(1\) = /);
+  });
+
   it("offers the other tests a 2 by 2 table allows", () => {
     expect(analyseCounts(table).available.map((t) => t.id)).toEqual([
       "fisher",

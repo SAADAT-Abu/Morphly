@@ -45,6 +45,8 @@ import {
   twoWayAnova,
   dunnettTest,
   fisherExact,
+  fisherTableCount,
+  FISHER_MAX_TABLES,
   chiSquareTest,
   mcnemarTest,
   trendTest,
@@ -631,10 +633,26 @@ export function analyseCounts(dataset, { test = "auto" } = {}) {
   const total = rows.flat().reduce((a, b) => a + b, 0);
   const warnings = [];
 
+  // An exact test enumerates every table with the same margins, so counts of
+  // the size sequencing produces would leave the graph redrawing for minutes.
+  // Chi-square is the answer there, and it is not an approximation worth
+  // apologising for at those counts.
+  const exactIsPractical = twoByTwo && fisherTableCount(rows) <= FISHER_MAX_TABLES;
+  if (twoByTwo && !exactIsPractical) {
+    warnings.push(
+      `With ${total.toLocaleString("en")} counts in the table, Fisher's exact test would have to work through too ` +
+        "many tables to stay responsive, so the chi-square test is used. At counts this large the two agree far " +
+        "beyond the digits anyone reports."
+    );
+  }
+
   const available = Object.entries(COUNT_TESTS)
-    .filter(([, t]) => (t.needs === "2x2" ? twoByTwo : t.needs === "2 columns" ? categories.length === 2 : true))
+    .filter(([id, t]) => {
+      if (id === "fisher") return exactIsPractical;
+      return t.needs === "2x2" ? twoByTwo : t.needs === "2 columns" ? categories.length === 2 : true;
+    })
     .map(([id, t]) => ({ id, label: t.label }));
-  const suggested = twoByTwo ? "fisher" : "chisq";
+  const suggested = exactIsPractical ? "fisher" : "chisq";
   const chosen = available.some((t) => t.id === test) ? test : suggested;
 
   const chi = chiSquareTest(rows, { correct: chosen !== "chisqPlain" });

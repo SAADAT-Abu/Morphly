@@ -25,6 +25,8 @@ import {
   kernelDensity,
   histogramBins,
   fisherExact,
+  fisherTableCount,
+  FISHER_MAX_TABLES,
   chiSquareTest,
   mcnemarTest,
   trendTest,
@@ -562,5 +564,29 @@ group("effect sizes and corrections", () => {
     // R computes an exact p here; this is the normal approximation, which is
     // what scipy.stats.kendalltau(method = "asymptotic") gives.
     close(tied.p, 0.016995993100711655, 1e-6);
+  });
+});
+
+group("Fisher's exact test on large counts", () => {
+  it("counts how many tables share the margins", () => {
+    // The tables run from the smallest possible top-left count to the largest.
+    expect(fisherTableCount([[9, 3], [2, 10]])).toBe(12);
+    expect(fisherTableCount([[1, 0], [0, 1]])).toBe(2);
+  });
+
+  it("refuses rather than enumerating a sequencing-sized table", () => {
+    const started = Date.now();
+    const result = fisherExact([[4200000, 9800000], [3100000, 11400000]]);
+    expect(Date.now() - started).toBeLessThan(500);
+    expect(result.error).toMatch(/too large to enumerate/);
+    expect(Number.isNaN(result.p)).toBe(true);
+    // The odds ratio needs no enumeration, so it still comes back.
+    expect(result.oddsRatio).toBeGreaterThan(1);
+    expect(result.tables).toBeGreaterThan(FISHER_MAX_TABLES);
+  });
+
+  it("still answers exactly for the counts an experiment actually has", () => {
+    expect(fisherExact([[9, 3], [2, 10]]).p).toBeCloseTo(0.0122781378, 9);
+    expect(fisherExact([[9, 3], [2, 10]]).error).toBeUndefined();
   });
 });

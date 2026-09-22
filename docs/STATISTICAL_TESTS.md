@@ -272,6 +272,13 @@ column names each row, every other column is a category.
   log odds ratio. R reports a conditional maximum likelihood estimate instead,
   so R's odds ratio can differ slightly while the p-value agrees.
 - **Checked against**: `fisher.test()`.
+- **A limit on the counts**: the sum above runs over every table with the same
+  margins, so its cost grows with the counts themselves rather than with the
+  size of the table. A 2 by 2 of mice is instant; a 2 by 2 of sequencing reads
+  would take minutes, and the graph is redrawn on every keystroke. Above half a
+  million tables Morphly uses the chi-square test instead and says so in the
+  panel. At counts that large the two agree far beyond the digits anyone
+  reports, so nothing is lost but the waiting.
 
 ### Chi-square test of independence
 

@@ -93,6 +93,9 @@ export const plottedGroups = (dataset) =>
 
 const pairKey = (i, j) => `${i}-${j}`;
 
+/** Fewer values than this and normality is assumed rather than tested. */
+export const MIN_FOR_NORMALITY = 5;
+
 /**
  * Suggest a test the way a careful analyst would decide, and say why:
  * normality by Shapiro-Wilk in every group (or in the differences, for two
@@ -106,7 +109,10 @@ function suggest(groups, paired) {
   let checkable = true;
 
   const samples = paired && k === 2 ? [groups[0].map((v, r) => v - groups[1][r])] : groups;
-  const normality = samples.map((g) => (g.length >= 3 ? shapiroWilk(g) : null));
+  // Below five values a normality test says almost nothing, and acting on it
+  // does harm: three replicates would be sent to a rank test that cannot
+  // reach significance at all, however large the difference.
+  const normality = samples.map((g) => (g.length >= MIN_FOR_NORMALITY ? shapiroWilk(g) : null));
   if (normality.some((r) => r === null)) checkable = false;
   const ps = normality.filter(Boolean).map((r) => r.p);
   if (ps.some((p) => p <= 0.05)) normal = false;
@@ -117,7 +123,7 @@ function suggest(groups, paired) {
   } else if (checkable) {
     reasons.push(`values look normally distributed in ${where} (Shapiro-Wilk p above 0.05)`);
   } else {
-    reasons.push("some groups are too small to check normality, so it is assumed");
+    reasons.push(`some groups hold fewer than ${MIN_FOR_NORMALITY} values, too few to check normality, so it is assumed`);
   }
 
   let equalSpread = true;

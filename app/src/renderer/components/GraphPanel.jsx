@@ -23,7 +23,16 @@ import {
   COMPARISON_SETS,
 } from "../lib/analysis";
 import AdvancedDialog from "./AdvancedDialog";
-import { GROUP_KINDS, GROUPED_KINDS, XY_KINDS, GROUP_COLOURS, SERIES_COLOURS, LEGEND_POSITIONS } from "../lib/plotRender";
+import { LINKS } from "../content/helpContent";
+import {
+  GROUP_KINDS,
+  GROUPED_KINDS,
+  XY_KINDS,
+  GROUP_COLOURS,
+  SERIES_COLOURS,
+  LEGEND_POSITIONS,
+  ROUND_KINDS,
+} from "../lib/plotRender";
 import { formatP, formatStat } from "../lib/stats";
 
 /* global __APP_VERSION__ */
@@ -34,6 +43,10 @@ const ERRORS = [
   ["sem", "SEM"],
   ["ci", "95% CI"],
 ];
+
+/** Which graph types take which options. */
+const HAS_ERROR_BARS = new Set(["bar", "dots", "super"]);
+const HAS_POINTS = new Set(["bar", "box", "violin"]);
 
 function Section({ title, children }) {
   return (
@@ -87,6 +100,7 @@ export default function GraphPanel({ element }) {
   const updateElement = useStore((s) => s.updateElement);
   const openData = useStore((s) => s.openData);
   const [copied, setCopied] = useState(false);
+  const [axesAdvanced, setAxesAdvanced] = useState(false);
 
   const plot = element.plot;
   const analysis = useMemo(() => graphAnalysis(element, dataset), [element, dataset]);
@@ -154,18 +168,39 @@ export default function GraphPanel({ element }) {
             </button>
           </div>
         )}
-        <div className="field-label">Graph type</div>
-        <Segments label="Graph type" options={kinds} value={kind} onChange={(id) => set({ kind: id })} />
-        {!xy && kind !== "box" && kind !== "stacked" && kind !== "stacked100" && (
+        {kinds.length > 3 ? (
+          <label className="field">
+            <span>Graph type</span>
+            <select value={kind} onChange={(e) => set({ kind: e.target.value })}>
+              {kinds.map(([id, label]) => (
+                <option key={id} value={id}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : (
+          <>
+            <div className="field-label">Graph type</div>
+            <Segments label="Graph type" options={kinds} value={kind} onChange={(id) => set({ kind: id })} />
+          </>
+        )}
+        {!xy && HAS_ERROR_BARS.has(kind) && (
           <>
             <div className="field-label">Error bars</div>
             <Segments label="Error bars" options={ERRORS} value={plot.error} onChange={(id) => set({ error: id })} />
           </>
         )}
-        {!xy && kind !== "dots" && kind !== "stacked" && kind !== "stacked100" && (
+        {!xy && HAS_POINTS.has(kind) && (
           <label className="check">
             <input type="checkbox" checked={Boolean(plot.points)} onChange={(e) => set({ points: e.target.checked })} />
             Show every point
+          </label>
+        )}
+        {kind === "histogram" && (
+          <label className="check">
+            <input type="checkbox" checked={Boolean(plot.curve)} onChange={(e) => set({ curve: e.target.checked })} />
+            Draw the density curve
           </label>
         )}
         {xy && (
@@ -176,13 +211,20 @@ export default function GraphPanel({ element }) {
         )}
       </Section>
 
-      <Section title="Axes and text">
-        <PlotText element={element} field="yTitle" label="Y axis title" placeholder="For example: Viability (%)" />
-        <PlotText element={element} field="xTitle" label="X axis title" placeholder={xy ? dataset.columns[0]?.name || "X" : "None"} />
-        <div className="field-grid">
-          <PlotText element={element} field="yMin" label="Y from" placeholder="Auto" numeric />
-          <PlotText element={element} field="yMax" label="Y to" placeholder="Auto" numeric />
-        </div>
+      <Section title={ROUND_KINDS.has(kind) ? "Text" : "Axes and text"}>
+        {!ROUND_KINDS.has(kind) && (
+          <>
+            <PlotText element={element} field="yTitle" label="Y axis title" placeholder={kind === "histogram" ? "Count" : "For example: Viability (%)"} />
+            <PlotText element={element} field="xTitle" label="X axis title" placeholder={xy ? dataset.columns[0]?.name || "X" : "None"} />
+            <div className="field-grid">
+              <PlotText element={element} field="yMin" label="Y from" placeholder="Auto" numeric />
+              <PlotText element={element} field="yMax" label="Y to" placeholder="Auto" numeric />
+            </div>
+            <button className="link" onClick={() => setAxesAdvanced(true)}>
+              Advanced…
+            </button>
+          </>
+        )}
         <label className="field">
           <span>Legend</span>
           <select value={plot.legend ?? "auto"} onChange={(e) => set({ legend: e.target.value })}>
@@ -231,6 +273,38 @@ export default function GraphPanel({ element }) {
           </button>
         )}
       </Section>
+
+      {axesAdvanced && (
+        <AdvancedDialog
+          title="Advanced axes"
+          onClose={() => setAxesAdvanced(false)}
+          onReset={() => set({ yScale: "linear", xScale: "linear", binWidth: "" })}
+        >
+          <label className="field">
+            <span>Y axis scale</span>
+            <select value={plot.yScale ?? "linear"} onChange={(e) => set({ yScale: e.target.value })}>
+              <option value="linear">Linear</option>
+              <option value="log">Logarithmic (powers of ten)</option>
+            </select>
+          </label>
+          {xy && (
+            <label className="field">
+              <span>X axis scale</span>
+              <select value={plot.xScale ?? "linear"} onChange={(e) => set({ xScale: e.target.value })}>
+                <option value="linear">Linear</option>
+                <option value="log">Logarithmic (powers of ten)</option>
+              </select>
+            </label>
+          )}
+          {kind === "histogram" && (
+            <PlotText element={element} field="binWidth" label="Bin width" placeholder="Chosen for you" numeric />
+          )}
+          <p className="hint">
+            A logarithmic axis runs between whole powers of ten. Values at or below zero cannot be placed on one, so they
+            are left out of the drawing. Stacked bars stay linear, since their heights are meant to be added up.
+          </p>
+        </AdvancedDialog>
+      )}
 
       {grouped && <GroupedStats element={element} dataset={dataset} analysis={analysis} sentence={sentence} copied={copied} setCopied={setCopied} />}
       {!xy && !grouped && <GroupStats element={element} analysis={analysis} sentence={sentence} copied={copied} setCopied={setCopied} />}
@@ -328,6 +402,9 @@ function GroupStats({ element, analysis, sentence, copied, setCopied }) {
       <button className="ghost small" onClick={copy}>
         {copied ? "Copied" : "Copy methods sentence"}
       </button>
+      <button className="link" onClick={() => window.morphly.openExternal(LINKS.statistics)}>
+        How is this calculated?
+      </button>
     </Section>
   );
 }
@@ -406,6 +483,9 @@ function GroupedStats({ element, dataset, analysis, sentence, copied, setCopied 
       <p className="methods">{sentence}</p>
       <button className="ghost small" onClick={copy}>
         {copied ? "Copied" : "Copy methods sentence"}
+      </button>
+      <button className="link" onClick={() => window.morphly.openExternal(LINKS.statistics)}>
+        How is this calculated?
       </button>
 
       {advanced && (

@@ -19,6 +19,9 @@ import {
   friedman,
   twoWayAnova,
   dunnettTest,
+  bandwidthNrd0,
+  kernelDensity,
+  histogramBins,
   shapiroWilk,
   brownForsythe,
   pearson,
@@ -353,5 +356,55 @@ group("reporting", () => {
     expect(formatP(0.00001)).toBe("< 0.0001");
     expect(formatP(0.0495)).toBe("0.0495");
     expect(formatP(0.48)).toBe("0.48");
+  });
+});
+
+group("shapes of a distribution", () => {
+  const x = [4.1, 5.3, 3.8, 6.0, 4.6, 5.9, 4.4, 7.2, 5.1, 4.9];
+
+  it("uses R's default bandwidth: bw.nrd0()", () => {
+    close(bandwidthNrd0(x), 0.550910517195, 1e-9);
+  });
+
+  it("draws the same curve as density(kernel = 'gaussian')", () => {
+    const curve = kernelDensity(x, { points: 512 });
+    const at = (value) => {
+      // Straight line between the two nearest points, as R's approx() does.
+      const after = curve.findIndex((p) => p.x >= value);
+      const a = curve[after - 1];
+      const b = curve[after];
+      return a.y + ((value - a.x) / (b.x - a.x)) * (b.y - a.y);
+    };
+    // R bins the values and uses an FFT, so its curve is itself an
+    // approximation; Morphly evaluates the kernel at each point. Agreement to
+    // a few parts in ten thousand is the most that can be asked.
+    close(at(3.5), 0.135688382017, 3e-4);
+    close(at(4.5), 0.355911304365, 3e-4);
+    close(at(5.5), 0.300083041514, 3e-4);
+    close(at(6.5), 0.131247232881, 3e-4);
+  });
+
+  it("spans the data plus three bandwidths, as R's cut does", () => {
+    const curve = kernelDensity(x, { points: 16 });
+    const bw = bandwidthNrd0(x);
+    close(curve[0].x, Math.min(...x) - 3 * bw, 1e-12);
+    close(curve[curve.length - 1].x, Math.max(...x) + 3 * bw, 1e-12);
+  });
+
+  it("bins a histogram on round edges that hold every value", () => {
+    const { breaks, counts, width } = histogramBins(x);
+    expect(counts.reduce((a, b) => a + b, 0)).toBe(x.length);
+    expect(breaks[0]).toBeLessThanOrEqual(Math.min(...x));
+    expect(breaks[breaks.length - 1]).toBeGreaterThan(Math.max(...x));
+    expect(breaks).toHaveLength(counts.length + 1);
+    // Round widths only: 1, 2, 2.5 or 5 times a power of ten.
+    const magnitude = 10 ** Math.floor(Math.log10(width));
+    expect([1, 2, 2.5, 5, 10]).toContain(Number((width / magnitude).toFixed(10)));
+  });
+
+  it("copes with values that are all the same, and with none at all", () => {
+    expect(histogramBins([3, 3, 3]).counts).toEqual([3]);
+    expect(histogramBins([]).counts).toEqual([]);
+    expect(kernelDensity([])).toEqual([]);
   });
 });

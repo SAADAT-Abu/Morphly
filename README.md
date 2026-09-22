@@ -68,6 +68,11 @@ else's server.
   numbers. The graph is an ordinary element that can fill a panel, and it
   redraws as you edit the numbers in the table under the canvas, which can pop
   out into its own window for a long table or a second screen.
+- **Every test written down**: [How Morphly calculates
+  statistics](docs/STATISTICAL_TESTS.md) lists each test, its formula, its
+  assumptions, the R or SciPy command it was checked against, and where its
+  code and tests live, so a result can be checked or challenged without
+  reading the source.
 - **Statistics, checked against R**: Morphly suggests a test and says why
   (Shapiro-Wilk for normality, Brown-Forsythe for spread): unpaired, Welch's and
   paired t tests, Mann-Whitney, Wilcoxon, one-way, Welch's and repeated measures

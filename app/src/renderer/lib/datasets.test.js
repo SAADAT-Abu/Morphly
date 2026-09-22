@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
+  replicateMeans,
+  groupedFactors,
   parseNumber,
   createDataset,
   blankDataset,
@@ -177,5 +179,35 @@ describe("datasetFromRows", () => {
 
   it("returns null for an empty table", () => {
     expect(datasetFromRows([["", ""]])).toBeNull();
+  });
+});
+
+describe("grouped tables", () => {
+  const ds = createDataset({
+    kind: "grouped",
+    columns: [
+      { name: "Genotype", values: ["WT", "WT", "KO", "KO", "  ", "WT"] },
+      { name: "Vehicle", values: ["1", "3", "5", "7", "9", "x"] },
+      { name: "Drug", values: ["2", "4", "6", "8", "10", "12"] },
+    ],
+  });
+
+  it("reads the two factors, in the order the groups first appear", () => {
+    const f = groupedFactors(ds);
+    expect(f.rowFactor).toBe("Genotype");
+    expect(f.levels).toEqual(["WT", "KO"]);
+    expect(f.conditions.map((c) => c.name)).toEqual(["Vehicle", "Drug"]);
+    // The blank label is left out, and so is the cell that is not a number.
+    expect(f.valuesAt("WT", "Vehicle")).toEqual([1, 3]);
+    expect(f.valuesAt("WT", "Drug")).toEqual([2, 4, 12]);
+    expect(f.valuesAt("KO", "Vehicle")).toEqual([5, 7]);
+  });
+
+  it("averages each replicate for a SuperPlot", () => {
+    const means = replicateMeans(ds);
+    expect(means.kind).toBe("groups");
+    expect(means.columns.map((c) => c.name)).toEqual(["Vehicle", "Drug"]);
+    expect(means.columns[0].values).toEqual(["2", "6"]);
+    expect(means.columns[1].values).toEqual(["6", "7"]);
   });
 });

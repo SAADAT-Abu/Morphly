@@ -37,6 +37,17 @@ Planned work is described in the [roadmap](README.md#roadmap).
   as brackets with stars; significant ones start ticked. A methods sentence can
   be copied into a manuscript. X and Y graphs show linear fits, Pearson and
   Spearman correlations.
+- **More kinds of graph.** Violin plots (with the median marked), SuperPlots
+  (every measurement coloured by biological replicate, with the replicate
+  means on top), before-and-after lines for paired data, histograms with an
+  optional density curve, and pie and donut charts for composition.
+- **Logarithmic axes**, on the Y axis of any graph and the X axis of an X and
+  Y graph, for dose responses and qPCR. In Advanced axes, along with the
+  histogram bin width.
+- **A written account of every statistical test.**
+  [docs/STATISTICAL_TESTS.md](docs/STATISTICAL_TESTS.md) gives each test's
+  formula, assumptions, the R or SciPy command it was checked against, and
+  where its code and tests live. The Statistics panel links to it.
 - **Groups by condition, with two-way ANOVA.** A third shape of data: the
   first column names each row's group (genotype, say) and every other column is
   a condition (vehicle, drug). Draws as bars side by side, stacked bars or 100%
@@ -86,6 +97,10 @@ Planned work is described in the [roadmap](README.md#roadmap).
 
 ### Fixed
 
+- Normality is now assumed, and said to be assumed, when a group holds fewer
+  than five values. Testing normality on three points says almost nothing, and
+  acting on it sent a three-replicate experiment to a rank test that cannot
+  reach significance at all.
 - Text being edited on the canvas lost its bold and italic while the properties
   panel still showed them. The editor now matches the text it stands in for.
 - The "Y from" and "Y to" boxes in a graph's properties sat at different

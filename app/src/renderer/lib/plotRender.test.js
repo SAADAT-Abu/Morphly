@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { renderPlotSvg, defaultPlot, beeswarm, stackBrackets, textWidth } from "./plotRender";
+import { renderPlotSvg, defaultPlot, beeswarm, stackBrackets, textWidth, makeScale, logLabels } from "./plotRender";
 import { graphSvg, graphAnalysis } from "./graphs";
 import { createDataset, sampleDataset } from "./datasets";
 
@@ -185,5 +185,154 @@ describe("renderPlotSvg: groups by condition", () => {
   it("says what is missing rather than drawing nothing", () => {
     const empty = createDataset({ kind: "grouped", columns: [{ name: "Genotype", values: [""] }, { name: "A", values: [""] }] });
     expect(renderPlotSvg(grouped("bar"), empty)).toContain("Name the groups");
+  });
+});
+
+describe("the plot types added for distributions and parts of a whole", () => {
+  const spread = createDataset({
+    columns: [
+      { name: "Control", values: Array.from({ length: 30 }, (_, i) => String(5 + Math.sin(i) * 1.2)) },
+      { name: "Treated", values: Array.from({ length: 30 }, (_, i) => String(7 + Math.cos(i) * 1.4)) },
+    ],
+  });
+  const el = (kind, patch = {}) => ({ type: "plot", width: 600, height: 450, plot: { ...defaultPlot(kind, { fontSize: 16 }), ...patch } });
+
+  it("draws a violin per group, with its median", () => {
+    const svg = renderPlotSvg(el("violin"), spread);
+    expect(count(svg, /<polygon /g)).toBe(2);
+    expect(count(part(svg, "errors"), /<line /g)).toBe(2);
+  });
+
+  it("joins each row across the groups for before and after", () => {
+    const paired = createDataset({
+      columns: [
+        { name: "Before", values: ["1", "2", "3"] },
+        { name: "After", values: ["2", "4", "5"] },
+      ],
+    });
+    const svg = renderPlotSvg(el("beforeafter"), paired);
+    expect(count(part(svg, "lines"), /<path /g)).toBe(3);
+    // Points sit on their lines rather than being spread sideways.
+    const xs = [...part(svg, "points").matchAll(/cx="([\d.]+)"/g)].map((m) => m[1]);
+    expect(new Set(xs).size).toBe(2);
+  });
+
+  it("leaves out a row that has only one of the pair", () => {
+    const ragged = createDataset({
+      columns: [
+        { name: "Before", values: ["1", "2"] },
+        { name: "After", values: ["2", ""] },
+      ],
+    });
+    expect(count(part(renderPlotSvg(el("beforeafter"), ragged), "lines"), /<path /g)).toBe(1);
+  });
+
+  it("draws a histogram, and a density curve when asked", () => {
+    const plain = renderPlotSvg(el("histogram"), spread);
+    expect(plain).toContain(">Count</text>");
+    expect(count(plain, /data-part="density"/g)).toBe(0);
+    const withCurve = renderPlotSvg(el("histogram", { curve: true }), spread);
+    expect(count(withCurve, /data-part="density"/g)).toBe(2);
+  });
+
+  it("takes a bin width when one is given", () => {
+    const wide = renderPlotSvg(el("histogram", { binWidth: "2" }), spread);
+    const narrow = renderPlotSvg(el("histogram", { binWidth: "0.5" }), spread);
+    expect(count(part(narrow, "bars"), /<rect /g)).toBeGreaterThan(count(part(wide, "bars"), /<rect /g));
+  });
+
+  const parts = createDataset({
+    columns: [
+      { name: "T cells", values: ["42"] },
+      { name: "B cells", values: ["23"] },
+      { name: "Myeloid", values: ["19"] },
+      { name: "Other", values: ["16"] },
+    ],
+  });
+
+  it("draws a pie with a slice each and their percentages", () => {
+    const svg = renderPlotSvg(el("pie"), parts);
+    expect(count(part(svg, "slices"), /<path /g)).toBe(4);
+    expect(svg).toContain(">42%</text>");
+    expect(svg).toContain('data-part="legend"');
+  });
+
+  it("draws a donut as rings rather than wedges", () => {
+    const donut = renderPlotSvg(el("donut"), parts);
+    // A ring is two arcs; a wedge starts at the centre with a move and a line.
+    expect(count(part(donut, "slices"), /A/g)).toBeGreaterThan(count(part(renderPlotSvg(el("pie"), parts), "slices"), /A/g));
+  });
+
+  it("says so when a pie has nothing to divide", () => {
+    const nothing = createDataset({ columns: [{ name: "A", values: ["0"] }] });
+    expect(renderPlotSvg(el("pie"), nothing)).toContain("positive numbers");
+  });
+});
+
+describe("axis scales", () => {
+  it("runs a logarithmic axis between whole powers of ten", () => {
+    const scale = makeScale({ lo: 0.012, hi: 87, log: true });
+    expect(scale.min).toBe(0.01);
+    expect(scale.max).toBe(100);
+    expect(scale.ticks).toEqual([0.01, 0.1, 1, 10, 100]);
+    expect(scale.at(0.01)).toBeCloseTo(0, 12);
+    expect(scale.at(1)).toBeCloseTo(0.5, 12);
+    expect(scale.at(100)).toBeCloseTo(1, 12);
+  });
+
+  it("keeps a linear axis as it was", () => {
+    const scale = makeScale({ lo: 0, hi: 103 });
+    expect(scale.log).toBe(false);
+    expect(scale.at(scale.max)).toBeCloseTo(1, 12);
+  });
+
+  it("writes readable tick labels, falling back to powers for the extremes", () => {
+    expect(logLabels([0.01, 1, 1000])).toEqual(["0.01", "1", "1000"]);
+    expect(logLabels([1e-6, 1e7])).toEqual(["10^-6", "10^7"]);
+  });
+
+  it("draws an X and Y graph on a log X axis", () => {
+    const ds = createDataset({
+      kind: "xy",
+      columns: [
+        { name: "Dose", values: ["0.01", "0.1", "1", "10", "100"] },
+        { name: "Response", values: ["2", "9", "48", "88", "97"] },
+      ],
+    });
+    const svg = renderPlotSvg(
+      { type: "plot", width: 600, height: 450, plot: { ...defaultPlot("line", { fontSize: 16 }), xScale: "log" } },
+      ds
+    );
+    expect(svg).toContain(">0.01</text>");
+    expect(svg).toContain(">100</text>");
+  });
+});
+
+describe("SuperPlot", () => {
+  const ds = createDataset({
+    kind: "grouped",
+    columns: [
+      { name: "Replicate", values: ["R1", "R1", "R1", "R2", "R2", "R2", "R3", "R3", "R3"] },
+      { name: "Control", values: ["5.1", "4.8", "5.4", "6.0", "5.7", "6.3", "4.4", "4.9", "4.1"] },
+      { name: "Treated", values: ["7.1", "7.8", "7.4", "8.0", "8.7", "8.3", "6.4", "6.9", "6.1"] },
+    ],
+  });
+
+  it("draws every measurement, plus a marker for each replicate mean", () => {
+    const svg = renderPlotSvg(
+      { type: "plot", width: 600, height: 450, plot: defaultPlot("super", { fontSize: 16 }) },
+      ds
+    );
+    expect(count(part(svg, "points"), /<circle /g)).toBe(18);
+    expect(count(part(svg, "replicate-means"), /<circle /g)).toBe(6);
+    // The legend names the replicates, since colour is what tells them apart.
+    expect(svg).toContain(">R1</text>");
+  });
+
+  it("judges it on the replicate means, not on every measurement", () => {
+    const el = { type: "plot", width: 600, height: 450, plot: defaultPlot("super", { fontSize: 16 }) };
+    const analysis = graphAnalysis(el, ds);
+    expect(analysis.label).toBe("Paired t test");
+    expect(analysis.n).toEqual([3, 3]);
   });
 });

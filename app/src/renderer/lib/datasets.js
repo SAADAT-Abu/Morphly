@@ -356,6 +356,30 @@ export function groupedFactors(dataset) {
 }
 
 /**
+ * The mean of each replicate in each condition, as a groups dataset: one
+ * column per condition, one row per replicate.
+ *
+ * This is what a SuperPlot is really about. Cells within one dish are not
+ * independent, so comparing thousands of them exaggerates how sure we are;
+ * comparing the handful of replicate means does not.
+ */
+export function replicateMeans(dataset) {
+  const { levels, conditions, valuesAt } = groupedFactors(dataset);
+  return createDataset({
+    name: `${dataset.name}: replicate means`,
+    kind: "groups",
+    columns: conditions.map((condition) => ({
+      name: condition.name,
+      values: levels.map((level) => {
+        const values = valuesAt(level, condition.name);
+        if (!values.length) return "";
+        return String(values.reduce((sum, v) => sum + v, 0) / values.length);
+      }),
+    })),
+  });
+}
+
+/**
  * What Morphly made of a table, column by column, for the "How Morphly read
  * it" panel: how many numbers each column holds and how many cells were not
  * numbers, so a column read wrongly is spotted before the graph is drawn.

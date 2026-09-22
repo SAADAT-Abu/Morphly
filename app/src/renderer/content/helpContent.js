@@ -262,7 +262,9 @@ export const GETTING_STARTED = [
       "one-way, Welch's or repeated measures ANOVA with Tukey, Games-Howell or Holm " +
       "follow-up, Kruskal-Wallis with Dunn's test, Wilcoxon and Friedman. Tick a comparison " +
       "to draw it as a bracket with stars; significant ones start ticked. Every p-value is " +
-      "checked against R. Copy the methods sentence into your manuscript. Graphs export as " +
+      "checked against R. Copy the methods sentence into your manuscript. How each test is " +
+      "calculated, and what it was checked against, is written out in docs/STATISTICAL_TESTS.md; " +
+      "the Statistics panel links straight to it. Graphs export as " +
       "true vectors, like everything else.",
   },
   {
@@ -321,6 +323,8 @@ export const AUTHOR = {
 export const LINKS = {
   repo: "https://github.com/SAADAT-Abu/Morphly",
   issues: "https://github.com/SAADAT-Abu/Morphly/issues",
+  /** How every test is calculated, and what it was checked against. */
+  statistics: "https://github.com/SAADAT-Abu/Morphly/blob/main/docs/STATISTICAL_TESTS.md",
   /** Concept DOI: always resolves to the most recent archived release. */
   zenodo: "https://doi.org/10.5281/zenodo.22238248",
 };

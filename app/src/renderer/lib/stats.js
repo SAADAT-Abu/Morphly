@@ -796,3 +796,90 @@ function logGamma(x) {
   for (let j = 0; j < 6; j += 1) ser += c[j] / ++y;
   return -tmp + Math.log((2.5066282746310005 * ser) / x);
 }
+
+// ---------------------------------------------------------------------------
+// Shapes of a distribution: violins, histograms, density
+// ---------------------------------------------------------------------------
+
+/**
+ * The bandwidth R uses by default for density(): 0.9 times the smaller of the
+ * standard deviation and the interquartile range over 1.34, times n to the
+ * power of minus a fifth (bw.nrd0).
+ */
+export function bandwidthNrd0(values) {
+  const n = values.length;
+  if (n < 2) return 1;
+  const sorted = [...values].sort((a, b) => a - b);
+  const sd = Math.sqrt(variance(values));
+  const iqr = quantile(sorted, 0.75) - quantile(sorted, 0.25);
+  // R's bw.nrd0 divides by 1.34, not by the 1.349 of the normal quartile.
+  let spread = Math.min(sd, iqr / 1.34);
+  if (!(spread > 0)) spread = sd || Math.abs(values[0]) || 1;
+  return 0.9 * spread * n ** -0.2;
+}
+
+/**
+ * A smooth curve through the values: a Gaussian kernel at each point,
+ * averaged, as R's density(kernel = "gaussian") does. Returns `points` pairs
+ * spanning the data plus three bandwidths either side, which is R's default
+ * cut.
+ */
+export function kernelDensity(values, { bandwidth = null, points = 128, from = null, to = null } = {}) {
+  const xs = values.filter(Number.isFinite);
+  if (xs.length === 0) return [];
+  const bw = bandwidth ?? bandwidthNrd0(xs);
+  const lo = from ?? Math.min(...xs) - 3 * bw;
+  const hi = to ?? Math.max(...xs) + 3 * bw;
+  const step = points > 1 ? (hi - lo) / (points - 1) : 0;
+  const scale = 1 / (xs.length * bw * Math.sqrt(2 * Math.PI));
+  const out = [];
+  for (let i = 0; i < points; i += 1) {
+    const x = lo + i * step;
+    let sum = 0;
+    for (const value of xs) {
+      const z = (x - value) / bw;
+      sum += Math.exp(-0.5 * z * z);
+    }
+    out.push({ x, y: sum * scale });
+  }
+  return out;
+}
+
+/**
+ * Bins for a histogram. The width follows the Freedman-Diaconis rule (twice
+ * the interquartile range over the cube root of n), rounded to a round number
+ * so the edges read well, and falls back to Sturges' count when the values are
+ * too alike for that to work.
+ */
+export function histogramBins(values, { binWidth = null } = {}) {
+  const xs = values.filter(Number.isFinite).sort((a, b) => a - b);
+  const n = xs.length;
+  if (n === 0) return { breaks: [], counts: [], width: 0 };
+  const lo = xs[0];
+  const hi = xs[n - 1];
+  if (hi === lo) return { breaks: [lo - 0.5, lo + 0.5], counts: [n], width: 1 };
+
+  let width = binWidth;
+  if (!(width > 0)) {
+    const iqr = quantile(xs, 0.75) - quantile(xs, 0.25);
+    const fd = iqr > 0 ? (2 * iqr) / Math.cbrt(n) : 0;
+    const sturges = (hi - lo) / (Math.ceil(Math.log2(n)) + 1);
+    const raw = fd > 0 ? fd : sturges;
+    // Round to 1, 2 or 5 times a power of ten, so the edges are readable.
+    const magnitude = 10 ** Math.floor(Math.log10(raw));
+    const steps = [1, 2, 2.5, 5, 10];
+    width = magnitude * (steps.find((s) => raw <= s * magnitude) ?? 10);
+  }
+  const start = Math.floor(lo / width) * width;
+  const breaks = [];
+  for (let edge = start; edge < hi + width; edge += width) breaks.push(Number(edge.toFixed(10)));
+  if (breaks[breaks.length - 1] <= hi) breaks.push(Number((breaks[breaks.length - 1] + width).toFixed(10)));
+  const counts = new Array(breaks.length - 1).fill(0);
+  for (const value of xs) {
+    let index = Math.floor((value - start) / width);
+    if (index >= counts.length) index = counts.length - 1;
+    if (index < 0) index = 0;
+    counts[index] += 1;
+  }
+  return { breaks, counts, width };
+}

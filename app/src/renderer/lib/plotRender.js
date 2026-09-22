@@ -49,6 +49,11 @@ export const GROUPED_KINDS = [
 
 /** A table of counts draws like grouped data, without the SuperPlot. */
 export const COUNT_KINDS = GROUPED_KINDS.filter(([id]) => id !== "super");
+
+export const SURVIVAL_KINDS = [
+  ["survival", "Survival curve"],
+  ["survivalPercent", "Percent survival"],
+];
 export const XY_KINDS = [
   ["scatter", "Scatter"],
   ["line", "Points and lines"],
@@ -197,6 +202,8 @@ export function defaultPlot(kind = "bar", { fontSize = 28 } = {}) {
     xScale: "linear",
     curve: false,
     binWidth: "",
+    fitModel: "none",
+    band: true,
     test: "auto",
     within: "conditions",
     correction: "sidak",
@@ -533,6 +540,100 @@ export function stackBrackets(brackets, cols) {
     placed.push({ ...b, level });
   }
   return placed;
+}
+
+// ---------------------------------------------------------------------------
+// Survival curves
+// ---------------------------------------------------------------------------
+
+/**
+ * Kaplan-Meier curves: a step down at each event, flat in between, with a tick
+ * where a subject was censored. Percent survival is the same curve with the
+ * axis in percent, which is how most papers print it.
+ */
+function survivalSvg(element, dataset, survival) {
+  const plot = element.plot;
+  const W = element.width;
+  const H = element.height;
+  const f = plot.fontSize ?? 28;
+  const sw = Math.max(1, f * 0.075);
+  const groups = survival?.groups ?? [];
+  if (!groups.length) return message(W, H, "Add a time and an event for each subject", f);
+
+  const percent = plot.kind === "survivalPercent";
+  const scale = percent ? 100 : 1;
+  const latest = Math.max(...groups.flatMap((g) => g.curve.steps.map((s) => s.time)), 1);
+  const xr = makeScale({ lo: 0, hi: latest, fixedMin: 0, count: 6 });
+  const yr = makeScale({ lo: 0, hi: scale, fixedMin: 0, fixedMax: scale, count: 5 });
+  const xTicks = tickLabels(xr.ticks);
+  const yTicks = tickLabels(yr.ticks);
+
+  const axisGap = f * 0.5;
+  const names = groups.map((g) => g.name);
+  const legendAt = legendPlacement(plot, names.length, "xy");
+  const left = f * 1.7 + maxLabelWidth(yTicks, f) + f * 0.7 + axisGap;
+  const right = f * 0.6;
+  const bottom = axisGap + f * 1.9 + f * 1.6;
+  const top = f * 0.8;
+  const plotRight = W - right;
+  const plotBottom = Math.max(top + 10, H - bottom);
+  const x = (v) => left + xr.at(v) * (plotRight - left);
+  const y = (v) => plotBottom - yr.at(v) * (plotBottom - top);
+
+  let body = `<g data-part="curves">`;
+  groups.forEach((group, index) => {
+    const colour = colourAt(plot, index, SERIES_COLOURS);
+    let d = `M${r2(x(0))} ${r2(y(scale))}`;
+    let last = scale;
+    for (const step of group.curve.steps) {
+      if (step.time === 0) continue;
+      // Along to the time, then down by however many had the event.
+      d += `L${r2(x(step.time))} ${r2(y(last))}`;
+      if (step.events > 0) {
+        last = step.survival * scale;
+        d += `L${r2(x(step.time))} ${r2(y(last))}`;
+      }
+    }
+    d += `L${r2(x(latest))} ${r2(y(last))}`;
+    body += `<path d="${d}" fill="none" stroke="${colour}" stroke-width="${r2(sw * 1.6)}" stroke-linejoin="miter"/>`;
+
+    if (plot.points !== false) {
+      // A tick where a subject was censored: they left the study still alive.
+      for (const step of group.curve.steps) {
+        if (!step.censored) continue;
+        const at = group.curve.at(step.time) * scale;
+        body += `<line data-part="censored" x1="${r2(x(step.time))}" y1="${r2(y(at) - f * 0.28)}" x2="${r2(x(step.time))}" y2="${r2(y(at) + f * 0.28)}" stroke="${colour}" stroke-width="${r2(sw * 1.4)}"/>`;
+      }
+    }
+  });
+  body += `</g>`;
+
+  let axes = yAxis({
+    x: left - axisGap,
+    y,
+    range: yr,
+    f,
+    sw,
+    title: plot.yTitle || (percent ? "Percent survival" : "Survival"),
+    top,
+    bottom: plotBottom,
+  });
+  const tick = f * 0.4;
+  const axisY = plotBottom + axisGap;
+  axes += `<g data-part="x-axis"><line x1="${r2(x(0))}" y1="${r2(axisY)}" x2="${r2(x(xr.max))}" y2="${r2(axisY)}" stroke="${INK}" stroke-width="${sw}" stroke-linecap="square"/>`;
+  xr.ticks.forEach((value, i) => {
+    axes += `<line x1="${r2(x(value))}" y1="${r2(axisY)}" x2="${r2(x(value))}" y2="${r2(axisY + tick)}" stroke="${INK}" stroke-width="${sw}"/>`;
+    axes += `<text x="${r2(x(value))}" y="${r2(axisY + tick + f * 1.05)}" font-family="${FONT}" font-size="${f}" fill="${INK}" text-anchor="middle">${esc(xTicks[i])}</text>`;
+  });
+  const xTitle = plot.xTitle || dataset.columns[0]?.name || "Time";
+  axes += `<text x="${r2((left + plotRight) / 2)}" y="${r2(H - f * 0.4)}" font-family="${FONT}" font-size="${f}" font-weight="bold" fill="${INK}" text-anchor="middle">${esc(xTitle)}</text></g>`;
+
+  const legend = legendSvg(
+    names.map((name, i) => ({ name, colour: colourAt(plot, i, SERIES_COLOURS) })),
+    { position: legendAt, f, sw, left, right: plotRight, top, bottom: plotBottom, round: true }
+  );
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${body}${axes}${legend}</svg>`;
 }
 
 // ---------------------------------------------------------------------------
@@ -1136,7 +1237,38 @@ function xySvg(element, dataset, fits) {
       body += `<polyline data-part="lines" points="${sorted.map((r) => `${r2(x(r[0]))},${r2(y(r[1]))}`).join(" ")}" fill="none" stroke="${colour}" stroke-width="${r2(sw * 1.4)}" stroke-linejoin="round"/>`;
     }
     const fit = fits?.[idx];
-    if (plot.fit && fit?.regression) {
+
+    // A fitted curve (lib/curveFit.js), drawn through the whole axis, with
+    // the band showing how well the curve itself is pinned down.
+    if (fit?.fit && !fit.fit.error) {
+      const steps = 120;
+      const logX = xr.log;
+      const at = (i) => {
+        const t = i / steps;
+        return logX
+          ? 10 ** (Math.log10(xr.min) + t * (Math.log10(xr.max) - Math.log10(xr.min)))
+          : xr.min + t * (xr.max - xr.min);
+      };
+      const upper = [];
+      const lower = [];
+      let curve = "";
+      for (let i = 0; i <= steps; i += 1) {
+        const xi = at(i);
+        const { value, se } = fit.fit.predict(xi);
+        if (!Number.isFinite(value)) continue;
+        const clamp = (v) => Math.max(yr.min, Math.min(yr.max, v));
+        curve += `${curve ? "L" : "M"}${r2(x(xi))} ${r2(y(clamp(value)))}`;
+        if (plot.band && Number.isFinite(se)) {
+          const half = fit.fit.tCritical * se;
+          upper.push(`${r2(x(xi))},${r2(y(clamp(value + half)))}`);
+          lower.push(`${r2(x(xi))},${r2(y(clamp(value - half)))}`);
+        }
+      }
+      if (plot.band && upper.length) {
+        body += `<polygon data-part="band" points="${[...upper, ...lower.reverse()].join(" ")}" fill="${colour}" fill-opacity="0.15" stroke="none"/>`;
+      }
+      if (curve) body += `<path data-part="fit" d="${curve}" fill="none" stroke="${colour}" stroke-width="${r2(sw * 1.5)}"/>`;
+    } else if (plot.fit && fit?.regression) {
       const { slope, intercept } = fit.regression;
       const x0 = xr.min;
       const x1 = xr.max;
@@ -1188,6 +1320,7 @@ export function renderPlotSvg(element, dataset, extras = {}) {
   const f = element.plot?.fontSize ?? 28;
   if (!dataset) return message(W, H, "The data for this graph is missing", f);
   if (dataset.kind === "xy") return xySvg(sized, dataset, extras.fits);
+  if (dataset.kind === "survival") return survivalSvg(sized, dataset, extras.survival);
   if (dataset.kind === "contingency") return groupedSvg(sized, dataset, extras.brackets ?? []);
   if (dataset.kind === "grouped") {
     if (element.plot?.kind === "super") return superSvg(sized, dataset, extras.brackets ?? []);

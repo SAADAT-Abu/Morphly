@@ -336,3 +336,63 @@ describe("SuperPlot", () => {
     expect(analysis.n).toEqual([3, 3]);
   });
 });
+
+describe("renderPlotSvg: survival", () => {
+  const ds = sampleDataset("survival");
+  const el = element("survival");
+
+  it("draws one step curve per group, with a tick for every censored subject", () => {
+    const svg = graphSvg(el, ds);
+    const curves = part(svg, "curves");
+    // Two groups, so two step paths; the sample has six censored subjects.
+    expect(count(curves, /<path /g)).toBe(2);
+    expect(count(curves, /data-part="censored"/g)).toBe(6);
+    expect(svg).toContain('data-part="legend"');
+  });
+
+  it("leaves the ticks off when they are not wanted", () => {
+    const svg = graphSvg({ ...el, plot: { ...el.plot, points: false } }, ds);
+    expect(count(svg, /data-part="censored"/g)).toBe(0);
+  });
+
+  it("only ever steps downwards, since survival cannot go back up", () => {
+    const svg = graphSvg(el, ds);
+    const d = /<path d="([^"]+)"/.exec(part(svg, "curves"))[1];
+    // Y grows downwards in SVG, so a curve that only falls never moves up.
+    const ys = [...d.matchAll(/[ML][\d.]+ ([\d.]+)/g)].map((m) => Number(m[1]));
+    expect(ys.length).toBeGreaterThan(4);
+    ys.slice(1).forEach((y, i) => expect(y).toBeGreaterThanOrEqual(ys[i]));
+  });
+
+  it("counts survival from 0 to 1, or as a percentage, as asked", () => {
+    expect(graphSvg(el, ds)).toContain(">1.0</text>");
+    expect(graphSvg({ ...el, plot: { ...el.plot, kind: "survivalPercent" } }, ds)).toContain(">100</text>");
+  });
+});
+
+describe("renderPlotSvg: fitted curves", () => {
+  const ds = createDataset({
+    kind: "xy",
+    columns: [
+      { name: "Dose (uM)", values: ["0.01", "0.03", "0.1", "0.3", "1", "3", "10", "30", "100"] },
+      { name: "Viability", values: ["2.1", "3.4", "8.9", "21.5", "48.7", "76.2", "91.3", "96.8", "98.4"] },
+    ],
+  });
+
+  it("draws the fitted curve and its confidence band", () => {
+    const el = element("scatter", { fitModel: "4pl", xScale: "log" });
+    const svg = graphSvg(el, ds);
+    expect(count(svg, /data-part="fit"/g)).toBe(1);
+    expect(count(svg, /data-part="band"/g)).toBe(1);
+    // The curve is drawn as a path of many segments, not a straight line.
+    expect(/<path data-part="fit" d="([^"]+)"/.exec(svg)[1].split("L").length).toBeGreaterThan(20);
+  });
+
+  it("drops the band when it is turned off, and both when no model is chosen", () => {
+    const noBand = graphSvg(element("scatter", { fitModel: "4pl", band: false }), ds);
+    expect(count(noBand, /data-part="fit"/g)).toBe(1);
+    expect(count(noBand, /data-part="band"/g)).toBe(0);
+    const none = graphSvg(element("scatter"), ds);
+    expect(count(none, /data-part="fit"/g)).toBe(0);
+  });
+});

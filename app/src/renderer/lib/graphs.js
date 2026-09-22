@@ -6,7 +6,7 @@
  * graph on screen is the graph in the exported file.
  */
 
-import { analyseGroups, analyseGrouped, analyseCounts, analyseXY, bracketsToDraw } from "./analysis";
+import { analyseGroups, analyseGrouped, analyseCounts, analyseSurvival, analyseXY, bracketsToDraw } from "./analysis";
 import { replicateMeans } from "./datasets";
 import { renderPlotSvg, defaultPlot } from "./plotRender";
 
@@ -16,8 +16,9 @@ export const isGraph = (el) => el?.type === "plot";
 export function graphAnalysis(element, dataset) {
   if (!dataset) return null;
   const plot = element.plot ?? defaultPlot();
-  if (dataset.kind === "xy") return analyseXY(dataset);
+  if (dataset.kind === "xy") return analyseXY(dataset, { model: plot.fitModel ?? "none" });
   if (dataset.kind === "contingency") return analyseCounts(dataset, { test: plot.test ?? "auto" });
+  if (dataset.kind === "survival") return analyseSurvival(dataset, { test: plot.test ?? "logrank" });
   if (dataset.kind === "grouped" && plot.kind === "super") {
     // A SuperPlot is judged on the replicate means, not on every cell: that is
     // what makes it a SuperPlot rather than a crowded dot plot.
@@ -44,5 +45,6 @@ export function graphSvg(element, dataset, analysis = graphAnalysis(element, dat
   return renderPlotSvg({ ...element, plot }, dataset, {
     brackets: analysis && !analysis.error ? bracketsToDraw(analysis, plot.brackets) : [],
     fits: analysis?.series,
+    survival: analysis?.kind === "survival" && !analysis.error ? analysis : null,
   });
 }

@@ -33,6 +33,8 @@ Morphly version: **0.5**.
 - [Effect sizes](#effect-sizes)
 - [Outliers](#outliers)
 - [Correlation and straight lines](#correlation-and-straight-lines)
+- [Fitting a curve](#fitting-a-curve)
+- [Survival curves](#survival-curves)
 - [SuperPlots: replicates, not cells](#superplots-replicates-not-cells)
 - [Distributions: violins, histograms and density](#distributions-violins-histograms-and-density)
 - [How p-values are written](#how-p-values-are-written)
@@ -92,6 +94,14 @@ the checks.
 | Pearson correlation | X and Y graphs | `cor.test()` | `stats.js` `pearson` | `stats.test.js` |
 | Spearman correlation | X and Y graphs | `scipy.stats.spearmanr()` | `stats.js` `spearman` | `stats.test.js` |
 | Linear regression | X and Y graphs | `lm(y ~ x)` | `stats.js` `linearRegression` | `stats.test.js` |
+| Four-parameter dose response | IC50 or EC50 from a dose curve | `nls()` | `curveFit.js` `MODELS["4pl"]` | `curveFit.test.js` |
+| Exponential decay, association | a signal that falls or rises to a plateau | `nls()` | `curveFit.js` `MODELS` | `curveFit.test.js` |
+| Michaelis-Menten | enzyme kinetics | `nls()` | `curveFit.js` `MODELS` | `curveFit.test.js` |
+| Extra sum of squares F test | is a richer curve worth its parameters | the standard formula | `curveFit.js` `compareFits` | `curveFit.test.js` |
+| Kaplan-Meier | survival over time, with censoring | `survfit()` | `survival.js` `kaplanMeier` | `survival.test.js` |
+| Log-rank (Mantel-Cox) | comparing survival curves | `survdiff()` | `survival.js` `compareSurvival` | `survival.test.js` |
+| Gehan-Breslow-Wilcoxon | comparing curves, early times weighted | `survdiff(rho = 1)` in spirit | `survival.js` `compareSurvival` | `survival.test.js` |
+| Hazard ratio | two survival curves | the O over E formula | `survival.js` `compareSurvival` | `survival.test.js` |
 | Holm's correction | multiple comparisons | `p.adjust(method = "holm")` | `stats.js` `adjustHolm` | `stats.test.js` |
 | Bonferroni | multiple comparisons | `p.adjust(method = "bonferroni")` | `stats.js` `adjustBonferroni` | `stats.test.js` |
 | Šídák | multiple comparisons | the formula below | `analysis.js` `correctPValues` | `analysis.test.js` |
@@ -411,6 +421,89 @@ On an X and Y graph, each Y series is compared with X:
   small samples without ties, so the two differ slightly there, in the same
   way as Spearman.
 
+## Fitting a curve
+
+An X and Y graph can carry a fitted curve as well as a straight line. The fit
+is **least squares by Levenberg-Marquardt** (`curveFit.js` `fitCurve`), which
+is the same criterion `nls()` and Prism use, so the parameters agree with both.
+
+The models are:
+
+| Model | Equation | What it gives you |
+|---|---|---|
+| Dose response (four parameters) | Bottom + (Top - Bottom) / (1 + (IC50 / X) ^ Hill) | IC50 or EC50, Hill slope |
+| Exponential decay | Plateau + (Y0 - Plateau) e^(-k X) | rate, half life |
+| One-phase association | Y0 + (Plateau - Y0) (1 - e^(-k X)) | rate, half time |
+| Michaelis-Menten | Vmax X / (Km + X) | Vmax, Km |
+
+Starting values are worked out from the points themselves (the dose nearest
+the half way point is the first guess at the IC50, and so on), so nothing has
+to be guessed by hand. The fit still finds the same answer from a deliberately
+poor start; there is a test for that.
+
+**The uncertainty matters as much as the estimate.** After the fit, the
+covariance of the parameters is the inverse of the Jacobian's cross-product
+times the residual mean square. From it come:
+
+- the **standard error** of each parameter,
+- its **95% confidence interval**, as estimate plus or minus t(0.975, n - p)
+  standard errors, which is what `confint.default()` gives and what Prism
+  calls the asymptotic interval, and
+- the **confidence band** drawn around the curve: at each X, the standard
+  error of the curve is the gradient of the model there, sandwiched with the
+  covariance matrix. It is deliberately widest where there are no points.
+
+Parameters and intervals were checked against R's `nls()`: for the test dose
+response, an IC50 of 1.04746 against R's 1.0474575582, and standard errors
+within 2%. Standard errors are themselves approximations, which is why the
+tolerance there is looser than elsewhere in this file.
+
+`compareFits` runs the **extra sum of squares F test**, which asks whether a
+richer model earns its extra parameters:
+
+F = ((RSS_simple - RSS_rich) / (df_simple - df_rich)) / (RSS_rich / df_rich)
+
+This is how Prism asks whether two dose response curves share an IC50.
+
+A curve is a fit, not a test. If the points do not cover the top or the bottom
+of a dose response, the IC50 can be precise and still wrong, and the interval
+will not warn you: it describes the fit, not whether the model was right.
+
+## Survival curves
+
+Survival data has a shape of its own: each subject has a **time** and an
+**event** flag, where 1 means the event happened and 0 means the subject was
+censored (they left the study, or the study ended, while still event-free).
+A censored subject is not a missing value: they tell us they lasted at least
+that long, and dropping them biases the result.
+
+**Kaplan-Meier** (`survival.js` `kaplanMeier`): at each time an event happens,
+survival is multiplied by (1 - events / at risk). The curve steps down only at
+events, and stays flat at a censoring, where a tick is drawn instead. Median
+survival is the first time the curve reaches or passes a half; when it never
+falls that far, Morphly says "not reached" rather than inventing a number.
+
+**Log-rank (Mantel-Cox)** (`compareSurvival`): at each event time, the events
+in each group are compared with how many would be expected if the groups were
+alike, and the differences are added up and divided by their variance. Every
+time counts equally. Checked against `survdiff()`: chi-square 18.3784 on 1
+degree of freedom for the test data, with the expected counts 2.58213 and
+11.41787 matching to six figures.
+
+**Gehan-Breslow-Wilcoxon**: the same sum, with each time weighted by how many
+are still at risk. That weights early differences more heavily, which suits
+curves that separate early and then come back together. Choose it in the
+Statistics section when that is what you mean; the log-rank test is what most
+papers report, and is the default.
+
+**Hazard ratio**, for two groups: (O1 / E1) / (O2 / E2), with the interval
+from a standard error of the square root of (1 / E1 + 1 / E2). This is the
+log-rank estimate, the one Prism reports, not a Cox regression. Cox regression
+with covariates is not in Morphly yet.
+
+A group with no events at all cannot be compared properly, and Morphly says so
+rather than printing a p-value that means nothing.
+
 ## SuperPlots: replicates, not cells
 
 A SuperPlot draws every measurement coloured by which biological replicate it
@@ -449,13 +542,12 @@ replicates, that is a paired t test on three pairs.
 
 ## What Morphly does not do yet
 
-Mixed models, ANCOVA, Cox regression, two-way repeated measures, sphericity
-corrections (Greenhouse-Geisser), non-linear curve fitting with IC50,
-survival analysis with log-rank, and equivalence testing.
+Mixed models, ANCOVA, Cox regression with covariates, two-way repeated
+measures, sphericity corrections (Greenhouse-Geisser), shared-parameter curve
+fitting across data sets, and equivalence testing.
 
-Several of these are planned for 0.5; see the roadmap in the README. The ones
-that need a full modelling engine are meant for an optional statistics
-download rather than for the app itself.
+The ones that need a full modelling engine are meant for an optional
+statistics download rather than for the app itself.
 
 ## Checking a result yourself
 
@@ -469,6 +561,13 @@ wilcox.test(d$Control, d$Treated)                 # Mann-Whitney
 summary(aov(value ~ group, long))                 # one-way ANOVA
 TukeyHSD(aov(value ~ group, long))                # Tukey
 car::Anova(lm(value ~ genotype * treatment, long), type = "II")  # two-way
+
+# a dose response curve, and survival
+nls(y ~ bottom + (top - bottom) / (1 + (ic50 / x)^hill), d,
+    start = list(bottom = 0, top = 100, ic50 = 1, hill = 1))
+library(survival)
+survfit(Surv(time, event) ~ group, d)
+survdiff(Surv(time, event) ~ group, d)
 ```
 
 To run Morphly's own checks, which compare against numbers R produced:

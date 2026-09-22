@@ -23,6 +23,8 @@ import {
   COMPARISON_SETS,
   NORMALITY_TESTS,
   countsMethodsSentence,
+  survivalMethodsSentence,
+  fitMethodsSentence,
 } from "../lib/analysis";
 import AdvancedDialog from "./AdvancedDialog";
 import { LINKS } from "../content/helpContent";
@@ -35,7 +37,9 @@ import {
   LEGEND_POSITIONS,
   ROUND_KINDS,
   COUNT_KINDS,
+  SURVIVAL_KINDS,
 } from "../lib/plotRender";
+import { MODELS } from "../lib/curveFit";
 import { formatP, formatStat } from "../lib/stats";
 
 /* global __APP_VERSION__ */
@@ -130,11 +134,28 @@ export default function GraphPanel({ element }) {
   const xy = dataset.kind === "xy";
   const grouped = dataset.kind === "grouped";
   const counts = dataset.kind === "contingency";
-  const kinds = xy ? XY_KINDS : grouped ? GROUPED_KINDS : counts ? COUNT_KINDS : GROUP_KINDS;
+  const survival = dataset.kind === "survival";
+  const kinds = xy
+    ? XY_KINDS
+    : grouped
+    ? GROUPED_KINDS
+    : counts
+    ? COUNT_KINDS
+    : survival
+    ? SURVIVAL_KINDS
+    : GROUP_KINDS;
   const kind = kinds.some(([id]) => id === plot.kind) ? plot.kind : kinds[0][0];
   const sameKind = datasets.filter((d) => d.kind === dataset.kind);
-  const colourCols = xy || grouped || counts ? dataset.columns.map((_, i) => i).slice(1) : plottedGroups(dataset);
-  const palette = xy ? SERIES_COLOURS : GROUP_COLOURS;
+  // Survival draws one curve per group in the data, not one per column, so its
+  // swatches are named after the groups the analysis found.
+  const colourCols = survival
+    ? (analysis?.groups ?? []).map((_, i) => i)
+    : xy || grouped || counts
+    ? dataset.columns.map((_, i) => i).slice(1)
+    : plottedGroups(dataset);
+  const colourName = (col) =>
+    (survival ? analysis?.groups?.[col]?.name : dataset.columns[col]?.name) || `Column ${col + 1}`;
+  const palette = xy || survival ? SERIES_COLOURS : GROUP_COLOURS;
   const colourOf = (col) => plot.colors?.[col] || palette[col % palette.length];
 
   const setColour = (col, value) => {
@@ -144,8 +165,12 @@ export default function GraphPanel({ element }) {
   };
 
   const sentence =
-    xy || !analysis || analysis.error
+    !analysis || analysis.error
       ? ""
+      : xy
+      ? fitMethodsSentence(analysis, plot.fitModel ?? "none", { version: VERSION })
+      : survival
+      ? survivalMethodsSentence(analysis, { version: VERSION })
       : counts
       ? countsMethodsSentence(analysis, { version: VERSION })
       : grouped
@@ -191,13 +216,19 @@ export default function GraphPanel({ element }) {
             <Segments label="Graph type" options={kinds} value={kind} onChange={(id) => set({ kind: id })} />
           </>
         )}
-        {!xy && !counts && HAS_ERROR_BARS.has(kind) && (
+        {!xy && !counts && !survival && HAS_ERROR_BARS.has(kind) && (
           <>
             <div className="field-label">Error bars</div>
             <Segments label="Error bars" options={ERRORS} value={plot.error} onChange={(id) => set({ error: id })} />
           </>
         )}
-        {!xy && !counts && HAS_POINTS.has(kind) && (
+        {survival && (
+          <label className="check">
+            <input type="checkbox" checked={plot.points !== false} onChange={(e) => set({ points: e.target.checked })} />
+            Mark censored subjects with a tick
+          </label>
+        )}
+        {!xy && !counts && !survival && HAS_POINTS.has(kind) && (
           <label className="check">
             <input type="checkbox" checked={Boolean(plot.points)} onChange={(e) => set({ points: e.target.checked })} />
             Show every point
@@ -210,10 +241,26 @@ export default function GraphPanel({ element }) {
           </label>
         )}
         {xy && (
-          <label className="check">
-            <input type="checkbox" checked={Boolean(plot.fit)} onChange={(e) => set({ fit: e.target.checked })} />
-            Straight-line fit
-          </label>
+          <>
+            <label className="field">
+              <span>Fitted curve</span>
+              <select value={plot.fitModel ?? "none"} onChange={(e) => set({ fitModel: e.target.value, fit: e.target.value === "linear" })}>
+                <option value="none">None</option>
+                <option value="linear">Straight line</option>
+                {Object.entries(MODELS).map(([id, model]) => (
+                  <option key={id} value={id}>
+                    {model.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {(plot.fitModel ?? "none") !== "none" && (plot.fitModel ?? "none") !== "linear" && (
+              <label className="check">
+                <input type="checkbox" checked={plot.band !== false} onChange={(e) => set({ band: e.target.checked })} />
+                Show the 95% confidence band
+              </label>
+            )}
+          </>
         )}
       </Section>
 
@@ -268,8 +315,8 @@ export default function GraphPanel({ element }) {
         <div className="swatch-list">
           {colourCols.map((col) => (
             <div key={col} className="swatch-row">
-              <input type="color" value={colourOf(col)} onChange={(e) => setColour(col, e.target.value)} aria-label={`Colour of ${dataset.columns[col].name}`} />
-              <span className="swatch-hex">{dataset.columns[col].name || `Column ${col + 1}`}</span>
+              <input type="color" value={colourOf(col)} onChange={(e) => setColour(col, e.target.value)} aria-label={`Colour of ${colourName(col)}`} />
+              <span className="swatch-hex">{colourName(col)}</span>
             </div>
           ))}
         </div>
@@ -312,12 +359,15 @@ export default function GraphPanel({ element }) {
         </AdvancedDialog>
       )}
 
+      {survival && (
+        <SurvivalStats element={element} analysis={analysis} sentence={sentence} copied={copied} setCopied={setCopied} />
+      )}
       {counts && <CountStats element={element} analysis={analysis} sentence={sentence} copied={copied} setCopied={setCopied} />}
       {grouped && <GroupedStats element={element} dataset={dataset} analysis={analysis} sentence={sentence} copied={copied} setCopied={setCopied} />}
-      {!xy && !grouped && !counts && (
+      {!xy && !grouped && !counts && !survival && (
         <GroupStats element={element} dataset={dataset} analysis={analysis} sentence={sentence} copied={copied} setCopied={setCopied} />
       )}
-      {xy && <XyStats analysis={analysis} />}
+      {xy && <XyStats analysis={analysis} sentence={sentence} copied={copied} setCopied={setCopied} />}
     </>
   );
 }
@@ -652,8 +702,108 @@ function GroupedStats({ element, dataset, analysis, sentence, copied, setCopied 
   );
 }
 
-function XyStats({ analysis }) {
+/**
+ * Kaplan-Meier curves: which test compares them, and what it found.
+ */
+function SurvivalStats({ element, analysis, sentence, copied, setCopied }) {
+  const updatePlot = useStore((s) => s.updatePlot);
+  const plot = element.plot;
+
+  if (!analysis || analysis.error) {
+    return (
+      <Section title="Statistics">
+        <p className="hint">{analysis?.error ?? "No survival data yet."}</p>
+      </Section>
+    );
+  }
+
+  const copy = async () => {
+    await window.morphly.writeClipboardText(sentence);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <Section title="Statistics">
+      {analysis.comparison && (
+        <label className="field">
+          <span>Compare curves with</span>
+          <select value={plot.test ?? "logrank"} onChange={(e) => updatePlot(element.id, { test: e.target.value })}>
+            <option value="logrank">Log-rank (Mantel-Cox)</option>
+            <option value="gehan">Gehan-Breslow-Wilcoxon</option>
+          </select>
+        </label>
+      )}
+      <div className="stats-card">
+        <strong>{analysis.label}</strong>
+        <div className="stats-result">{analysis.summary}</div>
+        {analysis.extra.map((line) => (
+          <div key={line} className="hint">
+            {line}
+          </div>
+        ))}
+        {analysis.warnings.map((warning) => (
+          <p key={warning} className="hint">
+            {warning}
+          </p>
+        ))}
+      </div>
+      {analysis.comparison && (
+        <p className="hint">
+          The log-rank test weighs every time equally, which is what most papers report. Gehan-Breslow-Wilcoxon weighs
+          early times more heavily, which suits curves that separate early and then come back together.
+        </p>
+      )}
+      <div className="field-label">Methods sentence</div>
+      <p className="methods">{sentence}</p>
+      <button className="ghost small" onClick={copy}>
+        {copied ? "Copied" : "Copy methods sentence"}
+      </button>
+      <button className="link" onClick={() => window.morphly.openExternal(LINKS.statistics)}>
+        How is this calculated?
+      </button>
+    </Section>
+  );
+}
+
+/** One fitted curve, written out with its parameters and their intervals. */
+function FitResult({ fit }) {
+  if (!fit) return null;
+  if (fit.error) return <p className="hint">{fit.error}</p>;
+  const headline = fit.names.indexOf(MODELS[fit.model]?.key ?? "");
+  return (
+    <>
+      {headline >= 0 && (
+        <div className="stats-result">
+          {fit.names[headline]} = {formatStat(fit.parameters[headline])} (95% CI{" "}
+          {formatStat(fit.intervals[headline][0])} to {formatStat(fit.intervals[headline][1])})
+        </div>
+      )}
+      {fit.names.map((name, i) => (
+        <div key={name} className="hint">
+          {name} = {formatStat(fit.parameters[i])} ± {formatStat(fit.errors[i])} (95% CI {formatStat(fit.intervals[i][0])}{" "}
+          to {formatStat(fit.intervals[i][1])})
+        </div>
+      ))}
+      {Object.entries(fit.derived ?? {}).map(([name, value]) => (
+        <div key={name} className="hint">
+          {name} = {formatStat(value)}
+        </div>
+      ))}
+      <div className="hint">
+        R² = {fit.r2.toFixed(4)}, from {fit.n} points.
+      </div>
+    </>
+  );
+}
+
+function XyStats({ analysis, sentence, copied, setCopied }) {
   if (!analysis?.series?.length) return null;
+  const copy = async () => {
+    await window.morphly.writeClipboardText(sentence);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 2000);
+  };
   return (
     <Section title="Statistics">
       {analysis.series.map((s) => (
@@ -661,6 +811,8 @@ function XyStats({ analysis }) {
           <strong>{s.name}</strong>
           {s.error ? (
             <p className="hint">{s.error}</p>
+          ) : s.fit ? (
+            <FitResult fit={s.fit} />
           ) : (
             <>
               <div className="stats-result">
@@ -675,6 +827,18 @@ function XyStats({ analysis }) {
           )}
         </div>
       ))}
+      {sentence && (
+        <>
+          <div className="field-label">Methods sentence</div>
+          <p className="methods">{sentence}</p>
+          <button className="ghost small" onClick={copy}>
+            {copied ? "Copied" : "Copy methods sentence"}
+          </button>
+          <button className="link" onClick={() => window.morphly.openExternal(LINKS.statistics)}>
+            How is this calculated?
+          </button>
+        </>
+      )}
     </Section>
   );
 }

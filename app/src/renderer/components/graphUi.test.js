@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { useStore } from "../store";
-import { sampleDataset } from "../lib/datasets";
+import { sampleDataset, createDataset } from "../lib/datasets";
 import GraphDialog, { initialSource } from "./GraphDialog";
 import GraphPanel from "./GraphPanel";
 import DataGrid from "./DataGrid";
@@ -37,8 +37,11 @@ describe("graph interface", () => {
   it("opens the graph dialog on the data shape step", () => {
     const out = html(h(GraphDialog, { datasets: [], onClose() {}, onInsert() {} }));
     expect(out).toContain("What does your data look like?");
-    for (const shape of ["Groups", "X and Y", "Groups by condition", "Survival"]) expect(out).toContain(shape);
-    expect(out).toContain("Later");
+    for (const shape of ["Groups", "X and Y", "Groups by condition", "Counts in categories", "Survival"]) {
+      expect(out).toContain(shape);
+    }
+    // Every shape is available now, so none is marked as coming later.
+    expect(out).not.toContain("Later");
   });
 
   it("shows a graph's settings and statistics in the properties panel", () => {
@@ -58,9 +61,44 @@ describe("graph interface", () => {
     const id = state().addGraph({ dataset: sampleDataset("xy"), kind: "scatter" });
     const el = state().elements.find((e) => e.id === id);
     const out = html(h(GraphPanel, { element: el }));
-    expect(out).toContain("Straight-line fit");
+    expect(out).toContain("Fitted curve");
+    expect(out).toContain("Straight line");
     expect(out).toContain("Wild type");
     expect(out).toContain("R² = ");
+  });
+
+  it("fits a dose response curve and writes out its IC50", () => {
+    const dataset = createDataset({
+      kind: "xy",
+      columns: [
+        { name: "Dose (uM)", values: ["0.01", "0.03", "0.1", "0.3", "1", "3", "10", "30", "100"] },
+        { name: "Viability", values: ["2.1", "3.4", "8.9", "21.5", "48.7", "76.2", "91.3", "96.8", "98.4"] },
+      ],
+    });
+    const id = state().addGraph({ dataset, kind: "scatter" });
+    state().updatePlot(id, { fitModel: "4pl" });
+    const el = state().elements.find((e) => e.id === id);
+    const out = html(h(GraphPanel, { element: el }));
+    expect(out).toContain("Show the 95% confidence band");
+    expect(out).toContain("IC50 = 1.05");
+    expect(out).toContain("Hill slope = 1.10");
+    expect(out).toContain("Copy methods sentence");
+    // The methods sentence carries the interval, not just the estimate.
+    expect(out).toContain("95% CI");
+    expect(out).not.toMatch(/[–—]/);
+  });
+
+  it("shows survival curves with the test that compares them", () => {
+    const id = state().addGraph({ dataset: sampleDataset("survival"), kind: "survival" });
+    const el = state().elements.find((e) => e.id === id);
+    const out = html(h(GraphPanel, { element: el }));
+    expect(out).toContain("Mark censored subjects with a tick");
+    expect(out).toContain("Compare curves with");
+    expect(out).toContain("Log-rank (Mantel-Cox)");
+    expect(out).toContain("Gehan-Breslow-Wilcoxon");
+    expect(out).toContain("Hazard ratio");
+    expect(out).toContain("median");
+    expect(out).not.toMatch(/[–—]/);
   });
 
   it("offers other data when a graph's data is missing", () => {

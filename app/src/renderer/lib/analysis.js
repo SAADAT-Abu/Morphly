@@ -10,6 +10,9 @@
  */
 
 import { columnNumbers, completeRows, groupedFactors, countsTable } from "./datasets";
+import { fitModel, MODELS } from "./curveFit";
+import { survivalGroups, compareSurvival } from "./survival";
+import { parseNumber } from "./datasets";
 import {
   describe,
   tTest,
@@ -357,8 +360,11 @@ export function bracketsToDraw(analysis, overrides = {}) {
   return analysis.comparisons.filter((c) => overrides[c.key] ?? c.p < 0.05);
 }
 
-/** Correlation and a fitted line for each Y series of an X and Y dataset. */
-export function analyseXY(dataset) {
+/**
+ * Correlation and a fitted line for each Y series of an X and Y dataset, plus
+ * a fitted curve when a model is chosen (lib/curveFit.js).
+ */
+export function analyseXY(dataset, { model = "none" } = {}) {
   const series = [];
   for (let c = 1; c < dataset.columns.length; c += 1) {
     const rows = completeRows(dataset, [0, c]);
@@ -382,6 +388,7 @@ export function analyseXY(dataset) {
       regression: linearRegression(x, y),
       pearson: pearson(x, y),
       spearman: spearman(x, y),
+      fit: model && model !== "none" && model !== "linear" ? fitModel(model, x, y) : null,
     });
   }
   return { series };
@@ -691,5 +698,111 @@ export function countsMethodsSentence(analysis, { version = "" } = {}) {
   return (
     `Counts were compared by ${analysis.label.replace(/^The /, "")}${by}, on ${analysis.n} observations in a ` +
     `${analysis.rows.length} by ${analysis.categories.length} table.`
+  );
+}
+
+
+/** The methods sentence for a fitted curve. */
+export function fitMethodsSentence(analysis, model, { version = "" } = {}) {
+  const fitted = analysis?.series?.filter((s) => s.fit && !s.fit.error) ?? [];
+  if (!fitted.length) return "";
+  const by = version ? ` (Morphly ${version})` : "";
+  const label = MODELS[model]?.label ?? "a curve";
+  const each = fitted
+    .map((s) => {
+      const key = MODELS[model]?.key;
+      const index = MODELS[model]?.parameters.indexOf(key);
+      if (index >= 0) {
+        const [low, high] = s.fit.intervals[index];
+        return `${s.name}: ${key} ${formatStat(s.fit.parameters[index])} (95% CI ${formatStat(low)} to ${formatStat(high)})`;
+      }
+      return `${s.name}: R² ${s.fit.r2.toFixed(3)}`;
+    })
+    .join("; ");
+  return `Curves were fitted by least squares to ${label.toLowerCase()}${by}. ${each}.`;
+}
+
+
+// ---------------------------------------------------------------------------
+// Survival
+// ---------------------------------------------------------------------------
+
+/**
+ * Kaplan-Meier curves and the tests that compare them.
+ *
+ * The log-rank test is the suggestion, since it weighs every time equally and
+ * is what most papers report; Gehan-Breslow-Wilcoxon is offered beside it,
+ * weighing early times more heavily, which matters when curves cross.
+ */
+export function analyseSurvival(dataset, { test = "logrank" } = {}) {
+  const groups = survivalGroups(dataset, parseNumber);
+  if (groups.length === 0 || groups.every((g) => g.curve.n === 0)) {
+    return { error: "Add a time and an event (1 for the event, 0 for censored) for each subject." };
+  }
+  const warnings = [];
+  if (groups.some((g) => g.curve.events === 0)) {
+    warnings.push("A group had no events at all, so its curve never falls and it cannot be compared properly.");
+  }
+
+  const medians = groups.map((g) => ({
+    name: g.name,
+    n: g.curve.n,
+    events: g.curve.events,
+    censored: g.curve.censored,
+    median: g.curve.median,
+  }));
+
+  const comparison = groups.length > 1 ? compareSurvival(groups) : null;
+  let summary = "";
+  let extra = [];
+  if (comparison) {
+    const chosen = test === "gehan" ? comparison.gehan : comparison.logRank;
+    const label = test === "gehan" ? "Gehan-Breslow-Wilcoxon" : "Log-rank (Mantel-Cox)";
+    summary = `${label}: χ²(${chosen.df}) = ${formatStat(chosen.chi2)}, ${pPhrase(chosen.p)}`;
+    if (comparison.hazardRatio) {
+      const { ratio, low, high } = comparison.hazardRatio;
+      extra.push(
+        `Hazard ratio ${formatStat(ratio)} (95% CI ${formatStat(low)} to ${formatStat(high)}), ` +
+          `${comparison.names[0]} against ${comparison.names[1]}.`
+      );
+    }
+    extra.push(
+      medians
+        .map((m) => `${m.name}: median ${m.median === null ? "not reached" : formatStat(m.median)} (${m.events} of ${m.n} events)`)
+        .join("; ")
+    );
+  } else {
+    const only = medians[0];
+    summary = `${only.events} events in ${only.n} subjects; median ${only.median === null ? "not reached" : formatStat(only.median)}`;
+  }
+
+  return {
+    kind: "survival",
+    label: comparison ? (test === "gehan" ? "Gehan-Breslow-Wilcoxon test" : "Log-rank test") : "Kaplan-Meier",
+    test: comparison ? test : null,
+    groups,
+    medians,
+    comparison,
+    summary,
+    extra,
+    warnings,
+  };
+}
+
+/** The methods sentence for survival curves. */
+export function survivalMethodsSentence(analysis, { version = "" } = {}) {
+  if (!analysis || analysis.error) return "";
+  const by = version ? ` (Morphly ${version})` : "";
+  if (!analysis.comparison) {
+    return `Survival was estimated by the Kaplan-Meier method${by}.`;
+  }
+  const label = analysis.test === "gehan" ? "the Gehan-Breslow-Wilcoxon test" : "the log-rank (Mantel-Cox) test";
+  const hazard = analysis.comparison.hazardRatio
+    ? ` The hazard ratio was ${formatStat(analysis.comparison.hazardRatio.ratio)} (95% CI ` +
+      `${formatStat(analysis.comparison.hazardRatio.low)} to ${formatStat(analysis.comparison.hazardRatio.high)}).`
+    : "";
+  return (
+    `Survival was estimated by the Kaplan-Meier method and curves were compared by ${label}${by}.` +
+    `${hazard} Ticks mark censored subjects.`
   );
 }

@@ -28,11 +28,20 @@ export const DATASET_KINDS = {
   groups: { label: "Groups", first: "Group" },
   grouped: { label: "Groups by condition", first: "Condition" },
   contingency: { label: "Counts in categories", first: "Category" },
+  survival: { label: "Survival", first: "Column" },
   xy: { label: "X and Y", first: "X" },
 };
 
 /** Datasets whose first column names things rather than measuring them. */
 export const hasLabelColumn = (dataset) => dataset?.kind === "grouped" || dataset?.kind === "contingency";
+
+/** Columns that hold words rather than measurements, by data shape. */
+export function textColumns(dataset) {
+  if (hasLabelColumn(dataset)) return [0];
+  // Survival: the time is a number; the event and the group are not.
+  if (dataset?.kind === "survival") return [1, 2];
+  return [];
+}
 
 let counter = 0;
 export const nextDatasetId = () => `ds_${Date.now().toString(36)}_${(counter++).toString(36)}`;
@@ -87,6 +96,13 @@ export function createDataset({ name = "Data", kind = "groups", columns = [], id
 
 /** A blank table to type into. */
 export function blankDataset(kind = "groups", { columns = kind === "xy" ? 2 : 3, rows = 6 } = {}) {
+  if (kind === "survival") {
+    return createDataset({
+      name: "Data",
+      kind,
+      columns: ["Time", "Event", "Group"].map((name) => ({ name, values: Array(rows).fill("") })),
+    });
+  }
   const names =
     kind === "xy"
       ? ["X", ...Array.from({ length: columns - 1 }, (_, i) => `Y${i + 1}`)]
@@ -94,6 +110,8 @@ export function blankDataset(kind = "groups", { columns = kind === "xy" ? 2 : 3,
       ? ["Group", ...Array.from({ length: columns - 1 }, (_, i) => `Condition ${i + 1}`)]
       : kind === "contingency"
       ? ["Group", ...Array.from({ length: columns - 1 }, (_, i) => `Category ${i + 1}`)]
+      : kind === "survival"
+      ? ["Time", "Event", "Group"]
       : Array.from({ length: columns }, (_, i) => `Group ${i + 1}`);
   return createDataset({
     name: "Data",
@@ -112,6 +130,17 @@ export function sampleDataset(kind = "groups") {
         { name: "Genotype", values: ["Wild type", "Wild type", "Wild type", "Wild type", "Knockout", "Knockout", "Knockout", "Knockout"] },
         { name: "Vehicle", values: ["11.4", "12.1", "10.8", "11.9", "12.0", "11.2", "12.6", "11.5"] },
         { name: "LPS", values: ["48.2", "52.7", "45.9", "50.3", "24.1", "27.8", "22.6", "25.9"] },
+      ],
+    });
+  }
+  if (kind === "survival") {
+    return createDataset({
+      name: "Survival (sample)",
+      kind: "survival",
+      columns: [
+        { name: "Time (days)", values: ["4", "6", "8", "9", "11", "12", "14", "15", "17", "20", "22", "25", "28", "30", "32", "35", "38", "40", "42", "45"] },
+        { name: "Event", values: ["1", "1", "0", "1", "1", "1", "0", "1", "1", "1", "0", "1", "1", "0", "1", "1", "0", "1", "1", "0"] },
+        { name: "Group", values: [...Array(10).fill("Drug"), ...Array(10).fill("Control")] },
       ],
     });
   }
@@ -335,6 +364,8 @@ export function datasetFromRows(rows, { kind = "groups", name = "Imported data" 
       ? (i) => (i === 0 ? "Group" : `Condition ${i}`)
       : kind === "contingency"
       ? (i) => (i === 0 ? "Group" : `Category ${i}`)
+      : kind === "survival"
+      ? (i) => ["Time", "Event", "Group"][i] ?? `Column ${i + 1}`
       : (i) => `Group ${i + 1}`;
   const columns = Array.from({ length: width }, (_, i) => ({
     name: header?.[i] || stem(i),

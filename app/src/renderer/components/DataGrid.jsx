@@ -15,7 +15,7 @@
  */
 
 import React, { useRef } from "react";
-import { rowCount, parseTable, isNumeric, hasLabelColumn, DATASET_KINDS } from "../lib/datasets";
+import { rowCount, parseTable, isNumeric, hasLabelColumn, textColumns, DATASET_KINDS } from "../lib/datasets";
 import { columnSummaries } from "../lib/analysis";
 import { columnNumbers } from "../lib/datasets";
 import { geometricMean, coefficientOfVariation, shape } from "../lib/stats";
@@ -47,8 +47,11 @@ export default function DataGrid({ dataset, onOp, colours = [], extended = false
       })
     : [];
   const xy = dataset.kind === "xy";
-  // A grouped table's first column holds names, not numbers.
+  // Some columns hold names rather than measurements: a grouped table's
+  // first column, and the event and group of survival data.
+  const words = textColumns(dataset);
   const labelColumn = hasLabelColumn(dataset) ? 0 : -1;
+  const isWords = (col) => words.includes(col);
 
   const focusCell = (row, col) => {
     const input = tableRef.current?.querySelector(`input[data-row="${row}"][data-col="${col}"]`);
@@ -94,7 +97,7 @@ export default function DataGrid({ dataset, onOp, colours = [], extended = false
             {dataset.columns.map((column, col) => (
               <th key={col}>
                 <div className="col-head">
-                  {!xy && col !== labelColumn && (
+                  {!xy && !isWords(col) && (
                     <span
                       className="col-swatch"
                       style={{ background: colours[hasLabelColumn(dataset) ? col : col] ?? "transparent" }}
@@ -127,6 +130,9 @@ export default function DataGrid({ dataset, onOp, colours = [], extended = false
                 </div>
                 {xy && <div className="col-role">{col === 0 ? "X" : "Y"}</div>}
                 {col === labelColumn && <div className="col-role">Names the group</div>}
+                {dataset.kind === "survival" && (
+                  <div className="col-role">{["Time", "1 for the event, 0 if censored", "Group"][col] ?? ""}</div>
+                )}
               </th>
             ))}
             <th className="add-col">
@@ -142,7 +148,7 @@ export default function DataGrid({ dataset, onOp, colours = [], extended = false
               <td className="row-head">{row + 1}</td>
               {dataset.columns.map((column, col) => {
                 const value = column.values[row] ?? "";
-                const bad = col !== labelColumn && value.trim() !== "" && !isNumeric(value);
+                const bad = !isWords(col) && value.trim() !== "" && !isNumeric(value);
                 return (
                   <td key={col} className={bad ? "bad" : undefined}>
                     <input
@@ -150,7 +156,7 @@ export default function DataGrid({ dataset, onOp, colours = [], extended = false
                       data-row={row}
                       data-col={col}
                       value={value}
-                      inputMode={col === labelColumn ? "text" : "decimal"}
+                      inputMode={isWords(col) ? "text" : "decimal"}
                       aria-label={`${column.name || `Column ${col + 1}`}, row ${row + 1}`}
                       title={bad ? "Not a number, so it is left out of the graph" : undefined}
                       onFocus={() => (editing.current = null)}

@@ -65,6 +65,18 @@ Planned work is described in the [roadmap](README.md#roadmap).
 - **Logarithmic axes**, on the Y axis of any graph and the X axis of an X and
   Y graph, for dose responses and qPCR. In Advanced axes, along with the
   histogram bin width.
+- **Fitted curves, with IC50.** An X and Y graph can be fitted with a
+  four-parameter dose response, exponential decay, one-phase association or
+  Michaelis-Menten curve. Every parameter comes with its standard error and
+  95% confidence interval, the IC50 or EC50 is written out, and the curve
+  carries a confidence band that widens where there are no points to hold it
+  down. Fitted by Levenberg-Marquardt, checked against R's nls().
+- **Survival curves**, a fifth data shape: a time, an event (1 for the event,
+  0 for censored) and a group for each subject. Kaplan-Meier curves with ticks
+  for censored subjects, drawn from 0 to 1 or as a percentage, compared by the
+  log-rank (Mantel-Cox) test or Gehan-Breslow-Wilcoxon, with median survival
+  per group and the hazard ratio with its interval. Checked against R's
+  survival package.
 - **A written account of every statistical test.**
   [docs/STATISTICAL_TESTS.md](docs/STATISTICAL_TESTS.md) gives each test's
   formula, assumptions, the R or SciPy command it was checked against, and

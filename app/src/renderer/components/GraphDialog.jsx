@@ -22,7 +22,16 @@ import {
   rowCount,
   columnNumbers,
 } from "../lib/datasets";
-import { renderPlotSvg, defaultPlot, GROUP_KINDS, GROUPED_KINDS, COUNT_KINDS, XY_KINDS } from "../lib/plotRender";
+import {
+  renderPlotSvg,
+  defaultPlot,
+  GROUP_KINDS,
+  GROUPED_KINDS,
+  COUNT_KINDS,
+  SURVIVAL_KINDS,
+  XY_KINDS,
+} from "../lib/plotRender";
+import { graphSvg } from "../lib/graphs";
 import { toDataUrl } from "../lib/svgPalette";
 
 const SHAPES = [
@@ -53,9 +62,8 @@ const SHAPES = [
   {
     id: "survival",
     title: "Survival",
-    text: "Time to an event, with censored subjects, for Kaplan-Meier curves.",
-    example: "Days  Event  Group\n 12     1     A\n 30     0     B",
-    later: true,
+    text: "Time to an event, with censored subjects, for Kaplan-Meier curves. One row per subject: the time, 1 for the event or 0 if censored, and the group.",
+    example: "Time  Event  Group\n  12     1    Drug\n  30     0    Control",
   },
 ];
 
@@ -80,8 +88,10 @@ function Preview({ kind, dataset }) {
   const url = useMemo(() => {
     const hasNumbers = dataset.columns.some((_, i) => columnNumbers(dataset, i).length > 0);
     const data = hasNumbers ? dataset : sampleDataset(dataset.kind);
-    const svg = renderPlotSvg({ width: 220, height: 160, plot: { ...defaultPlot(kind, { fontSize: 11 }) } }, data);
-    return toDataUrl(svg);
+    const element = { width: 220, height: 160, plot: { ...defaultPlot(kind, { fontSize: 11 }) } };
+    // Survival curves need their analysis to be drawn at all, so previews go
+    // through the same path the canvas uses.
+    return toDataUrl(data.kind === "survival" ? graphSvg(element, data) : renderPlotSvg(element, data));
   }, [kind, dataset]);
   return <img src={url} alt="" width={220} height={160} />;
 }
@@ -130,7 +140,15 @@ export default function GraphDialog({ datasets = [], panelLabel = null, onClose,
   }, [source, shape, pasted, imported, existingId, datasets]);
 
   const kinds =
-    shape === "xy" ? XY_KINDS : shape === "grouped" ? GROUPED_KINDS : shape === "contingency" ? COUNT_KINDS : GROUP_KINDS;
+    shape === "xy"
+      ? XY_KINDS
+      : shape === "grouped"
+      ? GROUPED_KINDS
+      : shape === "contingency"
+      ? COUNT_KINDS
+      : shape === "survival"
+      ? SURVIVAL_KINDS
+      : GROUP_KINDS;
   const shapeOk = !SHAPES.find((s) => s.id === shape)?.later;
 
   const chooseShape = (id) => {
@@ -280,7 +298,8 @@ export default function GraphDialog({ datasets = [], panelLabel = null, onClose,
                 {columns.slice(0, 10).map((c, i) => {
                   // A grouped table's first column holds names, so counting
                   // numbers in it would report every one of them as a fault.
-                  const names = (shape === "grouped" || shape === "contingency") && i === 0;
+                  const names =
+                    ((shape === "grouped" || shape === "contingency") && i === 0) || (shape === "survival" && i === 2);
                   const ok = names ? c.other > 0 : c.numbers > 0;
                   return (
                     <div key={i} className={`read-row${ok ? "" : " warn"}`}>
@@ -314,6 +333,9 @@ export default function GraphDialog({ datasets = [], panelLabel = null, onClose,
                 )}
                 {shape === "contingency" && (
                   <p className="hint">The first column names each row; every other column is a category, holding a count.</p>
+                )}
+                {shape === "survival" && (
+                  <p className="hint">Three columns: the time, whether the event happened (1) or the subject was censored (0), and the group.</p>
                 )}
               </aside>
             )}

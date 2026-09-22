@@ -58,8 +58,18 @@ jobs:
           BIOART_SHA256: 918225ca834f50d9a9e7516a6ba6bdbddb0d7118a40317879d2e52278c0fd3a8
           BIOART_SVGS: 2531
         run: |
-          archive="$RUNNER_TEMP/bioart_library.tar.gz"
+          # Say where we are before doing anything, because this step has
+          # failed on two of the three runners and the log is all there is to
+          # go on. macOS still ships bash 3.2, so nothing here may use a bash 4
+          # feature: no globstar, no associative arrays, no ${var,,}.
+          echo "bash $BASH_VERSION on $RUNNER_OS"
+          echo "find is $(command -v find), tar is $(command -v tar)"
+          # The archive goes in the checkout rather than $RUNNER_TEMP, whose
+          # value on the Windows runner is a Windows path with backslashes in
+          # it, which is a poor thing to hand to a shell.
+          archive="bioart_library.tar.gz"
           curl -fsSL --retry 5 --retry-delay 10 -o "$archive" "$BIOART_URL"
+          echo "downloaded $(wc -c < "$archive" | tr -d '[:space:]') bytes"
           if command -v sha256sum >/dev/null; then
             actual=$(sha256sum "$archive" | cut -d' ' -f1)
           else
@@ -70,18 +80,18 @@ jobs:
             exit 1
           fi
           tar -xzf "$archive"
-          # Counted with a glob rather than find: on the Windows runner `find`
-          # can resolve to C:\Windows\System32\find.exe, which takes different
-          # arguments, prints nothing and leaves the count empty.
-          shopt -s globstar nullglob
-          svgs_found=(bioart_library/**/*.svg)
-          svgs=${#svgs_found[@]}
+          # /usr/bin/find by its full path: a bare `find` on the Windows runner
+          # can resolve to C:\Windows\System32\find.exe, which takes quite
+          # different arguments and prints nothing.
+          svgs=$(/usr/bin/find bioart_library -type f -name '*.svg' | wc -l | tr -d '[:space:]')
+          svgs=${svgs:-0}
           echo "bioart_library: $svgs svg files extracted, $BIOART_SVGS expected"
           # Fail loudly rather than ship an installer with an empty sidebar.
           if [ ! -f bioart_library/manifest.json ] || [ "$svgs" -lt "$BIOART_SVGS" ]; then
             echo "::error::bioart_library is incomplete: manifest present $([ -f bioart_library/manifest.json ] && echo yes || echo no), $svgs svg files"
             exit 1
           fi
+          rm -f "$archive"
           echo "bioart_library: sha256 verified"
 
       - uses: actions/setup-node@v4

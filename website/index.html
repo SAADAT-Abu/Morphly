@@ -39,7 +39,7 @@
   "applicationCategory": "DesignApplication",
   "applicationSubCategory": "Scientific figure editor",
   "operatingSystem": "Windows 10, Windows 11, macOS, Linux",
-  "softwareVersion": "0.5.0",
+  "softwareVersion": "0.5.1",
   "url": "https://morphly.pages.dev/",
   "downloadUrl": "https://morphly.pages.dev/#download",
   "installUrl": "https://doi.org/10.5281/zenodo.22238248",
@@ -629,7 +629,7 @@ footer .privacy { color: var(--faint); font-size: 0.85rem; }
   <div class="wrap">
     <div class="section-head">
       <span class="panel-label"><i>E</i> Download</span>
-      <h2 id="download-title">Get Morphly <span class="grad-text" data-version>0.5.0</span></h2>
+      <h2 id="download-title">Get Morphly <span class="grad-text" data-version>0.5.1</span></h2>
     </div>
     <p class="detected" id="detected" role="status">Pick the installer for your computer.</p>
 
@@ -665,9 +665,9 @@ footer .privacy { color: var(--faint); font-size: 0.85rem; }
         <span class="suggest-tag">Suggested for you</span>
         <svg class="os-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M7 9l3 3-3 3M12.5 15H17"/></svg>
         <h3>Linux</h3>
-        <p class="meta">Most distributions, x64 · <span class="mono">.AppImage</span> · 283 MB</p>
+        <p class="meta">Most distributions, x64 · <span class="mono">.AppImage</span> · 281 MB</p>
         <a class="btn btn-primary" data-file="Morphly-{v}.AppImage" data-hero="Download for Linux" href="#">Download</a>
-        <p class="how">Make it executable, then run it: <span class="mono">chmod +x Morphly-<span data-version>0.5.0</span>.AppImage</span></p>
+        <p class="how">Make it executable, then run it: <span class="mono">chmod +x Morphly-<span data-version>0.5.1</span>.AppImage</span></p>
       </article>
     </div>
 
@@ -700,7 +700,7 @@ footer .privacy { color: var(--faint); font-size: 0.85rem; }
       <p class="lede">Illustrations should be credited to their own libraries, which Morphly does on export. For Morphly itself:</p>
     </div>
     <div class="cite-box glass">
-      <blockquote id="citation">Saadat, A. (2026). <em>Morphly: a free desktop editor for scientific figures</em> (version 0.5.0) [Software]. Zenodo. <span class="doi">https://doi.org/10.5281/zenodo.22899306</span></blockquote>
+      <blockquote id="citation">Saadat, A. (2026). <em>Morphly: a free desktop editor for scientific figures</em> (version 0.5.1) [Software]. Zenodo. <span class="doi">https://doi.org/10.5281/zenodo.22900404</span></blockquote>
       <button class="btn" id="copy-cite" type="button">Copy citation</button>
     </div>
     <div class="links-row">
@@ -744,7 +744,7 @@ footer .privacy { color: var(--faint); font-size: 0.85rem; }
    Release details. Update these two values for a new version; every
    download link and file name is filled in from them.
    ========================================================================== */
-const RELEASE = { version: "0.5.0", record: "22899306" };
+const RELEASE = { version: "0.5.1", record: "22900404" };
 const fileUrl = (name) => `https://zenodo.org/records/${RELEASE.record}/files/${encodeURIComponent(name)}?download=1`;
 
 document.querySelectorAll("[data-file]").forEach((a) => {

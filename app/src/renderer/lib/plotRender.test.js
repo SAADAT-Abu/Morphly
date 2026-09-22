@@ -11,6 +11,8 @@ const element = (kind, patch = {}) => ({
 });
 
 const count = (svg, pattern) => (svg.match(pattern) ?? []).length;
+/** Just one part of the drawing, so legend swatches are not counted as bars. */
+const part = (svg, name) => new RegExp(`<g data-part="${name}">([\\s\\S]*?)</g>`).exec(svg)?.[1] ?? "";
 
 describe("renderPlotSvg: groups", () => {
   const ds = sampleDataset("groups");
@@ -139,5 +141,49 @@ describe("helpers", () => {
 
   it("estimates label widths", () => {
     expect(textWidth("MW", 10)).toBeGreaterThan(textWidth("il", 10));
+  });
+});
+
+describe("renderPlotSvg: groups by condition", () => {
+  const ds = sampleDataset("grouped");
+  const grouped = (kind, patch = {}) => ({
+    type: "plot",
+    width: 600,
+    height: 450,
+    plot: { ...defaultPlot(kind, { fontSize: 16 }), ...patch },
+  });
+
+  it("draws one bar per group and condition, with a legend beside the graph", () => {
+    const svg = renderPlotSvg(grouped("bar"), ds);
+    expect(count(part(svg, "bars"), /<rect /g)).toBe(4);
+    expect(count(part(svg, "points"), /<circle /g)).toBe(16);
+    expect(svg).toContain('data-part="legend"');
+    expect(svg).toContain(">Wild type</text>");
+    expect(svg).toContain(">Vehicle</text>");
+    // The group names go under the clusters and the factor names the axis.
+    expect(svg).toContain(">Genotype</text>");
+  });
+
+  it("stacks, and scales each cluster to the same height for 100%", () => {
+    expect(count(part(renderPlotSvg(grouped("stacked"), ds), "bars"), /<rect /g)).toBe(4);
+    const hundred = renderPlotSvg(grouped("stacked100"), ds);
+    expect(hundred).toContain(">100</text>");
+    expect(hundred).toContain(">Percent of total</text>");
+  });
+
+  it("draws brackets between any two cells", () => {
+    const svg = renderPlotSvg(grouped("bar"), ds, {
+      brackets: [
+        { a: { row: 0, col: 0 }, b: { row: 0, col: 1 }, stars: "****" },
+        { a: { row: 0, col: 1 }, b: { row: 1, col: 1 }, stars: "**" },
+      ],
+    });
+    expect(count(svg, /<path d="M/g)).toBe(2);
+    expect(svg).toContain(">****</text>");
+  });
+
+  it("says what is missing rather than drawing nothing", () => {
+    const empty = createDataset({ kind: "grouped", columns: [{ name: "Genotype", values: [""] }, { name: "A", values: [""] }] });
+    expect(renderPlotSvg(grouped("bar"), empty)).toContain("Name the groups");
   });
 });

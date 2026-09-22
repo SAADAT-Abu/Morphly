@@ -6,7 +6,7 @@
  * graph on screen is the graph in the exported file.
  */
 
-import { analyseGroups, analyseXY, bracketsToDraw } from "./analysis";
+import { analyseGroups, analyseGrouped, analyseXY, bracketsToDraw } from "./analysis";
 import { renderPlotSvg, defaultPlot } from "./plotRender";
 
 export const isGraph = (el) => el?.type === "plot";
@@ -16,6 +16,13 @@ export function graphAnalysis(element, dataset) {
   if (!dataset) return null;
   const plot = element.plot ?? defaultPlot();
   if (dataset.kind === "xy") return analyseXY(dataset);
+  if (dataset.kind === "grouped") {
+    return analyseGrouped(dataset, {
+      within: plot.within ?? "conditions",
+      correction: plot.correction ?? "sidak",
+      control: plot.control ?? 0,
+    });
+  }
   return analyseGroups(dataset, { test: plot.test ?? "auto", paired: Boolean(plot.paired) });
 }
 

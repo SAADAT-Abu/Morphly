@@ -7,6 +7,9 @@
  * of Prism's table types):
  *
  *   groups   each column is a group: control, treated, and so on
+ *   grouped  two ways of grouping at once: the first column names the row's
+ *            group (genotype, say) and every other column is a condition
+ *            (vehicle, drug), so each row is one replicate of one group
  *   xy       the first column is X, every other column is a Y series
  *
  * Values are kept as the text that was typed or imported, so a half-typed
@@ -23,8 +26,12 @@ import Papa from "papaparse";
 
 export const DATASET_KINDS = {
   groups: { label: "Groups", first: "Group" },
+  grouped: { label: "Groups by condition", first: "Condition" },
   xy: { label: "X and Y", first: "X" },
 };
+
+/** Datasets whose first column names things rather than measuring them. */
+export const hasLabelColumn = (dataset) => dataset?.kind === "grouped";
 
 let counter = 0;
 export const nextDatasetId = () => `ds_${Date.now().toString(36)}_${(counter++).toString(36)}`;
@@ -82,6 +89,8 @@ export function blankDataset(kind = "groups", { columns = kind === "xy" ? 2 : 3,
   const names =
     kind === "xy"
       ? ["X", ...Array.from({ length: columns - 1 }, (_, i) => `Y${i + 1}`)]
+      : kind === "grouped"
+      ? ["Group", ...Array.from({ length: columns - 1 }, (_, i) => `Condition ${i + 1}`)]
       : Array.from({ length: columns }, (_, i) => `Group ${i + 1}`);
   return createDataset({
     name: "Data",
@@ -92,6 +101,17 @@ export function blankDataset(kind = "groups", { columns = kind === "xy" ? 2 : 3,
 
 /** Sample data, so the graph dialog can be tried without any numbers at hand. */
 export function sampleDataset(kind = "groups") {
+  if (kind === "grouped") {
+    return createDataset({
+      name: "IL-6 by genotype (sample)",
+      kind: "grouped",
+      columns: [
+        { name: "Genotype", values: ["Wild type", "Wild type", "Wild type", "Wild type", "Knockout", "Knockout", "Knockout", "Knockout"] },
+        { name: "Vehicle", values: ["11.4", "12.1", "10.8", "11.9", "12.0", "11.2", "12.6", "11.5"] },
+        { name: "LPS", values: ["48.2", "52.7", "45.9", "50.3", "24.1", "27.8", "22.6", "25.9"] },
+      ],
+    });
+  }
   if (kind === "xy") {
     return createDataset({
       name: "Growth curve (sample)",
@@ -124,7 +144,7 @@ const padTo = (values, length) =>
 
 /** Column names nobody has used yet: "Group 4", then "Group 5". */
 function freshColumnName(dataset) {
-  const stem = dataset.kind === "xy" ? "Y" : "Group ";
+  const stem = dataset.kind === "xy" ? "Y" : dataset.kind === "grouped" ? "Condition " : "Group ";
   const taken = new Set(dataset.columns.map((c) => c.name));
   for (let i = dataset.columns.length; ; i += 1) {
     const name = `${stem}${i}`;
@@ -287,12 +307,52 @@ export function datasetFromRows(rows, { kind = "groups", name = "Imported data" 
     }
   }
 
-  const stem = kind === "xy" ? (i) => (i === 0 ? "X" : `Y${i}`) : (i) => `Group ${i + 1}`;
+  const stem =
+    kind === "xy"
+      ? (i) => (i === 0 ? "X" : `Y${i}`)
+      : kind === "grouped"
+      ? (i) => (i === 0 ? "Group" : `Condition ${i}`)
+      : (i) => `Group ${i + 1}`;
   const columns = Array.from({ length: width }, (_, i) => ({
     name: header?.[i] || stem(i),
     values: body.map((r) => r[i] ?? ""),
   }));
   return createDataset({ name, kind, columns });
+}
+
+/**
+ * A grouped dataset read as its two factors: the row labels in the order they
+ * first appear, the condition columns, and the numbers in each cell of the
+ * design. Rows whose label is blank are left out, since they belong to no
+ * group.
+ */
+export function groupedFactors(dataset) {
+  const labels = dataset.columns[0]?.values ?? [];
+  const conditions = dataset.columns.slice(1).map((c, i) => ({ col: i + 1, name: c.name || `Condition ${i + 1}` }));
+  const levels = [];
+  for (const raw of labels) {
+    const label = String(raw ?? "").trim();
+    if (label !== "" && !levels.includes(label)) levels.push(label);
+  }
+  const cells = new Map();
+  levels.forEach((level) => {
+    conditions.forEach((condition) => {
+      const values = [];
+      labels.forEach((raw, row) => {
+        if (String(raw ?? "").trim() !== level) return;
+        const value = parseNumber(dataset.columns[condition.col]?.values[row]);
+        if (Number.isFinite(value)) values.push(value);
+      });
+      cells.set(`${level}|${condition.name}`, values);
+    });
+  });
+  return {
+    rowFactor: dataset.columns[0]?.name || "Group",
+    columnFactor: "Condition",
+    levels,
+    conditions,
+    valuesAt: (level, condition) => cells.get(`${level}|${condition}`) ?? [],
+  };
 }
 
 /**

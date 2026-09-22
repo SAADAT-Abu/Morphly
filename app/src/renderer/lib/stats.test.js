@@ -17,6 +17,8 @@ import {
   dunnTest,
   repeatedMeasuresAnova,
   friedman,
+  twoWayAnova,
+  dunnettTest,
   shapiroWilk,
   brownForsythe,
   pearson,
@@ -200,6 +202,87 @@ group("several groups", () => {
     const r = friedman(rows);
     close(r.chi2, 10.3333333333333);
     close(r.p, 0.0057035489980074);
+  });
+});
+
+group("two factors at once", () => {
+  const cells = {
+    "WT|Veh": [11.4, 12.1, 10.8, 11.9],
+    "WT|LPS": [48.2, 52.7, 45.9, 50.3],
+    "KO|Veh": [12.0, 11.2, 12.6, 11.5],
+    "KO|LPS": [24.1, 27.8, 22.6, 25.9],
+  };
+  const design = (table) => ({
+    rows: ["WT", "KO"],
+    cols: ["Veh", "LPS"],
+    valuesAt: (row, col) => table[`${row}|${col}`] ?? [],
+  });
+
+  it("two-way ANOVA: car::Anova(lm(v ~ g * tr), type = 'II')", () => {
+    const a = twoWayAnova(design(cells));
+    close(a.rows.ss, 571.21);
+    close(a.rows.F, 160.73444, 1e-5);
+    close(a.rows.p, 2.615e-8, 1e-4);
+    close(a.cols.ss, 2601);
+    close(a.cols.F, 731.90292, 1e-5);
+    close(a.interaction.ss, 597.8025);
+    close(a.interaction.F, 168.21738, 1e-5);
+    close(a.residual.ss, 42.645);
+    expect([a.rows.df, a.cols.df, a.interaction.df, a.residual.df]).toEqual([1, 1, 1, 12]);
+    expect(a.balanced).toBe(true);
+  });
+
+  it("stays right when the cells hold different numbers of values", () => {
+    // The same data with two values dropped. Type II sums of squares do not
+    // depend on which factor is named first, which is why they are used.
+    const uneven = { ...cells, "WT|LPS": [48.2, 52.7], "KO|Veh": [12.0, 11.2, 12.6] };
+    const a = twoWayAnova(design(uneven));
+    close(a.rows.ss, 360.42857, 1e-5);
+    close(a.rows.F, 118.81535, 1e-5);
+    close(a.cols.ss, 1818.15048, 1e-5);
+    close(a.cols.F, 599.35368, 1e-5);
+    close(a.interaction.ss, 496.65333, 1e-5);
+    close(a.interaction.F, 163.72187, 1e-5);
+    close(a.residual.ss, 27.30167, 1e-5);
+    expect(a.residual.df).toBe(9);
+    expect(a.balanced).toBe(false);
+  });
+
+  it("says no when there is nothing to compare", () => {
+    expect(twoWayAnova({ rows: ["a"], cols: ["x", "y"], valuesAt: () => [1, 2] })).toBeNull();
+    expect(twoWayAnova({ rows: ["a", "b"], cols: ["x", "y"], valuesAt: () => [] })).toBeNull();
+  });
+});
+
+group("Dunnett's test", () => {
+  /**
+   * Checked against a simulation of the statistic (40 million draws) rather
+   * than against SciPy: scipy.stats.dunnett agrees for large p but drifts in
+   * the tails, where its own documentation calls its p-values approximate.
+   * Simulated, with 95% intervals:
+   *   4 groups of 6, t = 0.3633   p = 0.96812
+   *   4 groups of 6, t = 6.4670   p = 7.73e-06  (6.86e-06 to 8.59e-06)
+   *   n = 4, 3, 5,   t = 3.9649   p = 6.079e-03 (6.045e-03 to 6.113e-03)
+   *   n = 4, 3, 5,   t = 10.6203  p = 4.05e-06  (3.17e-06 to 4.93e-06)
+   */
+  it("compares every group with the control, allowing for the shared control", () => {
+    const comparisons = dunnettTest([A, B, C, D], 0);
+    expect(comparisons.map((c) => c.j)).toEqual([1, 2, 3]);
+    close(comparisons[0].t, -0.3633, 1e-3);
+    close(comparisons[0].p, 0.96812, 2e-4);
+    close(comparisons[1].p, 7.73e-6, 0.06);
+  });
+
+  it("handles groups of different sizes", () => {
+    const comparisons = dunnettTest([[5.1, 4.8, 5.5, 5.0], [6.2, 6.8, 6.1], [7.9, 8.2, 7.4, 8.8, 8.1]], 0);
+    close(comparisons[0].t, 3.9649, 1e-3);
+    close(comparisons[0].p, 6.079e-3, 5e-3);
+    close(comparisons[1].p, 4.05e-6, 0.06);
+  });
+
+  it("can compare against any group, not just the first", () => {
+    const comparisons = dunnettTest([A, B, C], 2);
+    expect(comparisons.map((c) => [c.i, c.j])).toEqual([[2, 0], [2, 1]]);
   });
 });
 

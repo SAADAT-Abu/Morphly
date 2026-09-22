@@ -9,7 +9,7 @@
  * any machine.
  */
 
-import { columnNumbers, completeRows } from "./datasets";
+import { columnNumbers, completeRows, groupedFactors } from "./datasets";
 import {
   describe,
   tTest,
@@ -33,7 +33,13 @@ import {
   formatP,
   formatStat,
   adjustHolm,
+  adjustBonferroni,
+  twoWayAnova,
+  dunnettTest,
+  mean,
+  variance,
 } from "./stats";
+import { ptukeyUpper, tTwoSided } from "./stats";
 
 /** Every test Morphly offers for groups, and what it needs. */
 export const TESTS = {
@@ -341,4 +347,175 @@ export function methodsSentence(analysis, plot, { version = "" } = {}) {
 /** Summary rows for the data grid: mean, SD and n of each column. */
 export function columnSummaries(dataset) {
   return dataset.columns.map((_, i) => describe(columnNumbers(dataset, i)));
+}
+
+// ---------------------------------------------------------------------------
+// Two factors: groups by condition
+// ---------------------------------------------------------------------------
+
+/** How to hold down the false positives when many pairs are compared. */
+export const CORRECTIONS = [
+  ["sidak", "Šídák"],
+  ["tukey", "Tukey"],
+  ["bonferroni", "Bonferroni"],
+  ["holm", "Holm"],
+  ["none", "None"],
+];
+
+/** Which pairs a grouped graph compares. */
+export const COMPARISON_SETS = [
+  ["conditions", "Conditions within each group"],
+  ["groups", "Groups within each condition"],
+  ["control", "Each condition against the first"],
+];
+
+/** Adjust a list of p-values by the chosen method. */
+export function correctPValues(ps, method) {
+  const m = ps.length;
+  if (method === "bonferroni") return adjustBonferroni(ps);
+  if (method === "holm") return adjustHolm(ps);
+  // Šídák: the chance of at least one false positive among m independent tests.
+  if (method === "sidak") return ps.map((p) => Math.min(1, 1 - (1 - p) ** m));
+  return ps;
+}
+
+/**
+ * Statistics for a groups-by-condition dataset: two-way ANOVA with the
+ * interaction, and the pairwise comparisons drawn as brackets.
+ *
+ * Comparisons use the pooled spread from the ANOVA, as Prism does, so they
+ * agree with the table above them, and they are corrected across the family
+ * of comparisons actually drawn.
+ */
+export function analyseGrouped(dataset, { within = "conditions", correction = "sidak", control = 0 } = {}) {
+  const factors = groupedFactors(dataset);
+  const { levels, conditions } = factors;
+  if (levels.length < 1 || conditions.length < 1) return { error: "Name the groups in the first column, and add a condition column." };
+  const cellsOf = (level, condition) => factors.valuesAt(level, condition.name);
+  const counts = levels.flatMap((l) => conditions.map((c) => cellsOf(l, c).length));
+  if (counts.some((n) => n === 0)) {
+    return { error: "Every group needs at least one value in every condition." };
+  }
+
+  const warnings = [];
+  const anova =
+    levels.length >= 2 && conditions.length >= 2
+      ? twoWayAnova({
+          rows: levels,
+          cols: conditions.map((c) => c.name),
+          valuesAt: (row, col) => factors.valuesAt(row, col),
+        })
+      : null;
+  if (anova && !anova.balanced) {
+    warnings.push("The groups hold different numbers of values, so each factor is judged allowing for the other (type II sums of squares).");
+  }
+  if (counts.some((n) => n < 2)) warnings.push("Some combinations hold a single value, so the spread within them is unknown.");
+
+  // The pooled spread: from the ANOVA when there is one, otherwise from the
+  // cells themselves.
+  let mse = anova?.residual.ms;
+  let dfResidual = anova?.residual.df;
+  if (!Number.isFinite(mse)) {
+    const within2 = levels.flatMap((l) => conditions.map((c) => cellsOf(l, c)));
+    const ss = within2.reduce((sum, values) => sum + (values.length > 1 ? variance(values) * (values.length - 1) : 0), 0);
+    dfResidual = within2.reduce((sum, values) => sum + Math.max(0, values.length - 1), 0);
+    mse = dfResidual > 0 ? ss / dfResidual : NaN;
+  }
+
+  const pairs = [];
+  const add = (a, b) => {
+    const x = cellsOf(levels[a.row], conditions[a.col]);
+    const y = cellsOf(levels[b.row], conditions[b.col]);
+    if (!x.length || !y.length) return;
+    const diff = mean(y) - mean(x);
+    const se = Math.sqrt(mse * (1 / x.length + 1 / y.length));
+    const t = diff / se;
+    pairs.push({ a, b, diff, t, p: tTwoSided(t, dfResidual) });
+  };
+
+  if (within === "groups") {
+    conditions.forEach((_, col) => {
+      for (let i = 0; i < levels.length; i += 1) {
+        for (let j = i + 1; j < levels.length; j += 1) add({ row: i, col }, { row: j, col });
+      }
+    });
+  } else if (within === "control") {
+    levels.forEach((_, row) => {
+      conditions.forEach((_, col) => {
+        if (col !== control) add({ row, col: control }, { row, col });
+      });
+    });
+  } else {
+    levels.forEach((_, row) => {
+      for (let i = 0; i < conditions.length; i += 1) {
+        for (let j = i + 1; j < conditions.length; j += 1) add({ row, col: i }, { row, col: j });
+      }
+    });
+  }
+
+  // Tukey works on the studentized range across the means in the family.
+  let adjusted;
+  if (correction === "tukey") {
+    const k = within === "groups" ? levels.length : conditions.length;
+    adjusted = pairs.map((pair) => ptukeyUpper(Math.abs(pair.t) * Math.SQRT2, Math.max(2, k), dfResidual));
+  } else {
+    adjusted = correctPValues(pairs.map((pair) => pair.p), correction);
+  }
+
+  const label = (cell) => `${levels[cell.row]} ${conditions[cell.col].name}`;
+  const comparisons = pairs.map((pair, index) => ({
+    ...pair,
+    key: `${pair.a.row}.${pair.a.col}-${pair.b.row}.${pair.b.col}`,
+    label: `${label(pair.a)} vs ${label(pair.b)}`,
+    pUnadjusted: pair.p,
+    p: adjusted[index],
+    pText: formatP(adjusted[index]),
+    stars: stars(adjusted[index]),
+  }));
+
+  const fmt = (term) => `F(${term.df}, ${anova.residual.df}) = ${formatStat(term.F)}, ${pPhrase(term.p)}`;
+  const summary = anova
+    ? [
+        { name: factors.rowFactor || "Group", text: fmt(anova.rows) },
+        { name: "Condition", text: fmt(anova.cols) },
+        { name: "Interaction", text: fmt(anova.interaction) },
+      ]
+    : [];
+
+  return {
+    kind: "grouped",
+    factors,
+    levels,
+    conditions,
+    anova,
+    label: "Two-way ANOVA",
+    summary,
+    correction,
+    within,
+    comparisons,
+    n: counts,
+    warnings,
+  };
+}
+
+/** The methods sentence for a grouped graph. */
+export function groupedMethodsSentence(analysis, plot, { version = "" } = {}) {
+  if (!analysis || analysis.error) return "";
+  const by = version ? ` (Morphly ${version})` : "";
+  const correction = CORRECTIONS.find(([id]) => id === analysis.correction)?.[1] ?? "Šídák";
+  const set =
+    analysis.within === "groups"
+      ? "groups were compared within each condition"
+      : analysis.within === "control"
+      ? "each condition was compared with the first"
+      : "conditions were compared within each group";
+  const error = ERROR_WORDS[plot?.error] ?? "SD";
+  const shows = plot?.kind === "box" ? "Boxes show the median and interquartile range" : `Bars show the mean ± ${error}`;
+  const ns = analysis.n;
+  const nText =
+    Math.min(...ns) === Math.max(...ns) ? `n = ${ns[0]} per group` : `n = ${Math.min(...ns)} to ${Math.max(...ns)} per group`;
+  return (
+    `The data were analysed by two-way ANOVA${by}, and ${set} with ${correction}'s correction for multiple comparisons. ` +
+    `${shows}, with ${nText}. ns, not significant; * p < 0.05; ** p < 0.01; *** p < 0.001; **** p < 0.0001.`
+  );
 }

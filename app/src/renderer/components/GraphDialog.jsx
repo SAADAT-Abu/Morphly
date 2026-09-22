@@ -22,7 +22,7 @@ import {
   rowCount,
   columnNumbers,
 } from "../lib/datasets";
-import { renderPlotSvg, defaultPlot, GROUP_KINDS, XY_KINDS } from "../lib/plotRender";
+import { renderPlotSvg, defaultPlot, GROUP_KINDS, GROUPED_KINDS, XY_KINDS } from "../lib/plotRender";
 import { toDataUrl } from "../lib/svgPalette";
 
 const SHAPES = [
@@ -41,9 +41,8 @@ const SHAPES = [
   {
     id: "grouped",
     title: "Groups by condition",
-    text: "Two ways of grouping, such as genotype by treatment.",
-    example: "         WT   KO\nVehicle  12   11\nDrug      7    3",
-    later: true,
+    text: "Two ways of grouping at once. The first column names each row's group; every other column is a condition.",
+    example: "Genotype  Vehicle  LPS\nWild type   11.4    48.2\nKnockout    12.0    24.1",
   },
   {
     id: "survival",
@@ -124,7 +123,7 @@ export default function GraphDialog({ datasets = [], panelLabel = null, onClose,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [source, shape, pasted, imported, existingId, datasets]);
 
-  const kinds = shape === "xy" ? XY_KINDS : GROUP_KINDS;
+  const kinds = shape === "xy" ? XY_KINDS : shape === "grouped" ? GROUPED_KINDS : GROUP_KINDS;
   const shapeOk = !SHAPES.find((s) => s.id === shape)?.later;
 
   const chooseShape = (id) => {
@@ -271,16 +270,23 @@ export default function GraphDialog({ datasets = [], panelLabel = null, onClose,
             {dataset && source !== "blank" && (
               <aside className="read-panel">
                 <strong>How Morphly read it</strong>
-                {columns.slice(0, 10).map((c, i) => (
-                  <div key={i} className={`read-row${c.numbers === 0 ? " warn" : ""}`}>
-                    <span className="read-mark">{c.numbers > 0 ? "✓" : "!"}</span>
-                    <span className="read-name">{c.name || `Column ${i + 1}`}</span>
-                    <span className="muted">
-                      {c.numbers} {c.numbers === 1 ? "number" : "numbers"}
-                      {c.other ? `, ${c.other} not` : ""}
-                    </span>
-                  </div>
-                ))}
+                {columns.slice(0, 10).map((c, i) => {
+                  // A grouped table's first column holds names, so counting
+                  // numbers in it would report every one of them as a fault.
+                  const names = shape === "grouped" && i === 0;
+                  const ok = names ? c.other > 0 : c.numbers > 0;
+                  return (
+                    <div key={i} className={`read-row${ok ? "" : " warn"}`}>
+                      <span className="read-mark">{ok ? "✓" : "!"}</span>
+                      <span className="read-name">{c.name || `Column ${i + 1}`}</span>
+                      <span className="muted">
+                        {names
+                          ? `${c.other} ${c.other === 1 ? "name" : "names"}`
+                          : `${c.numbers} ${c.numbers === 1 ? "number" : "numbers"}${c.other ? `, ${c.other} not` : ""}`}
+                      </span>
+                    </div>
+                  );
+                })}
                 {columns.length > 10 && <p className="hint">and {columns.length - 10} more columns</p>}
                 {reading && (
                   <>
@@ -296,6 +302,9 @@ export default function GraphDialog({ datasets = [], panelLabel = null, onClose,
                   </>
                 )}
                 {shape === "xy" && <p className="hint">The first column is X; every other column is a Y series.</p>}
+                {shape === "grouped" && (
+                  <p className="hint">The first column names each row's group; every other column is a condition.</p>
+                )}
               </aside>
             )}
           </div>

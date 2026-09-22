@@ -18,6 +18,8 @@
  *   Welch's ANOVA            oneway.test(var.equal = FALSE)
  *   Games-Howell             rstatix::games_howell_test()
  *   Kruskal-Wallis + Dunn    kruskal.test() and rstatix::dunn_test(p.adjust.method = "holm")
+ *   Two-way ANOVA            aov(value ~ a * b) and car::Anova(type = "II")
+ *   Dunnett's test           scipy.stats.dunnett()
  *   Repeated measures ANOVA  aov(value ~ group + Error(subject / group))
  *   Friedman                 friedman.test()
  *   Shapiro-Wilk             shapiro.test()  (Royston's algorithm, as R)
@@ -35,13 +37,14 @@ import pnormBase from "@stdlib/stats-base-dists-normal-cdf";
 import qnormBase from "@stdlib/stats-base-dists-normal-quantile";
 import chisqcdf from "@stdlib/stats-base-dists-chisquare-cdf";
 import ptukeyBase from "@stdlib/stats-base-dists-studentized-range-cdf";
+import { fitRss, ones, factorColumns, interactionColumns } from "./linearModel";
 
 const pnorm = (x) => pnormBase(x, 0, 1);
 const qnorm = (p) => qnormBase(p, 0, 1);
 /** Two-sided p for a t statistic. */
-const tTwoSided = (t, df) => 2 * tcdf(-Math.abs(t), df);
+export const tTwoSided = (t, df) => 2 * tcdf(-Math.abs(t), df);
 /** Upper tail of the studentized range, the p of a Tukey-type comparison. */
-const ptukeyUpper = (q, k, df) => Math.min(1, Math.max(0, 1 - ptukeyBase(q, k, df)));
+export const ptukeyUpper = (q, k, df) => Math.min(1, Math.max(0, 1 - ptukeyBase(q, k, df)));
 const fUpper = (f, d1, d2) => Math.max(0, 1 - fcdf(f, d1, d2));
 const chisqUpper = (x, df) => Math.max(0, 1 - chisqcdf(x, df));
 
@@ -596,3 +599,200 @@ export function formatStat(x) {
   return x.toFixed(3);
 }
 
+
+// ---------------------------------------------------------------------------
+// Two factors at once
+// ---------------------------------------------------------------------------
+
+/**
+ * Two-way ANOVA, with the interaction.
+ *
+ * `design` is { rows, cols, valuesAt(row, col) }: the levels of each factor
+ * and the numbers in each cell. Sums of squares are type II (each factor
+ * allowing for the other, and the interaction allowing for both), which is
+ * what car::Anova(type = "II") reports and, unlike the sequential kind, does
+ * not depend on which factor is named first. With the same number of values
+ * in every cell the two agree, and both match R's aov().
+ */
+export function twoWayAnova(design) {
+  const y = [];
+  const rowCodes = [];
+  const colCodes = [];
+  for (const row of design.rows) {
+    for (const col of design.cols) {
+      for (const value of design.valuesAt(row, col)) {
+        y.push(value);
+        rowCodes.push(row);
+        colCodes.push(col);
+      }
+    }
+  }
+  const n = y.length;
+  if (n === 0 || design.rows.length < 2 || design.cols.length < 2) return null;
+
+  const A = factorColumns(rowCodes, design.rows);
+  const B = factorColumns(colCodes, design.cols);
+  const AB = interactionColumns(A, B);
+  const base = [ones(n)];
+  const rss = (...sets) => fitRss([...base, ...sets.flat()], y);
+
+  // Type II: each main effect is judged against a model holding the other
+  // one (and no interaction), and the interaction against both main effects.
+  const full = rss(A, B, AB);
+  const mains = rss(A, B);
+  const onlyRows = rss(A);
+  const onlyCols = rss(B);
+  const dfResidual = n - full.rank;
+  if (dfResidual <= 0) return null;
+  const msResidual = full.rss / dfResidual;
+
+  const term = (reduced, richer) => {
+    const df = richer.rank - reduced.rank;
+    if (df <= 0 || msResidual <= 0) return { ss: 0, df: 0, F: NaN, p: NaN };
+    const ss = reduced.rss - richer.rss;
+    const F = ss / df / msResidual;
+    return { ss, df, F, p: fUpper(F, df, dfResidual) };
+  };
+
+  const rowsTerm = term(onlyCols, mains);
+  const colsTerm = term(onlyRows, mains);
+  const interaction = term(mains, full);
+
+  const counts = design.rows.flatMap((row) => design.cols.map((col) => design.valuesAt(row, col).length));
+  return {
+    rows: rowsTerm,
+    cols: colsTerm,
+    interaction,
+    residual: { ss: full.rss, df: dfResidual, ms: msResidual },
+    n,
+    balanced: counts.every((c) => c === counts[0]),
+    empty: counts.filter((c) => c === 0).length,
+  };
+}
+
+/**
+ * Dunnett's test: every group against one control, allowing for the fact that
+ * all the comparisons share that control.
+ *
+ * The p-value is the probability that the largest of k correlated t statistics
+ * exceeds the one observed. With equal group sizes those statistics all
+ * correlate at one half, which makes the probability a double integral, done
+ * here by Gauss-Legendre quadrature over the control's own deviation and over
+ * the pooled spread. Matches scipy.stats.dunnett.
+ */
+export function dunnettTest(groups, controlIndex = 0) {
+  if (groups.length < 2) return [];
+  const anova = oneWayAnova(groups);
+  const mse = anova.mse;
+  const df = anova.df2;
+  const nControl = groups[controlIndex].length;
+  // Each comparison's t statistic is a standard normal shifted by the
+  // control's own deviation: a_i says how strongly it is shifted, b_i how wide
+  // its window is. They are what ties the comparisons together.
+  const shape = groups
+    .map((g, j) => ({ j, a: Math.sqrt(g.length / nControl), b: Math.sqrt(1 + g.length / nControl) }))
+    .filter((s) => s.j !== controlIndex);
+
+  return shape.map(({ j }) => {
+    const diff = mean(groups[j]) - mean(groups[controlIndex]);
+    const t = diff / Math.sqrt(mse * (1 / groups[j].length + 1 / nControl));
+    return { i: controlIndex, j, diff, t, p: dunnettP(Math.abs(t), shape, df) };
+  });
+}
+
+/** Nodes and weights for Gauss-Legendre quadrature on [-1, 1]. */
+function legendre(nodes) {
+  const x = [];
+  const w = [];
+  for (let i = 1; i <= nodes; i += 1) {
+    // Newton's method from the usual starting guess.
+    let guess = Math.cos((Math.PI * (i - 0.25)) / (nodes + 0.5));
+    for (let step = 0; step < 100; step += 1) {
+      let p0 = 1;
+      let p1 = 0;
+      for (let j = 0; j < nodes; j += 1) {
+        const p2 = p1;
+        p1 = p0;
+        p0 = ((2 * j + 1) * guess * p1 - j * p2) / (j + 1);
+      }
+      const derivative = (nodes * (guess * p0 - p1)) / (guess * guess - 1);
+      const next = guess - p0 / derivative;
+      if (Math.abs(next - guess) < 1e-14) {
+        guess = next;
+        break;
+      }
+      guess = next;
+    }
+    let p0 = 1;
+    let p1 = 0;
+    for (let j = 0; j < nodes; j += 1) {
+      const p2 = p1;
+      p1 = p0;
+      p0 = ((2 * j + 1) * guess * p1 - j * p2) / (j + 1);
+    }
+    const derivative = (nodes * (guess * p0 - p1)) / (guess * guess - 1);
+    x.push(guess);
+    w.push(2 / ((1 - guess * guess) * derivative * derivative));
+  }
+  return { x, w };
+}
+
+const GL = legendre(60);
+
+/**
+ * Integrate f over [a, b] by Gauss-Legendre, in panels. One panel is not
+ * enough over a wide range: a Dunnett p-value of a few parts in a million
+ * comes out half as large again.
+ */
+function integrate(f, a, b, panels = 12) {
+  const step = (b - a) / panels;
+  let total = 0;
+  for (let panel = 0; panel < panels; panel += 1) {
+    const from = a + panel * step;
+    const half = step / 2;
+    const mid = from + half;
+    let sum = 0;
+    for (let i = 0; i < GL.x.length; i += 1) sum += GL.w[i] * f(mid + half * GL.x[i]);
+    total += sum * half;
+  }
+  return total;
+}
+
+const normalPdf = (z) => Math.exp((-z * z) / 2) / Math.sqrt(2 * Math.PI);
+
+/**
+ * Two-sided p for Dunnett's statistic: one minus the chance that every one of
+ * the comparisons stays within `t`.
+ *
+ * Conditional on the control's deviation and on the pooled spread, the
+ * comparisons are independent, so the chance they all stay inside is a
+ * product. Averaging that over both leaves a double integral, done by
+ * Gauss-Legendre quadrature.
+ */
+function dunnettP(t, shape, df) {
+  const covered = (s) =>
+    integrate(
+      (u) =>
+        normalPdf(u) *
+        shape.reduce((product, { a, b }) => product * (pnorm(a * u + t * s * b) - pnorm(a * u - t * s * b)), 1),
+      -8.5,
+      8.5
+    );
+  if (!Number.isFinite(df) || df > 2000) return Math.max(0, Math.min(1, 1 - covered(1)));
+  // The pooled spread is a chi variable on the residual degrees of freedom.
+  const logDensity = (s) =>
+    Math.LN2 + (df / 2) * Math.log(df / 2) - logGamma(df / 2) + (df - 1) * Math.log(s) - (df * s * s) / 2;
+  const total = integrate((s) => Math.exp(logDensity(s)) * covered(s), 1e-9, 1 + 10 / Math.sqrt(df));
+  return Math.max(0, Math.min(1, 1 - total));
+}
+
+/** log of the gamma function (Lanczos), for the chi density above. */
+function logGamma(x) {
+  const c = [76.18009172947146, -86.50532032941677, 24.01409824083091, -1.231739572450155, 0.1208650973866179e-2, -0.5395239384953e-5];
+  let y = x;
+  let tmp = x + 5.5;
+  tmp -= (x + 0.5) * Math.log(tmp);
+  let ser = 1.000000000190015;
+  for (let j = 0; j < 6; j += 1) ser += c[j] / ++y;
+  return -tmp + Math.log((2.5066282746310005 * ser) / x);
+}

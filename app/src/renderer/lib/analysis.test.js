@@ -1,5 +1,15 @@
 import { describe, it, expect } from "vitest";
-import { analyseGroups, analyseXY, availableTests, bracketsToDraw, methodsSentence, plottedGroups } from "./analysis";
+import {
+  analyseGroups,
+  analyseGrouped,
+  analyseXY,
+  availableTests,
+  bracketsToDraw,
+  correctPValues,
+  groupedMethodsSentence,
+  methodsSentence,
+  plottedGroups,
+} from "./analysis";
 import { createDataset, sampleDataset } from "./datasets";
 
 const groups = (...cols) =>
@@ -144,5 +154,82 @@ describe("analyseXY", () => {
     const a = analyseXY(ds);
     expect(a.series[0].error).toMatch(/at least 3/);
     expect(a.series[1].error).toMatch(/equal/);
+  });
+});
+
+describe("analyseGrouped", () => {
+  const ds = sampleDataset("grouped");
+
+  it("reports the two factors and their interaction", () => {
+    const a = analyseGrouped(ds);
+    expect(a.summary.map((s) => s.name)).toEqual(["Genotype", "Condition", "Interaction"]);
+    // The same numbers R gives for this table.
+    expect(a.summary[1].text).toMatch(/^F\(1, 12\) = /);
+    expect(a.anova.balanced).toBe(true);
+    expect(a.levels).toEqual(["Wild type", "Knockout"]);
+    expect(a.conditions.map((c) => c.name)).toEqual(["Vehicle", "LPS"]);
+  });
+
+  it("compares conditions within each group by default", () => {
+    const a = analyseGrouped(ds);
+    expect(a.comparisons.map((c) => c.label)).toEqual([
+      "Wild type Vehicle vs Wild type LPS",
+      "Knockout Vehicle vs Knockout LPS",
+    ]);
+    expect(a.comparisons.every((c) => c.p < 0.0001)).toBe(true);
+    expect(a.comparisons[0].key).toBe("0.0-0.1");
+  });
+
+  it("can compare groups within each condition instead", () => {
+    const a = analyseGrouped(ds, { within: "groups" });
+    expect(a.comparisons.map((c) => c.label)).toEqual([
+      "Wild type Vehicle vs Knockout Vehicle",
+      "Wild type LPS vs Knockout LPS",
+    ]);
+  });
+
+  it("can compare every condition with a chosen one", () => {
+    const a = analyseGrouped(ds, { within: "control", control: 1 });
+    expect(a.comparisons.map((c) => c.label)).toEqual([
+      "Wild type LPS vs Wild type Vehicle",
+      "Knockout LPS vs Knockout Vehicle",
+    ]);
+  });
+
+  it("corrects the p-values, and says which way", () => {
+    const sidak = analyseGrouped(ds, { correction: "sidak" }).comparisons[0];
+    const none = analyseGrouped(ds, { correction: "none" }).comparisons[0];
+    const bonferroni = analyseGrouped(ds, { correction: "bonferroni" }).comparisons[0];
+    expect(none.p).toBeLessThan(sidak.p);
+    expect(sidak.p).toBeLessThanOrEqual(bonferroni.p);
+    expect(none.p).toBe(none.pUnadjusted);
+  });
+
+  it("asks for what it needs instead of guessing", () => {
+    const missing = createDataset({
+      kind: "grouped",
+      columns: [
+        { name: "Genotype", values: ["WT", "KO"] },
+        { name: "Vehicle", values: ["1", ""] },
+      ],
+    });
+    expect(analyseGrouped(missing).error).toMatch(/every condition/);
+  });
+
+  it("writes a methods sentence naming the correction", () => {
+    const a = analyseGrouped(ds);
+    const s = groupedMethodsSentence(a, { kind: "bar", error: "sd" }, { version: "0.5.0" });
+    expect(s).toMatch(/two-way ANOVA \(Morphly 0\.5\.0\)/);
+    expect(s).toMatch(/conditions were compared within each group with Šídák's correction/);
+    expect(s).toMatch(/n = 4 per group/);
+  });
+});
+
+describe("correctPValues", () => {
+  it("matches the usual formulas", () => {
+    const ps = [0.01, 0.04];
+    expect(correctPValues(ps, "bonferroni")).toEqual([0.02, 0.08]);
+    expect(correctPValues(ps, "sidak")[0]).toBeCloseTo(1 - 0.99 ** 2, 12);
+    expect(correctPValues(ps, "none")).toEqual(ps);
   });
 });

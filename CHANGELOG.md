@@ -37,6 +37,22 @@ Planned work is described in the [roadmap](README.md#roadmap).
   as brackets with stars; significant ones start ticked. A methods sentence can
   be copied into a manuscript. X and Y graphs show linear fits, Pearson and
   Spearman correlations.
+- **Groups by condition, with two-way ANOVA.** A third shape of data: the
+  first column names each row's group (genotype, say) and every other column is
+  a condition (vehicle, drug). Draws as bars side by side, stacked bars or 100%
+  stacked, with the legend beside the graph so it cannot sit under a bracket.
+  Two-way ANOVA reports both factors and their interaction, and stays correct
+  when the groups hold different numbers of values (type II sums of squares,
+  as car::Anova gives). Comparisons run within each group, within each
+  condition, or against a chosen condition, corrected by Šídák, Tukey,
+  Bonferroni or Holm, and any of them can be drawn as a bracket.
+- **Dunnett's test**, for comparing every group with one control while
+  allowing for the shared control. Checked against a simulation of 40 million
+  draws: SciPy's own implementation drifts in the tails, where its
+  documentation says its p-values are approximate.
+- **An Advanced dialog** for the statistics: which pairs are compared, against
+  which control, and how the p-values are corrected. The properties panel keeps
+  what is changed on most figures; method choices live behind the link.
 - **Resizable panels, as in RStudio.** Drag any boundary in the workspace: the
   illustrations and data sidebar, the properties panel, the layers list and the
   data table under the canvas. Each one remembers its size for next time,

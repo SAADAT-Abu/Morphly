@@ -13,8 +13,17 @@
 import React, { useMemo, useRef, useState } from "react";
 import { useStore } from "../store";
 import { graphAnalysis } from "../lib/graphs";
-import { availableTests, methodsSentence, plottedGroups, TESTS } from "../lib/analysis";
-import { GROUP_KINDS, XY_KINDS, GROUP_COLOURS, SERIES_COLOURS, LEGEND_POSITIONS } from "../lib/plotRender";
+import {
+  availableTests,
+  methodsSentence,
+  groupedMethodsSentence,
+  plottedGroups,
+  TESTS,
+  CORRECTIONS,
+  COMPARISON_SETS,
+} from "../lib/analysis";
+import AdvancedDialog from "./AdvancedDialog";
+import { GROUP_KINDS, GROUPED_KINDS, XY_KINDS, GROUP_COLOURS, SERIES_COLOURS, LEGEND_POSITIONS } from "../lib/plotRender";
 import { formatP, formatStat } from "../lib/stats";
 
 /* global __APP_VERSION__ */
@@ -102,10 +111,11 @@ export default function GraphPanel({ element }) {
   }
 
   const xy = dataset.kind === "xy";
-  const kinds = xy ? XY_KINDS : GROUP_KINDS;
+  const grouped = dataset.kind === "grouped";
+  const kinds = xy ? XY_KINDS : grouped ? GROUPED_KINDS : GROUP_KINDS;
   const kind = kinds.some(([id]) => id === plot.kind) ? plot.kind : kinds[0][0];
   const sameKind = datasets.filter((d) => d.kind === dataset.kind);
-  const colourCols = xy ? dataset.columns.map((_, i) => i).slice(1) : plottedGroups(dataset);
+  const colourCols = xy || grouped ? dataset.columns.map((_, i) => i).slice(1) : plottedGroups(dataset);
   const palette = xy ? SERIES_COLOURS : GROUP_COLOURS;
   const colourOf = (col) => plot.colors?.[col] || palette[col % palette.length];
 
@@ -115,7 +125,12 @@ export default function GraphPanel({ element }) {
     set({ colors });
   };
 
-  const sentence = !xy && analysis && !analysis.error ? methodsSentence(analysis, { ...plot, kind }, { version: VERSION }) : "";
+  const sentence =
+    xy || !analysis || analysis.error
+      ? ""
+      : grouped
+      ? groupedMethodsSentence(analysis, { ...plot, kind }, { version: VERSION })
+      : methodsSentence(analysis, { ...plot, kind }, { version: VERSION });
 
   return (
     <>
@@ -141,13 +156,13 @@ export default function GraphPanel({ element }) {
         )}
         <div className="field-label">Graph type</div>
         <Segments label="Graph type" options={kinds} value={kind} onChange={(id) => set({ kind: id })} />
-        {!xy && kind !== "box" && (
+        {!xy && kind !== "box" && kind !== "stacked" && kind !== "stacked100" && (
           <>
             <div className="field-label">Error bars</div>
             <Segments label="Error bars" options={ERRORS} value={plot.error} onChange={(id) => set({ error: id })} />
           </>
         )}
-        {!xy && kind !== "dots" && (
+        {!xy && kind !== "dots" && kind !== "stacked" && kind !== "stacked100" && (
           <label className="check">
             <input type="checkbox" checked={Boolean(plot.points)} onChange={(e) => set({ points: e.target.checked })} />
             Show every point
@@ -174,7 +189,13 @@ export default function GraphPanel({ element }) {
             {LEGEND_POSITIONS.map(([id, label]) => (
               <option key={id} value={id}>
                 {label}
-                {id === "auto" ? (xy ? " (shown for two or more series)" : " (hidden)") : ""}
+                {id === "auto"
+                  ? xy
+                    ? " (top left, for two or more series)"
+                    : grouped
+                    ? " (beside the graph)"
+                    : " (hidden)"
+                  : ""}
               </option>
             ))}
           </select>
@@ -211,7 +232,8 @@ export default function GraphPanel({ element }) {
         )}
       </Section>
 
-      {!xy && <GroupStats element={element} analysis={analysis} sentence={sentence} copied={copied} setCopied={setCopied} />}
+      {grouped && <GroupedStats element={element} dataset={dataset} analysis={analysis} sentence={sentence} copied={copied} setCopied={setCopied} />}
+      {!xy && !grouped && <GroupStats element={element} analysis={analysis} sentence={sentence} copied={copied} setCopied={setCopied} />}
       {xy && <XyStats analysis={analysis} />}
     </>
   );
@@ -306,6 +328,132 @@ function GroupStats({ element, analysis, sentence, copied, setCopied }) {
       <button className="ghost small" onClick={copy}>
         {copied ? "Copied" : "Copy methods sentence"}
       </button>
+    </Section>
+  );
+}
+
+/**
+ * Two-way ANOVA and its comparisons. Which pairs are compared and how the
+ * p-values are corrected are method choices, so they sit behind Advanced.
+ */
+function GroupedStats({ element, dataset, analysis, sentence, copied, setCopied }) {
+  const updatePlot = useStore((s) => s.updatePlot);
+  const [advanced, setAdvanced] = useState(false);
+  const plot = element.plot;
+  const set = (patch) => updatePlot(element.id, patch);
+
+  if (!analysis || analysis.error) {
+    return (
+      <Section title="Statistics">
+        <p className="hint">{analysis?.error ?? "No data yet."}</p>
+      </Section>
+    );
+  }
+
+  const copy = async () => {
+    await window.morphly.writeClipboardText(sentence);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 2000);
+  };
+
+  const correction = CORRECTIONS.find(([id]) => id === (plot.correction ?? "sidak"))?.[1] ?? "Šídák";
+  const comparing = COMPARISON_SETS.find(([id]) => id === (plot.within ?? "conditions"))?.[1] ?? "";
+
+  return (
+    <Section title="Statistics">
+      <div className="stats-card">
+        <div className="stats-head">
+          <strong>Two-way ANOVA</strong>
+        </div>
+        {analysis.summary.map((row) => (
+          <div key={row.name} className="stats-result">
+            <span className="muted">{row.name}: </span>
+            {row.text}
+          </div>
+        ))}
+        {analysis.warnings.map((w) => (
+          <p key={w} className="hint warn-text">
+            {w}
+          </p>
+        ))}
+      </div>
+
+      <div className="field-label">
+        Comparing: {comparing.toLowerCase()}, {correction} corrected
+      </div>
+      <div className="comparison-list">
+        {analysis.comparisons.map((c) => {
+          const shown = plot.brackets?.[c.key] ?? c.p < 0.05;
+          return (
+            <label key={c.key} className="comparison">
+              <input
+                type="checkbox"
+                checked={shown}
+                onChange={(e) => set({ brackets: { ...(plot.brackets ?? {}), [c.key]: e.target.checked } })}
+              />
+              <span className="comparison-name">{c.label}</span>
+              <span className="muted">p {c.pText.startsWith("<") ? c.pText : `= ${c.pText}`}</span>
+              <span className="comparison-stars">{c.stars}</span>
+            </label>
+          );
+        })}
+      </div>
+      <button className="link" onClick={() => setAdvanced(true)}>
+        Advanced…
+      </button>
+
+      <div className="field-label">Methods sentence</div>
+      <p className="methods">{sentence}</p>
+      <button className="ghost small" onClick={copy}>
+        {copied ? "Copied" : "Copy methods sentence"}
+      </button>
+
+      {advanced && (
+        <AdvancedDialog
+          title="Advanced statistics"
+          onClose={() => setAdvanced(false)}
+          onReset={() => set({ within: "conditions", correction: "sidak", control: 0, brackets: {} })}
+        >
+          <label className="field">
+            <span>Compare</span>
+            <select value={plot.within ?? "conditions"} onChange={(e) => set({ within: e.target.value, brackets: {} })}>
+              {COMPARISON_SETS.map(([id, label]) => (
+                <option key={id} value={id}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </label>
+          {(plot.within ?? "conditions") === "control" && (
+            <label className="field">
+              <span>Compare every condition with</span>
+              <select value={plot.control ?? 0} onChange={(e) => set({ control: Number(e.target.value), brackets: {} })}>
+                {dataset.columns.slice(1).map((c, i) => (
+                  <option key={c.name} value={i}>
+                    {c.name || `Condition ${i + 1}`}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          <label className="field">
+            <span>Correct the p-values by</span>
+            <select value={plot.correction ?? "sidak"} onChange={(e) => set({ correction: e.target.value })}>
+              {CORRECTIONS.map(([id, label]) => (
+                <option key={id} value={id}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <p className="hint">
+            Comparisons use the pooled spread from the ANOVA above, so they agree with it. Šídák is the usual choice for a
+            handful of planned comparisons; Tukey suits comparing everything with everything; Holm and Bonferroni are more
+            cautious. None leaves the p-values as they came, which is only honest when a single comparison was planned in
+            advance.
+          </p>
+        </AdvancedDialog>
+      )}
     </Section>
   );
 }

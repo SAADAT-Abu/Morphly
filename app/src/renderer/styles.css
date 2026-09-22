@@ -1106,3 +1106,5 @@ input.swatch-hex:focus { border-color: var(--accent); background: var(--panel); 
 .grip { border-radius: 2px; background: #4a5162; }
 .splitter.vertical .grip { width: 3px; height: 34px; }
 .splitter.horizontal .grip { width: 34px; height: 3px; }
+.advanced-modal { width: 460px; }
+.advanced-body { display: flex; flex-direction: column; gap: 10px; }

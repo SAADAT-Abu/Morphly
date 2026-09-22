@@ -17,7 +17,7 @@
  */
 
 import { ticks as makeTicks, nice } from "d3-array";
-import { columnNumbers, completeRows } from "./datasets";
+import { columnNumbers, completeRows, groupedFactors } from "./datasets";
 import { describe } from "./stats";
 
 /** Group fills: light enough for black points to read on top. */
@@ -29,6 +29,11 @@ export const GROUP_KINDS = [
   ["bar", "Bar and points"],
   ["dots", "Dot plot"],
   ["box", "Box and whiskers"],
+];
+export const GROUPED_KINDS = [
+  ["bar", "Bars side by side"],
+  ["stacked", "Stacked bars"],
+  ["stacked100", "100% stacked"],
 ];
 export const XY_KINDS = [
   ["scatter", "Scatter"],
@@ -134,6 +139,9 @@ export function defaultPlot(kind = "bar", { fontSize = 28 } = {}) {
     colors: [],
     legend: "auto",
     test: "auto",
+    within: "conditions",
+    correction: "sidak",
+    control: 0,
     paired: false,
     brackets: {},
     fit: false,
@@ -174,6 +182,7 @@ const maxLabelWidth = (labels, f) => Math.max(0, ...labels.map((l) => textWidth(
 export const LEGEND_POSITIONS = [
   ["auto", "Automatic"],
   ["off", "Hidden"],
+  ["right", "Beside the graph"],
   ["topleft", "Top left"],
   ["topright", "Top right"],
   ["bottomleft", "Bottom left"],
@@ -185,17 +194,34 @@ export const LEGEND_POSITIONS = [
  * series get one at the top left, and groups do not, since the names are
  * already written under the bars.
  */
-export function legendPlacement(plot, entryCount, isXY) {
+export function legendPlacement(plot, entryCount, shows) {
   const chosen = plot.legend ?? "auto";
   if (chosen === "off") return null;
   if (chosen !== "auto") return chosen;
-  return isXY && entryCount > 1 ? "topleft" : null;
+  // A legend is the only thing naming the series of an X and Y graph, or the
+  // conditions of a grouped one. Group names are written under the bars, so
+  // those graphs need none.
+  if (shows === "xy") return entryCount > 1 ? "topleft" : null;
+  // Beside the graph, where it cannot sit under a significance bracket.
+  if (shows === "grouped") return entryCount > 1 ? "right" : null;
+  return null;
+}
+
+/** How wide a legend is, so a graph can leave room beside it. */
+export function legendWidth(names, f) {
+  if (!names.length) return 0;
+  return f * 1.9 + maxLabelWidth(names, f);
 }
 
 /**
- * A legend box inside the plot area. `entries` are { name, colour }, drawn
- * with a round marker for X and Y series and a square one for groups. Names
- * come from the data's column names, so renaming a column renames the key.
+ * A legend, in a corner of the plot or beside it. `entries` are
+ * { name, colour }, drawn with a round marker for X and Y series and a square
+ * one for groups. Names come from the data's column names, so renaming a
+ * column renames the key.
+ *
+ * "right" puts it outside the plot, which is where it belongs on a graph
+ * carrying significance brackets: a corner legend and a bracket want the same
+ * piece of sky.
  */
 function legendSvg(entries, { position, f, sw, left, right, top, bottom, round }) {
   if (!position || entries.length === 0) return "";
@@ -204,11 +230,22 @@ function legendSvg(entries, { position, f, sw, left, right, top, bottom, round }
   const marker = f * 0.5;
   const width = marker + f * 0.5 + maxLabelWidth(entries.map((e) => e.name), f) + pad * 2;
   const height = entries.length * lineHeight + pad * 2 - (lineHeight - f);
-  const x = position.endsWith("left") ? left + f * 0.4 : Math.max(left, right - width - f * 0.4);
-  const y = position.startsWith("top") ? top + f * 0.3 : Math.max(top, bottom - height - f * 0.3);
+  const outside = position === "right";
+  const x = outside
+    ? right + f * 0.6
+    : position.endsWith("left")
+    ? left + f * 0.4
+    : Math.max(left, right - width - f * 0.4);
+  const y = outside
+    ? Math.max(top, (top + bottom) / 2 - height / 2)
+    : position.startsWith("top")
+    ? top + f * 0.3
+    : Math.max(top, bottom - height - f * 0.3);
 
   let out = `<g data-part="legend">`;
-  out += `<rect x="${r2(x)}" y="${r2(y)}" width="${r2(width)}" height="${r2(height)}" fill="#ffffff" fill-opacity="0.85" stroke="#c7ccd6" stroke-width="${r2(sw * 0.7)}" rx="${r2(f * 0.2)}"/>`;
+  if (!outside) {
+    out += `<rect x="${r2(x)}" y="${r2(y)}" width="${r2(width)}" height="${r2(height)}" fill="#ffffff" fill-opacity="0.85" stroke="#c7ccd6" stroke-width="${r2(sw * 0.7)}" rx="${r2(f * 0.2)}"/>`;
+  }
   entries.forEach((entry, i) => {
     const cy = y + pad + f * 0.5 + i * lineHeight;
     out += round
@@ -355,7 +392,7 @@ function groupsSvg(element, dataset, brackets) {
   const legend = legendSvg(
     names.map((name, i) => ({ name, colour: colourAt(plot, cols[i], GROUP_COLOURS) })),
     {
-      position: legendPlacement(plot, names.length, false),
+      position: legendPlacement(plot, names.length, "groups"),
       f,
       sw,
       left,
@@ -394,6 +431,217 @@ export function stackBrackets(brackets, cols) {
     let level = 0;
     while (placed.some((p) => p.level === level && !(b.to < p.from || b.from > p.to))) level += 1;
     placed.push({ ...b, level });
+  }
+  return placed;
+}
+
+// ---------------------------------------------------------------------------
+// Groups by condition: bars side by side, stacked, or stacked to 100%
+// ---------------------------------------------------------------------------
+
+/**
+ * Two factors at once: one cluster per group, one bar per condition inside it.
+ * Stacked bars put the conditions on top of each other instead, and the 100%
+ * version scales each cluster to fill the same height, for composition.
+ *
+ * Brackets carry the two cells they compare, so one can join two bars inside a
+ * cluster or the same condition across clusters.
+ */
+function groupedSvg(element, dataset, brackets) {
+  const plot = element.plot;
+  const W = element.width;
+  const H = element.height;
+  const f = plot.fontSize ?? 28;
+  const sw = Math.max(1, f * 0.075);
+  const { levels, conditions, valuesAt, rowFactor } = groupedFactors(dataset);
+  if (levels.length === 0 || conditions.length === 0) {
+    return message(W, H, "Name the groups in the first column, and add a condition", f);
+  }
+
+  const kind = GROUPED_KINDS.some(([id]) => id === plot.kind) ? plot.kind : "bar";
+  const stacked = kind === "stacked" || kind === "stacked100";
+  const stats = levels.map((level) => conditions.map((c) => describe(valuesAt(level, c.name))));
+  const errOf = (s) => (!s ? 0 : plot.error === "sem" ? s.sem : plot.error === "ci" ? s.ci : s.sd);
+
+  let dataHi = 0;
+  let dataLo = 0;
+  if (stacked) {
+    stats.forEach((row) => {
+      const total = row.reduce((sum, s) => sum + Math.max(0, s?.mean ?? 0), 0);
+      dataHi = Math.max(dataHi, kind === "stacked100" ? 100 : total);
+    });
+  } else {
+    stats.forEach((row) =>
+      row.forEach((s) => {
+        if (!s) return;
+        dataHi = Math.max(dataHi, s.max, s.mean + errOf(s));
+        dataLo = Math.min(dataLo, s.min);
+      })
+    );
+  }
+  const range = axisRange(Math.min(0, dataLo), kind === "stacked100" ? 100 : dataHi, limit(plot.yMin), limit(plot.yMax));
+  const tickText = tickLabels(range.ticks);
+
+  const placed = stackBracketsByX(brackets);
+  const levelsDeep = placed.reduce((m, b) => Math.max(m, b.level + 1), 0);
+  const axisGap = f * 0.5;
+  const left = (plot.yTitle ? f * 1.7 : f * 0.3) + maxLabelWidth(tickText, f) + f * 0.7 + axisGap;
+  const legendAt = legendPlacement(plot, conditions.length, "grouped");
+  const names = conditions.map((c) => c.name);
+  const right = f * 0.5 + (legendAt === "right" ? legendWidth(names, f) : 0);
+  const plotWidth = Math.max(10, W - left - right);
+  const clusterWidth = plotWidth / levels.length;
+  const labelWidth = maxLabelWidth(levels, f);
+  const rotate = labelWidth > clusterWidth * 0.92;
+  const bottom = axisGap + f * 0.5 + (rotate ? labelWidth * 0.72 + f * 0.6 : f * 1.3) + (plot.xTitle || rowFactor ? f * 1.6 : 0);
+  const top = f * 0.6 + levelsDeep * f * 1.5;
+  const plotBottom = Math.max(top + 10, H - bottom);
+  const y = (v) => plotBottom - ((v - range.min) / (range.max - range.min)) * (plotBottom - top);
+  const clampY = (v) => Math.max(top - f * 0.2, Math.min(plotBottom, y(v)));
+  const barWidth = stacked ? clusterWidth * 0.55 : (clusterWidth * 0.78) / conditions.length;
+  const centreOf = (row, col) =>
+    stacked
+      ? left + clusterWidth * (row + 0.5)
+      : left + clusterWidth * (row + 0.5) + (col - (conditions.length - 1) / 2) * barWidth;
+  const radius = Math.max(2, f * 0.2);
+  const colourOfCondition = (col) => colourAt(plot, col + 1, GROUP_COLOURS);
+
+  const bars = [];
+  const errors = [];
+  const points = [];
+  stats.forEach((row, rowIndex) => {
+    if (stacked) {
+      const total = row.reduce((sum, s) => sum + Math.max(0, s?.mean ?? 0), 0) || 1;
+      let base = 0;
+      row.forEach((s, col) => {
+        const value = Math.max(0, s?.mean ?? 0) * (kind === "stacked100" ? 100 / total : 1);
+        const x = centreOf(rowIndex, col);
+        bars.push(
+          `<rect x="${r2(x - barWidth / 2)}" y="${r2(clampY(base + value))}" width="${r2(barWidth)}" ` +
+            `height="${r2(Math.max(0, clampY(base) - clampY(base + value)))}" fill="${colourOfCondition(col)}" stroke="${INK}" stroke-width="${sw}"/>`
+        );
+        base += value;
+      });
+      return;
+    }
+    row.forEach((s, col) => {
+      if (!s) return;
+      const x = centreOf(rowIndex, col);
+      const e = errOf(s);
+      const base = y(Math.max(range.min, Math.min(range.max, 0)));
+      const topY = clampY(s.mean);
+      bars.push(
+        `<rect x="${r2(x - barWidth * 0.42)}" y="${r2(Math.min(base, topY))}" width="${r2(barWidth * 0.84)}" ` +
+          `height="${r2(Math.abs(base - topY))}" fill="${colourOfCondition(col)}" stroke="${INK}" stroke-width="${sw}"/>`
+      );
+      if (e > 0) {
+        const tip = clampY(s.mean + e);
+        errors.push(`<line x1="${r2(x)}" y1="${r2(topY)}" x2="${r2(x)}" y2="${r2(tip)}" stroke="${INK}" stroke-width="${sw}"/>`);
+        errors.push(
+          `<line x1="${r2(x - barWidth * 0.16)}" y1="${r2(tip)}" x2="${r2(x + barWidth * 0.16)}" y2="${r2(tip)}" stroke="${INK}" stroke-width="${sw}"/>`
+        );
+      }
+      if (plot.points) {
+        const values = valuesAt(levels[rowIndex], conditions[col].name);
+        const ys = values.map(clampY);
+        const offsets = beeswarm(ys, radius * 0.8, barWidth * 0.3);
+        ys.forEach((py, k) => {
+          points.push(
+            `<circle cx="${r2(x + offsets[k])}" cy="${r2(py)}" r="${r2(radius * 0.8)}" fill="${INK}" stroke="${INK}" stroke-width="${r2(sw * 0.5)}"/>`
+          );
+        });
+      }
+    });
+  });
+
+  const axisX = left - axisGap;
+  let axes = yAxis({
+    x: axisX,
+    y,
+    range,
+    f,
+    sw,
+    title: plot.yTitle || (kind === "stacked100" ? "Percent of total" : ""),
+    top,
+    bottom: plotBottom,
+  });
+  const baseY = y(range.min);
+  axes += `<g data-part="x-axis"><line x1="${r2(left - axisGap * 0.2)}" y1="${r2(baseY + axisGap)}" x2="${r2(left + plotWidth)}" y2="${r2(baseY + axisGap)}" stroke="${INK}" stroke-width="${sw}"/>`;
+  levels.forEach((level, i) => {
+    const cx = left + clusterWidth * (i + 0.5);
+    const ly = baseY + axisGap + f * 1.3;
+    if (rotate) {
+      axes += `<text x="${r2(cx + f * 0.3)}" y="${r2(ly - f * 0.4)}" transform="rotate(-45 ${r2(cx + f * 0.3)} ${r2(ly - f * 0.4)})" font-family="${FONT}" font-size="${f}" fill="${INK}" text-anchor="end">${esc(level)}</text>`;
+    } else {
+      axes += `<text x="${r2(cx)}" y="${r2(ly)}" font-family="${FONT}" font-size="${f}" fill="${INK}" text-anchor="middle">${esc(level)}</text>`;
+    }
+  });
+  const xTitle = plot.xTitle || rowFactor || "";
+  if (xTitle) {
+    axes += `<text x="${r2(left + plotWidth / 2)}" y="${r2(H - f * 0.4)}" font-family="${FONT}" font-size="${f}" font-weight="bold" fill="${INK}" text-anchor="middle">${esc(xTitle)}</text>`;
+  }
+  axes += `</g>`;
+
+  let bracketSvg = "";
+  if (placed.length) {
+    const base = Math.min(y(dataHi), plotBottom) - f * 0.6;
+    const tick = f * 0.35;
+    bracketSvg = `<g data-part="brackets">`;
+    for (const bracket of placed) {
+      const by = Math.max(f * 1.2, base - bracket.level * f * 1.5);
+      const x1 = Math.min(centreOf(bracket.a.row, bracket.a.col), centreOf(bracket.b.row, bracket.b.col));
+      const x2 = Math.max(centreOf(bracket.a.row, bracket.a.col), centreOf(bracket.b.row, bracket.b.col));
+      bracketSvg += `<path d="M${r2(x1)} ${r2(by + tick)}V${r2(by)}H${r2(x2)}V${r2(by + tick)}" fill="none" stroke="${INK}" stroke-width="${sw}"/>`;
+      bracketSvg += `<text x="${r2((x1 + x2) / 2)}" y="${r2(by - f * (bracket.stars === "ns" ? 0.25 : 0.05))}" font-family="${FONT}" font-size="${f}" fill="${INK}" text-anchor="middle">${esc(bracket.stars)}</text>`;
+    }
+    bracketSvg += `</g>`;
+  }
+
+  const legend = legendSvg(
+    conditions.map((c, col) => ({ name: c.name, colour: colourOfCondition(col) })),
+    {
+      position: legendAt,
+      f,
+      sw,
+      left,
+      right: left + plotWidth,
+      top,
+      bottom: plotBottom,
+      round: false,
+    }
+  );
+
+  return (
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">` +
+    `<g data-part="bars">${bars.join("")}</g>` +
+    `<g data-part="errors">${errors.join("")}</g>` +
+    `<g data-part="points">${points.join("")}</g>` +
+    axes +
+    bracketSvg +
+    legend +
+    `</svg>`
+  );
+}
+
+/**
+ * Give brackets on a grouped graph a level each, so none overlap. Spans are
+ * measured in cells across the whole graph, shortest first, exactly as for a
+ * one-factor graph.
+ */
+export function stackBracketsByX(brackets) {
+  const spans = brackets
+    .map((b) => {
+      const at = (cell) => cell.row * 1000 + cell.col;
+      const from = Math.min(at(b.a), at(b.b));
+      const to = Math.max(at(b.a), at(b.b));
+      return { ...b, from, to };
+    })
+    .sort((x, y2) => x.to - x.from - (y2.to - y2.from) || x.from - y2.from);
+  const placed = [];
+  for (const bracket of spans) {
+    let level = 0;
+    while (placed.some((p) => p.level === level && !(bracket.to < p.from || bracket.from > p.to))) level += 1;
+    placed.push({ ...bracket, level });
   }
   return placed;
 }
@@ -478,7 +726,7 @@ function xySvg(element, dataset, fits) {
 
   const legend = legendSvg(
     series.map((s) => ({ name: s.name, colour: colourAt(plot, s.col, SERIES_COLOURS) })),
-    { position: legendPlacement(plot, series.length, true), f, sw, left, right: plotRight, top, bottom: plotBottom, round: true }
+    { position: legendPlacement(plot, series.length, "xy"), f, sw, left, right: plotRight, top, bottom: plotBottom, round: true }
   );
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${body}${axes}${legend}</svg>`;
@@ -495,5 +743,7 @@ export function renderPlotSvg(element, dataset, extras = {}) {
   const sized = { ...element, width: W, height: H };
   const f = element.plot?.fontSize ?? 28;
   if (!dataset) return message(W, H, "The data for this graph is missing", f);
-  return dataset.kind === "xy" ? xySvg(sized, dataset, extras.fits) : groupsSvg(sized, dataset, extras.brackets ?? []);
+  if (dataset.kind === "xy") return xySvg(sized, dataset, extras.fits);
+  if (dataset.kind === "grouped") return groupedSvg(sized, dataset, extras.brackets ?? []);
+  return groupsSvg(sized, dataset, extras.brackets ?? []);
 }

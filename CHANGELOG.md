@@ -11,6 +11,8 @@ and version numbers follow [Semantic Versioning](https://semver.org/).
 
 Planned work is described in the [roadmap](README.md#roadmap).
 
+## [0.5.1] - 2026-09-22
+
 ### Added
 
 - **Lock the aspect ratio when resizing.** Pictures and library artwork now
@@ -316,7 +318,8 @@ First release.
 - Help window, application menu, keyboard shortcuts and a welcome screen.
 - Linux AppImage, and CI builds for Windows and macOS.
 
-[Unreleased]: https://github.com/SAADAT-Abu/Morphly/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/SAADAT-Abu/Morphly/compare/v0.5.1...HEAD
+[0.5.1]: https://doi.org/10.5281/zenodo.22238248
 [0.5.0]: https://doi.org/10.5281/zenodo.22899306
 [0.4.0]: https://doi.org/10.5281/zenodo.22761841
 [0.3.0]: https://doi.org/10.5281/zenodo.22737155

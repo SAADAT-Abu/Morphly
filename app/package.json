@@ -1,7 +1,7 @@
 {
   "name": "morphly",
   "productName": "Morphly",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "A free, offline scientific figure editor built on the NIH BioArt Source library",
   "author": "Abu Saadat",
   "license": "MIT",

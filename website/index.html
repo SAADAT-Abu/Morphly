@@ -242,8 +242,33 @@ section { padding-block: clamp(64px, 9vw, 120px); }
   box-shadow: 0 60px 120px -40px rgba(26, 124, 247, .45), 0 0 0 1px rgba(255,255,255,.03);
   background: #121620;
 }
-/* Width and height attributes reserve space; height auto keeps the proportion. */
-.shot-frame img { width: 100%; height: auto; }
+/*
+  A slideshow of screenshots. Every slide shares one frame whose shape is
+  set by aspect-ratio, and each picture is fitted inside it whole, so
+  screenshots of different proportions are never cropped or stretched.
+*/
+.shot-frame { position: relative; aspect-ratio: 1.6; max-width: 100%; }
+.slides { position: absolute; inset: 0; margin: 0; padding: 0; list-style: none; }
+.slide { position: absolute; inset: 0; opacity: 0; visibility: hidden; transition: opacity .6s ease, visibility .6s; }
+.slide.is-current { opacity: 1; visibility: visible; }
+.slide img { width: 100%; height: 100%; object-fit: contain; }
+.shot-controls {
+  position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); z-index: 2;
+  display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: 999px;
+  background: rgba(5, 8, 22, .72); border: 1px solid var(--line); backdrop-filter: blur(10px);
+}
+.shot-arrow {
+  width: 34px; height: 34px; border-radius: 50%; border: 0; cursor: pointer;
+  display: grid; place-items: center; background: transparent; color: var(--text);
+}
+.shot-arrow:hover { background: var(--glass-strong); }
+.shot-arrow svg { width: 16px; height: 16px; }
+.shot-dots { display: flex; gap: 8px; }
+.shot-dot {
+  width: 9px; height: 9px; padding: 0; border-radius: 999px; border: 0; cursor: pointer;
+  background: rgba(160, 185, 255, .35); transition: width .3s ease, background .3s ease;
+}
+.shot-dot[aria-current="true"] { width: 26px; background: var(--grad); }
 
 /* == Features == */
 .bento { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 16px; }
@@ -483,14 +508,49 @@ footer .privacy { color: var(--faint); font-size: 0.85rem; }
     <div class="section-head">
       <span class="panel-label"><i>A</i> Features</span>
       <h2 id="features-title">Everything a figure for a paper needs.</h2>
-      <p class="lede">Built for the figures scientists actually make: labelled schematics, multi-panel layouts, graphical abstracts and the graphs that go with them, exported the way journals want them.</p>
+      <p class="lede">Illustrate the experiment, plot the results, run the tests and lay it all out as journal panels, in one program and one file.</p>
     </div>
 
-    <div class="shot-frame">
-      <img src="assets/screenshot.jpg" alt="The Morphly editor with the asset library on the left, a labelled drawing of a renal corpuscle on the canvas, and the properties panel on the right" width="1920" height="1046" loading="lazy">
+    <div class="shot-frame" id="shots" role="region" aria-roledescription="carousel" aria-label="Morphly screenshots">
+      <ul class="slides">
+        <li class="slide is-current" aria-roledescription="slide" aria-label="1 of 2">
+          <img src="assets/graph.jpg" alt="A Kaplan-Meier survival curve for drug and control groups on the Morphly canvas, drawn from the data table below it, with the graph's properties on the right" width="1920" height="1254">
+        </li>
+        <li class="slide" aria-roledescription="slide" aria-label="2 of 2">
+          <img src="assets/screenshot.jpg" alt="The Morphly editor with the asset library on the left, a labelled drawing of a renal corpuscle on the canvas, and the properties panel on the right" width="1920" height="1046" loading="lazy">
+        </li>
+      </ul>
+      <div class="shot-controls">
+        <button class="shot-arrow" type="button" id="shot-prev" aria-label="Previous screenshot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
+        <div class="shot-dots" id="shot-dots"></div>
+        <button class="shot-arrow" type="button" id="shot-next" aria-label="Next screenshot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button>
+      </div>
     </div>
 
     <div class="bento">
+      <article class="card wide glass tilt">
+        <span class="panel-label">Graphs from your data</span>
+        <h3>Type, paste or import the numbers, and the graph draws itself.</h3>
+        <p>Bar charts with every point, box and violin plots, SuperPlots, dose response curves with IC50, Kaplan-Meier survival, heatmaps, PCA, ROC, volcano and UpSet plots. The data lives in the figure file, so change a number and the graph redraws.</p>
+        <div class="lib-list">
+          <span class="chip"><b>8</b> data shapes</span>
+          <span class="chip"><b>20+</b> graph types</span>
+          <span class="chip"><b>CSV</b> or paste from Excel and R</span>
+        </div>
+      </article>
+
+      <article class="card wide glass tilt">
+        <span class="panel-label">Statistics you can check</span>
+        <h3>Every test checked against R, and written down.</h3>
+        <p>Morphly suggests a test and says why, draws the comparisons as brackets with stars, and writes a methods sentence for your manuscript. Each test is documented with the R command it was checked against.</p>
+        <div class="lib-list">
+          <span class="chip"><b>t tests</b> to two-way ANOVA</span>
+          <span class="chip"><b>Tukey</b>, Dunnett, Holm, BH</span>
+          <span class="chip"><b>Log-rank</b>, Fisher, chi-square</span>
+          <a class="chip" href="https://github.com/SAADAT-Abu/Morphly/blob/main/docs/STATISTICAL_TESTS.md">How each test is checked</a>
+        </div>
+      </article>
+
       <article class="card wide glass tilt">
         <span class="panel-label">Illustration libraries</span>
         <h3>Vetted scientific drawings, searchable offline.</h3>
@@ -521,51 +581,28 @@ footer .privacy { color: var(--faint); font-size: 0.85rem; }
         </div>
       </article>
 
-      <article class="card wide glass tilt">
-        <span class="panel-label">Graphs from your data</span>
-        <h3>Type, paste or import the numbers, and the graph draws itself.</h3>
-        <p>Bar charts with every point, box and violin plots, SuperPlots, dose response curves with IC50, Kaplan-Meier survival, heatmaps, PCA, ROC, volcano and UpSet plots. The data lives in the figure file, so change a number and the graph redraws.</p>
-        <div class="lib-list">
-          <span class="chip"><b>8</b> data shapes</span>
-          <span class="chip"><b>20+</b> graph types</span>
-          <span class="chip"><b>CSV</b> or paste from Excel and R</span>
-        </div>
+      <article class="card glass tilt">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4v16h18"/><path d="M6 6h4v4h3v4h4v3h3"/></svg></div>
+        <h3>Survival and dose response</h3>
+        <p>Kaplan-Meier curves with log-rank tests and hazard ratios, and fitted dose response curves with IC50 and a confidence band.</p>
       </article>
 
-      <article class="card wide glass tilt">
-        <span class="panel-label">Statistics you can check</span>
-        <h3>Every test checked against R, and written down.</h3>
-        <p>Morphly suggests a test and says why, draws the comparisons as brackets with stars, and writes a methods sentence for your manuscript. Each test is documented with the R command it was checked against.</p>
-        <div class="lib-list">
-          <span class="chip"><b>t tests</b> to two-way ANOVA</span>
-          <span class="chip"><b>Tukey</b>, Dunnett, Holm, BH</span>
-          <span class="chip"><b>Log-rank</b>, Fisher, chi-square</span>
-          <a class="chip" href="https://github.com/SAADAT-Abu/Morphly/blob/main/docs/STATISTICAL_TESTS.md">How each test is checked</a>
-        </div>
+      <article class="card glass tilt">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="5" cy="17" r="1.4"/><circle cx="8" cy="12" r="1.4"/><circle cx="12" cy="18" r="1.4"/><circle cx="16" cy="9" r="1.4"/><circle cx="19" cy="5" r="1.4"/><circle cx="14" cy="15" r="1.4"/><path d="M3 20h18"/></svg></div>
+        <h3>Omics at a glance</h3>
+        <p>Volcano and MA plots, clustered heatmaps, PCA, correlation matrices and UpSet plots, straight from a results table.</p>
+      </article>
+
+      <article class="card glass tilt">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M3 15h18M9 4v16M15 4v16"/></svg></div>
+        <h3>Data inside the figure</h3>
+        <p>Type or paste numbers under the canvas and the graph redraws as you go. Several graphs can share one table.</p>
       </article>
 
       <article class="card glass tilt">
         <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="8" rx="1.5"/><rect x="3" y="13" width="18" height="8" rx="1.5"/></svg></div>
         <h3>Panel layouts, lettered</h3>
         <p>Split a page into panels with automatic A, B, C labels and even spacing, the way journal figures are laid out.</p>
-      </article>
-
-      <article class="card glass tilt">
-        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z"/><path d="M14 3v5h5M9 15l2 2 4-4"/></svg></div>
-        <h3>High-resolution export</h3>
-        <p>PNG or JPEG at 1×, 2× or 4× for slides and posters, and vector SVG and PDF that stay sharp at any size, graphs included.</p>
-      </article>
-
-      <article class="card glass tilt">
-        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 20h18M6 16l4-5 3 3 5-7"/></svg></div>
-        <h3>Rich text for science</h3>
-        <p>Italic gene names, CO₂ and 10⁻³ inside one text box, and SVG plots from R or Python imported as editable artwork.</p>
-      </article>
-
-      <article class="card glass tilt">
-        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div>
-        <h3>Autosave and crash recovery</h3>
-        <p>Name a figure and it saves as you work. If something goes wrong, your unsaved changes are offered back.</p>
       </article>
     </div>
   </div>
@@ -889,6 +926,67 @@ PARTS.forEach((part, p) => {
   });
   swatchBox.appendChild(row);
 });
+
+/* ==========================================================================
+   Screenshot slideshow: arrows, dots, keyboard, swipe, and a slow automatic
+   advance that stops once the visitor takes over, or never starts for
+   anyone who asked for less motion.
+   ========================================================================== */
+(function slideshow() {
+  const root = document.getElementById("shots");
+  if (!root) return;
+  const slides = [...root.querySelectorAll(".slide")];
+  const dots = document.getElementById("shot-dots");
+  let current = 0, timer = 0, userTookOver = false;
+
+  slides.forEach((slide, i) => {
+    const dot = document.createElement("button");
+    dot.type = "button";
+    dot.className = "shot-dot";
+    dot.id = `shot-dot-${i}`;
+    dot.setAttribute("aria-label", `Show screenshot ${i + 1}`);
+    dot.addEventListener("click", () => { takeOver(); show(i); });
+    dots.appendChild(dot);
+  });
+
+  function show(i) {
+    current = (i + slides.length) % slides.length;
+    slides.forEach((s, n) => {
+      s.classList.toggle("is-current", n === current);
+      s.setAttribute("aria-hidden", n === current ? "false" : "true");
+    });
+    [...dots.children].forEach((d, n) => d.setAttribute("aria-current", n === current ? "true" : "false"));
+  }
+  function takeOver() { userTookOver = true; clearInterval(timer); }
+  function start() {
+    if (reduceMotion || userTookOver || slides.length < 2) return;
+    clearInterval(timer);
+    timer = setInterval(() => show(current + 1), 6000);
+  }
+
+  document.getElementById("shot-prev").addEventListener("click", () => { takeOver(); show(current - 1); });
+  document.getElementById("shot-next").addEventListener("click", () => { takeOver(); show(current + 1); });
+  root.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowLeft") { takeOver(); show(current - 1); }
+    if (e.key === "ArrowRight") { takeOver(); show(current + 1); }
+  });
+  let touchX = null;
+  root.addEventListener("touchstart", (e) => { touchX = e.touches[0].clientX; }, { passive: true });
+  root.addEventListener("touchend", (e) => {
+    if (touchX === null) return;
+    const dx = e.changedTouches[0].clientX - touchX;
+    if (Math.abs(dx) > 40) { takeOver(); show(current + (dx < 0 ? 1 : -1)); }
+    touchX = null;
+  });
+  // Pause while the pointer or keyboard focus is on it.
+  root.addEventListener("mouseenter", () => clearInterval(timer));
+  root.addEventListener("mouseleave", start);
+  root.addEventListener("focusin", () => clearInterval(timer));
+  root.addEventListener("focusout", start);
+
+  show(0);
+  start();
+})();
 
 /* ==========================================================================
    Copy citation.

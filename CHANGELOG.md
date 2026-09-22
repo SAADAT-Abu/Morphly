@@ -307,7 +307,7 @@ First release.
 - Linux AppImage, and CI builds for Windows and macOS.
 
 [Unreleased]: https://github.com/SAADAT-Abu/Morphly/compare/v0.5.0...HEAD
-[0.5.0]: https://github.com/SAADAT-Abu/Morphly/releases/tag/v0.5.0
+[0.5.0]: https://doi.org/10.5281/zenodo.22899306
 [0.4.0]: https://doi.org/10.5281/zenodo.22761841
 [0.3.0]: https://doi.org/10.5281/zenodo.22737155
 [0.2.0]: https://doi.org/10.5281/zenodo.22251152

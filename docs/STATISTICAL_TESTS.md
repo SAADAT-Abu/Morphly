@@ -15,8 +15,8 @@ textbook formula, takes the p-value from a published distribution function, and
 recomputes the whole thing from your data every time the graph is drawn.
 Results are never stored, so a graph and its statistics cannot disagree.
 
-Last checked against **R 4.6.1** (with `car` and `rstatix`) and **SciPy 1.18**.
-Morphly version: **0.5**.
+Last checked against **R 4.6.1** (with `car`, `rstatix`, `survival` and
+`pROC`) and **SciPy 1.18**. Morphly version: **0.5.0**.
 
 ## Contents
 
@@ -92,7 +92,7 @@ the checks.
 | Benjamini-Hochberg | multiple comparisons | `p.adjust(method = "BH")` | `stats.js` `adjustBenjaminiHochberg` | `stats.test.js` |
 | Kendall's tau-b | correlation | `cor.test(method = "kendall")`, SciPy | `stats.js` `kendall` | `stats.test.js` |
 | Skewness, kurtosis | descriptive | `scipy.stats.skew(bias = False)` | `stats.js` `shape` | `stats.test.js` |
-| Geometric mean, CV | descriptive | `scipy.stats.gmean()` | `stats.js` `geometricMean` | `stats.test.js` |
+| Geometric mean, CV | descriptive | `scipy.stats.gmean()` | `stats.js` `geometricMean`, `coefficientOfVariation` | `stats.test.js` |
 | Dunnett's test | every group against one control | simulation (see below) | `stats.js` `dunnettTest` | `stats.test.js` |
 | Shapiro-Wilk | normality check | `shapiro.test()` | `stats.js` `shapiroWilk` | `stats.test.js` |
 | Brown-Forsythe | equal spread check | `car::leveneTest(center = median)` | `stats.js` `brownForsythe` | `stats.test.js` |
@@ -764,6 +764,12 @@ On the graphs built for bioinformatics: no dendrograms beside a heatmap, no
 confidence ellipses on a PCA, no comparison of two ROC curves, no pooled
 estimate on a forest plot, and no differential expression itself. Morphly draws
 the results of DESeq2, edgeR or limma; it does not replace them.
+
+There is also no way yet to **reshape** a table inside Morphly: filtering rows,
+making a new column from two others, going from long to wide, summarising by
+group. That layer is the next thing to be built, and it will show the R it is
+equivalent to, so a reshaped table can be checked the same way every test on
+this page can.
 
 The ones that need a full modelling engine are meant for an optional
 statistics download rather than for the app itself.

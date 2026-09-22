@@ -7,12 +7,13 @@
 **A free, offline desktop editor for scientific figures.**
 
 Build publication-ready figures from thousands of openly licensed scientific
-illustrations. Drag them onto a canvas, recolour them, add shapes and labels,
-and export high-resolution PNG or JPEG, or true vector SVG or PDF.
+illustrations. Drag them onto a canvas, recolour them, add shapes, labels and
+graphs made from your own numbers, and export high-resolution PNG or JPEG, or
+true vector SVG or PDF.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 ![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Windows%20%7C%20macOS-lightgrey)
-![Status](https://img.shields.io/badge/status-v0.4%20early-orange)
+![Status](https://img.shields.io/badge/status-v0.5%20early-orange)
 [![Website](https://img.shields.io/badge/website-morphly.pages.dev-7b5cf5)](https://morphly.pages.dev)
 
 **[Website](https://morphly.pages.dev)** · **[Download](https://morphly.pages.dev/#download)** · **[Changelog](CHANGELOG.md)**
@@ -93,6 +94,28 @@ else's server.
   Every change can be reset and carries through to SVG and PDF export.
 - **Panel layouts**: split a page into a grid of panels with automatic panel
   letters (A, B, C) and consistent spacing, the way journal figures are laid out.
+- **Graphs from your own numbers**: insert a graph in three steps, with
+  previews drawn from your data. Eight data shapes, from plain groups to a
+  table of expression values, give bar charts with individual points and error
+  bars, dot plots, box and whisker plots, violins, SuperPlots, histograms,
+  pies, scatter and line graphs with fitted curves, Kaplan-Meier survival
+  curves, heatmaps, PCA, correlation matrices, ROC curves, Bland-Altman,
+  volcano, MA and forest plots, Venn diagrams and UpSet plots. Graphs resize
+  without stretching their text and export as true vectors like everything
+  else.
+- **Statistics, checked against R**: Morphly suggests a test and says why
+  (Shapiro-Wilk for normality, Brown-Forsythe for spread), or you choose your
+  own: t tests, Mann-Whitney and Wilcoxon, one-way, Welch's, repeated measures
+  and two-way ANOVA with Tukey, Games-Howell, Dunnett or Holm follow-up,
+  Kruskal-Wallis with Dunn, Fisher's exact and chi-square, log-rank, curve
+  fitting with IC50, and more. Tick a comparison to draw it as a bracket with
+  stars, and copy a ready-made methods sentence into your manuscript. Every
+  formula and the R command it was checked against is written out in
+  [docs/STATISTICAL_TESTS.md](docs/STATISTICAL_TESTS.md).
+- **A data table inside the figure**: type, paste a block from Excel or R, or
+  import a CSV, and the graph redraws as you go. Semicolons and decimal commas
+  are understood. The table pops out into its own window for a long data set,
+  and several graphs can share one table and stay in step.
 - **Art Packs**: Morphly ships with NIH BioArt inside it and works offline
   immediately. Further libraries, such as Bioicons, download from the built-in
   Art Store when you want them, so the installer stays small and new packs can
@@ -344,41 +367,54 @@ recovery. All of these are described under [Features](#features). Underneath,
 0.4 moved to a versioned file format with migrations, so figures made in older
 versions keep opening, and added automated tests that run before every build.
 
-### Version 0.5 (next): GraphPad-style data and graphs, and a simpler layout
+### Version 0.5 (done): data, graphs and statistics
 
-- **Datasets.** Import CSV or TSV files (Excel later), or type data into a
-  table. Data is stored inside the figure file, so it travels with the figure.
-- **Graphs as figure elements.** Bar charts with individual points and error
-  bars (SD, SEM or CI), box plots, scatter plots and XY line plots, exported as
-  true vectors like everything else in Morphly. Change the data and the graph
-  redraws; restyle one graph and apply the same look to the others, the way
-  Prism does.
-- **Common statistics.** t tests, one-way ANOVA with multiple comparisons, and
-  their non-parametric counterparts, checked against R, with significance stars
-  that can be placed on a graph and stay attached to it.
-- **A new layout that is easier to pick up.** Based on how BioRender, Canva,
-  PowerPoint and Figma arrange their tools: a labelled Insert bar, a toolbar
-  that shows only what applies to the current selection, content (library,
-  templates, uploads, layers) in one collapsible side panel, properties split
-  into Style and Arrange, zoom and view controls moved to a status bar, and a
-  search box for every command. New figures start from journal sizes (for
-  example 89 mm and 183 mm columns) rather than pixels.
+Morphly stopped needing a second program for the plots. Data lives inside the
+figure file, typed, pasted or imported from CSV, and a graph is an element like
+any other: change the numbers and it redraws, resize it and the text stays the
+size it was. Eight data shapes cover groups, X and Y, two factors at once,
+counts in categories, survival, a table of numbers, results per row and lists
+of names, and between them draw twenty-odd graph types, from bar charts with
+individual points to volcano plots and UpSet plots.
 
-### Version 0.6: figures from AI assistants
+The statistics are the part that took the longest. Every test is computed from
+the textbook formula, takes its p-value from a published distribution function,
+and is checked digit for digit against R 4.6.1 or SciPy, with the comparison
+written down in [docs/STATISTICAL_TESTS.md](docs/STATISTICAL_TESTS.md) so you
+can see exactly what was run. Ticked comparisons become brackets with stars on
+the graph, and a methods sentence can be copied straight into a manuscript.
 
+0.5 also brought per-word text formatting with the usual shortcuts, panels that
+can be resized by dragging their boundaries, an asset library that loads as you
+scroll, and JPEG export.
+
+### Version 0.6 (next): reshaping data, and figures from AI assistants
+
+- **Reshape a table without leaving Morphly.** The first thing to be built:
+  filter rows, make a new column out of two others, turn long into wide,
+  summarise by group, and join two tables, as a recipe of steps saved in the
+  figure so it can be changed or undone later. Each step will show the R it is
+  equivalent to, so a reshaped table can be checked the same way every
+  statistical test already can.
 - **An MCP server.** Morphly will expose its editor through the Model Context
   Protocol, so command-line assistants such as Claude Code and Codex can build
   figures on request: search the illustration libraries, place and recolour
   artwork, add text, arrows and panel layouts, load data into graphs, and export
   to PNG, SVG or PDF. The result is an ordinary .morphly file you can open and
   keep editing by hand, and everything still runs locally on your machine.
+- **A layout that is easier to pick up.** Planned for 0.5 and only partly done,
+  so it carries over: a labelled Insert bar, a toolbar that shows only what
+  applies to the current selection, content (library, templates, uploads,
+  layers) in one collapsible side panel, properties split into Style and
+  Arrange, and a search box for every command.
 
 ### Later
 
 Directions we intend to take, not yet scheduled: figure templates, pathway
 diagrams generated from interaction tables (for example ligand-receptor
-results), and biomedical plot types such as Kaplan-Meier, ROC and volcano
-plots.
+results), dendrograms drawn beside a heatmap, confidence ellipses on a PCA, and
+an optional statistics download for the tests that need a full modelling
+engine, such as mixed models and Cox regression with covariates.
 
 ## Found a bug? Want a feature?
 

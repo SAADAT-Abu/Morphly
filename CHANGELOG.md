@@ -11,16 +11,22 @@ and version numbers follow [Semantic Versioning](https://semver.org/).
 
 Planned work is described in the [roadmap](README.md#roadmap).
 
+## [0.5.0] - 2026-09-22
+
+Data, graphs and statistics. Morphly no longer needs a second program for the
+plots: the numbers live in the figure file, the graph is an element like any
+other, and every p-value on it has been checked against R.
+
 ### Added
 
 - **Graphs from your data.** Insert → Graph (Ctrl+Shift+B) in three steps: what
-  the data looks like (groups, or X and Y), the numbers (sample data, pasted
-  cells, a CSV file, an empty table or data already in the figure, with a
-  "How Morphly read it" check that handles semicolons and decimal commas), and
-  the graph (bar and points, dot plot, box and whiskers, scatter, or points and
-  lines), previewed with your numbers. A graph can fill the selected panel.
-  Graphs are drawn Prism-style, resize without stretching their text, and
-  export as true vectors to SVG and PDF.
+  the data looks like (groups, X and Y, groups by condition, counts in
+  categories, survival, a table of numbers, results per row, or lists of
+  names), the numbers (sample data, pasted cells, a CSV file, an empty table or
+  data already in the figure, with a "How Morphly read it" check that handles
+  semicolons and decimal commas), and the graph, previewed with your numbers.
+  A graph can fill the selected panel. Graphs are drawn Prism-style, resize
+  without stretching their text, and export as true vectors to SVG and PDF.
 - **A data table under the canvas.** Type or paste a block of cells and the
   graph redraws as you go, with each column's mean, SD and n below it.
   Double-click a graph to open its numbers. An icon in the table's corner pops
@@ -300,7 +306,8 @@ First release.
 - Help window, application menu, keyboard shortcuts and a welcome screen.
 - Linux AppImage, and CI builds for Windows and macOS.
 
-[Unreleased]: https://github.com/SAADAT-Abu/Morphly/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/SAADAT-Abu/Morphly/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/SAADAT-Abu/Morphly/releases/tag/v0.5.0
 [0.4.0]: https://doi.org/10.5281/zenodo.22761841
 [0.3.0]: https://doi.org/10.5281/zenodo.22737155
 [0.2.0]: https://doi.org/10.5281/zenodo.22251152

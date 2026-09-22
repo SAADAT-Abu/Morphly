@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Morphly | Free offline editor for scientific figures</title>
-<meta name="description" content="Morphly is a free, open source desktop editor for scientific figures. Build them from openly licensed illustrations and export PNG, SVG and PDF, entirely offline.">
+<meta name="description" content="Free, open source desktop editor for scientific figures: illustrations, graphs and statistics checked against R, exported to PNG, SVG and PDF, entirely offline.">
 <meta name="author" content="Abu Saadat">
 <meta name="theme-color" content="#050816">
 <link rel="canonical" href="https://morphly.pages.dev/">
@@ -13,7 +13,7 @@
 <meta property="og:site_name" content="Morphly">
 <meta property="og:locale" content="en_GB">
 <meta property="og:title" content="Morphly | Free offline editor for scientific figures">
-<meta property="og:description" content="Build publication-ready scientific figures from thousands of openly licensed illustrations, and export high-resolution PNG, SVG and PDF. Free, open source, and works offline.">
+<meta property="og:description" content="Build publication-ready scientific figures from openly licensed illustrations and your own data, with graphs and statistics checked against R. Free, open source, and works offline.">
 <meta property="og:image" content="https://morphly.pages.dev/assets/screenshot.jpg">
 <meta property="og:image:width" content="1920">
 <meta property="og:image:height" content="1046">
@@ -21,7 +21,7 @@
 <meta property="og:url" content="https://morphly.pages.dev/">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Morphly | Free offline editor for scientific figures">
-<meta name="twitter:description" content="Build publication-ready scientific figures from thousands of openly licensed illustrations. Free, open source, offline.">
+<meta name="twitter:description" content="Scientific figures with illustrations, graphs and statistics checked against R. Free, open source, offline.">
 <meta name="twitter:image" content="https://morphly.pages.dev/assets/screenshot.jpg">
 
 <link rel="icon" type="image/png" href="assets/logo-64.png">
@@ -46,8 +46,9 @@
   "screenshot": "https://morphly.pages.dev/assets/screenshot.jpg",
   "license": "https://opensource.org/licenses/MIT",
   "isAccessibleForFree": true,
-  "description": "Morphly is a free, open source desktop editor for scientific figures. It ships with the NIH BioArt illustration library, recolours vector artwork, lays out journal-style panels, and exports high-resolution PNG plus true vector SVG and PDF. Everything runs offline, with no account and no subscription.",
-  "keywords": "scientific figures, figure editor, BioRender alternative, biology illustrations, NIH BioArt, vector export, open source, offline",
+  "description": "Morphly is a free, open source desktop editor for scientific figures. It ships with the NIH BioArt illustration library, recolours vector artwork and lays out journal-style panels, and draws graphs from your own data, from bar charts with every point to Kaplan-Meier, heatmaps, PCA and volcano plots, with statistical tests checked against R. It exports high-resolution PNG and JPEG plus true vector SVG and PDF. Everything runs offline, with no account and no subscription.",
+  "featureList": "NIH BioArt illustration library; vector recolouring; panel layouts; graphs from data; statistics checked against R; Kaplan-Meier survival curves; dose response curves with IC50; heatmaps and PCA; volcano and UpSet plots; PNG, JPEG, SVG and PDF export",
+  "keywords": "scientific figures, figure editor, BioRender alternative, GraphPad Prism alternative, biology illustrations, NIH BioArt, graphs, statistics, Kaplan-Meier, volcano plot, vector export, open source, offline",
   "offers": { "@type": "Offer", "price": "0", "priceCurrency": "EUR" },
   "author": { "@type": "Person", "name": "Abu Saadat" },
   "identifier": "https://doi.org/10.5281/zenodo.22238248",
@@ -455,7 +456,7 @@ footer .privacy { color: var(--faint); font-size: 0.85rem; }
   <div class="wrap">
     <div>
       <h1>Scientific figures,<br><span class="grad-text">free and offline.</span></h1>
-      <p class="lede">A desktop figure editor built on thousands of openly licensed illustrations of cells, viruses, organs, molecules and lab equipment. Drag them onto a canvas, recolour them, label them, and export high-resolution PNG, or vector SVG and PDF ready for journals.</p>
+      <p class="lede">A desktop figure editor built on thousands of openly licensed illustrations of cells, viruses, organs, molecules and lab equipment, with graphs and statistics from your own data. Draw the schematic and plot the numbers on one canvas, then export high-resolution PNG or JPEG, or vector SVG and PDF ready for journals.</p>
       <div class="hero-actions">
         <a class="btn btn-primary" id="hero-download" href="#download">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m0 0l-5-5m5 5l5-5M4 20h16"/></svg>
@@ -470,6 +471,7 @@ footer .privacy { color: var(--faint); font-size: 0.85rem; }
       <div class="stats">
         <div class="stat"><b>2,531</b><span>NIH BioArt drawings built in</span></div>
         <div class="stat"><b>3,400+</b><span>more in free Art Packs</span></div>
+        <div class="stat"><b>20+</b><span>graph types, tests checked against R</span></div>
       </div>
     </div>
     <div class="hero-space" aria-hidden="true"></div>
@@ -481,7 +483,7 @@ footer .privacy { color: var(--faint); font-size: 0.85rem; }
     <div class="section-head">
       <span class="panel-label"><i>A</i> Features</span>
       <h2 id="features-title">Everything a figure for a paper needs.</h2>
-      <p class="lede">Built for the figures scientists actually make: labelled schematics, multi-panel layouts and graphical abstracts, exported the way journals want them.</p>
+      <p class="lede">Built for the figures scientists actually make: labelled schematics, multi-panel layouts, graphical abstracts and the graphs that go with them, exported the way journals want them.</p>
     </div>
 
     <div class="shot-frame">
@@ -519,6 +521,29 @@ footer .privacy { color: var(--faint); font-size: 0.85rem; }
         </div>
       </article>
 
+      <article class="card wide glass tilt">
+        <span class="panel-label">Graphs from your data</span>
+        <h3>Type, paste or import the numbers, and the graph draws itself.</h3>
+        <p>Bar charts with every point, box and violin plots, SuperPlots, dose response curves with IC50, Kaplan-Meier survival, heatmaps, PCA, ROC, volcano and UpSet plots. The data lives in the figure file, so change a number and the graph redraws.</p>
+        <div class="lib-list">
+          <span class="chip"><b>8</b> data shapes</span>
+          <span class="chip"><b>20+</b> graph types</span>
+          <span class="chip"><b>CSV</b> or paste from Excel and R</span>
+        </div>
+      </article>
+
+      <article class="card wide glass tilt">
+        <span class="panel-label">Statistics you can check</span>
+        <h3>Every test checked against R, and written down.</h3>
+        <p>Morphly suggests a test and says why, draws the comparisons as brackets with stars, and writes a methods sentence for your manuscript. Each test is documented with the R command it was checked against.</p>
+        <div class="lib-list">
+          <span class="chip"><b>t tests</b> to two-way ANOVA</span>
+          <span class="chip"><b>Tukey</b>, Dunnett, Holm, BH</span>
+          <span class="chip"><b>Log-rank</b>, Fisher, chi-square</span>
+          <a class="chip" href="https://github.com/SAADAT-Abu/Morphly/blob/main/docs/STATISTICAL_TESTS.md">How each test is checked</a>
+        </div>
+      </article>
+
       <article class="card glass tilt">
         <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="8" rx="1.5"/><rect x="3" y="13" width="18" height="8" rx="1.5"/></svg></div>
         <h3>Panel layouts, lettered</h3>
@@ -528,13 +553,13 @@ footer .privacy { color: var(--faint); font-size: 0.85rem; }
       <article class="card glass tilt">
         <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z"/><path d="M14 3v5h5M9 15l2 2 4-4"/></svg></div>
         <h3>High-resolution export</h3>
-        <p>PNG at 1×, 2× or 4× for slides and posters, and vector SVG and PDF that stay sharp at any size.</p>
+        <p>PNG or JPEG at 1×, 2× or 4× for slides and posters, and vector SVG and PDF that stay sharp at any size, graphs included.</p>
       </article>
 
       <article class="card glass tilt">
         <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 20h18M6 16l4-5 3 3 5-7"/></svg></div>
-        <h3>Your plots, still editable</h3>
-        <p>SVGs from R (ggplot2, svglite) and Python (matplotlib) arrive as recolourable artwork and stay vector.</p>
+        <h3>Rich text for science</h3>
+        <p>Italic gene names, CO₂ and 10⁻³ inside one text box, and SVG plots from R or Python imported as editable artwork.</p>
       </article>
 
       <article class="card glass tilt">
@@ -563,7 +588,8 @@ footer .privacy { color: var(--faint); font-size: 0.85rem; }
           <tr><th scope="row">Where it runs</th><td class="us">Desktop, fully offline</td><td>In the browser, with an account</td><td>Desktop</td></tr>
           <tr><th scope="row">Unpublished work</th><td class="us">Never leaves your machine</td><td>Stored online</td><td>Stays local</td></tr>
           <tr><th scope="row">Scientific illustrations</th><td class="us">NIH BioArt built in, more as Art Packs</td><td>Proprietary library</td><td>Not its focus</td></tr>
-          <tr><th scope="row">Graphs and statistics</th><td class="us">Coming in 0.5</td><td>Basic charts</td><td>Its specialty</td></tr>
+          <tr><th scope="row">Graphs and statistics</th><td class="us">20+ graph types, tests checked against R</td><td>Basic charts</td><td>Its specialty</td></tr>
+          <tr><th scope="row">Illustrations and graphs together</th><td class="us">On one canvas, in one file</td><td>Illustration first</td><td>Graphs only</td></tr>
         </tbody>
       </table>
     </div>
@@ -613,13 +639,17 @@ footer .privacy { color: var(--faint); font-size: 0.85rem; }
         <div class="step-head"><h3>Diagrams and a safety net</h3><span class="ver">0.4</span><span class="state">Released</span></div>
         <p>Glue points, curved and elbow connectors, smart guides, editing parts of a drawing, SVG import, panel layouts, autosave and crash recovery.</p>
       </li>
+      <li class="step done">
+        <div class="step-head"><h3>Data, graphs and statistics</h3><span class="ver">0.5</span><span class="state">Released</span></div>
+        <p>Eight data shapes and twenty-odd graph types, from bar charts with every point to Kaplan-Meier, heatmaps, PCA and volcano plots, with every statistical test checked against R. Also rich text formatting, resizable panels, JPEG export, and an asset library that loads as you scroll. 0.5.1 keeps pictures in proportion when resized and keeps large count tables fast.</p>
+      </li>
       <li class="step next">
-        <div class="step-head"><h3>Data, graphs and a simpler layout</h3><span class="ver">0.5</span><span class="state">In progress</span></div>
-        <p>GraphPad-style datasets and graphs (bar charts with points and error bars, box plots, scatter and XY plots), common statistics checked against R, JPEG export, and a layout that is easier to pick up.</p>
+        <div class="step-head"><h3>Reshaping data, and figures from AI assistants</h3><span class="ver">0.6</span><span class="state">Next</span></div>
+        <p>Filter, combine, pivot, summarise and join tables inside Morphly, each step showing the R it matches. An MCP server, so assistants such as Claude Code and Codex can build figures on request, as ordinary .morphly files you keep editing by hand. And a layout that is easier to pick up.</p>
       </li>
       <li class="step">
-        <div class="step-head"><h3>Figures from AI assistants</h3><span class="ver">0.6</span><span class="state">Planned</span></div>
-        <p>An MCP server, so assistants such as Claude Code and Codex can build figures on request. The result is an ordinary .morphly file you keep editing by hand, and it all runs locally.</p>
+        <div class="step-head"><h3>Later</h3><span class="ver">not scheduled</span><span class="state">Planned</span></div>
+        <p>Figure templates, pathway diagrams from interaction tables, dendrograms beside heatmaps, confidence ellipses on a PCA, and optional mixed models and Cox regression.</p>
       </li>
     </ol>
   </div>

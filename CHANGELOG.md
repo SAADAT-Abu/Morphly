@@ -37,6 +37,13 @@ Planned work is described in the [roadmap](README.md#roadmap).
   as brackets with stars; significant ones start ticked. A methods sentence can
   be copied into a manuscript. X and Y graphs show linear fits, Pearson and
   Spearman correlations.
+- **Resizable panels, as in RStudio.** Drag any boundary in the workspace: the
+  illustrations and data sidebar, the properties panel, the layers list and the
+  data table under the canvas. Each one remembers its size for next time,
+  double-click a boundary for its usual size, and once focused the arrow keys
+  move it (Shift for larger steps, Home and End for the extremes). No panel can
+  be dragged away to nothing, or squeeze its neighbour out of the window. The
+  data table's Expand button is gone, since dragging does that job better.
 - **Formatting inside a text box.** Italic gene and species names, CO2 with a
   low 2, 10-3 with a high -3, a coloured term, underline and strikethrough, all
   within one text box or one shape caption. Double-click the text and a small

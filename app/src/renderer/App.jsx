@@ -16,6 +16,8 @@ import GraphDialog from "./components/GraphDialog";
 import DataDrawer, { datasetColours } from "./components/DataDrawer";
 import DataPanel from "./components/DataPanel";
 import RichTextEditor from "./components/RichTextEditor";
+import Splitter from "./components/Splitter";
+import { defaultSizes, sizesFromSettings, settingFor } from "./lib/panes";
 import { useStore } from "./store";
 import { cellBox, isHeaderCell } from "./lib/tableLayout";
 import { migrate, serialise, DocumentError } from "./lib/document";
@@ -43,6 +45,15 @@ export default function App() {
   const [panelDialogOpen, setPanelDialogOpen] = useState(false);
   const [storeOpen, setStoreOpen] = useState(false);
   const [graphDialogOpen, setGraphDialogOpen] = useState(false);
+  /** How big each pane is: every boundary between them can be dragged, and
+   *  where they were left is where they open next time (lib/panes.js). */
+  const [paneSizes, setPaneSizes] = useState(defaultSizes);
+  const workspaceRef = useRef(null);
+  const rightRailRef = useRef(null);
+  const canvasColumnRef = useRef(null);
+
+  const resizePane = useCallback((name, size) => setPaneSizes((sizes) => ({ ...sizes, [name]: size })), []);
+  const rememberPane = useCallback((name, size) => window.morphly.setSettings(settingFor(name, size)), []);
   /** { latest, url } when Zenodo has a newer release than this build. */
   const [update, setUpdate] = useState(null);
 
@@ -84,7 +95,9 @@ export default function App() {
     (async () => {
       try {
         const res = await window.morphly.getSettings();
-        if (!cancelled && res.ok && res.settings.showWelcome !== false) setWelcomeOpen(true);
+        if (cancelled || !res.ok) return;
+        if (res.settings.showWelcome !== false) setWelcomeOpen(true);
+        setPaneSizes(sizesFromSettings(res.settings));
       } catch {
         /* if settings can't be read, just don't show it */
       }
@@ -998,8 +1011,8 @@ export default function App() {
         onInsertGraph={() => setGraphDialogOpen(true)}
       />
 
-      <div className="workspace">
-        <div className="sidebar">
+      <div className="workspace" ref={workspaceRef}>
+        <div className="sidebar" style={{ width: paneSizes.sidebar }}>
           <div className="sidebar-tabs" role="tablist" aria-label="Sidebar">
             <button
               role="tab"
@@ -1033,7 +1046,16 @@ export default function App() {
           )}
         </div>
 
-        <div className="canvas-column">
+        <Splitter
+          name="sidebar"
+          edge="start"
+          containerRef={workspaceRef}
+          size={paneSizes.sidebar}
+          onResize={(size) => resizePane("sidebar", size)}
+          onDone={(size) => rememberPane("sidebar", size)}
+        />
+
+        <div className="canvas-column" ref={canvasColumnRef}>
           <PageTabs />
 
           <div className="canvas-wrap" ref={canvasWrapRef}>
@@ -1066,12 +1088,35 @@ export default function App() {
               />
             ))}
           </div>
-          <DataDrawer />
+          <DataDrawer
+            height={paneSizes.data}
+            containerRef={canvasColumnRef}
+            onResize={(size) => resizePane("data", size)}
+            onDone={(size) => rememberPane("data", size)}
+          />
         </div>
 
-        <div className="right-rail">
+        <Splitter
+          name="rail"
+          containerRef={workspaceRef}
+          size={paneSizes.rail}
+          onResize={(size) => resizePane("rail", size)}
+          onDone={(size) => rememberPane("rail", size)}
+        />
+
+        <div className="right-rail" ref={rightRailRef} style={{ width: paneSizes.rail }}>
           <Inspector />
-          <LayersPanel />
+          <Splitter
+            name="layers"
+            horizontal
+            containerRef={rightRailRef}
+            size={paneSizes.layers}
+            onResize={(size) => resizePane("layers", size)}
+            onDone={(size) => rememberPane("layers", size)}
+          />
+          <div className="layers-wrap" style={{ height: paneSizes.layers }}>
+            <LayersPanel />
+          </div>
         </div>
       </div>
 

@@ -228,7 +228,6 @@ input[type="range"] { padding: 0; }
 /* ------------------------------------------------------------- right rail */
 
 .right-rail {
-  width: 300px;
   flex: 0 0 auto;
   border-left: 1px solid var(--border);
   display: flex;
@@ -897,7 +896,7 @@ input.swatch-hex:focus { border-color: var(--accent); background: var(--panel); 
 
 /* Left sidebar: Illustrations and Data tabs */
 .sidebar {
-  width: 280px; flex: 0 0 auto; display: flex; flex-direction: column; min-height: 0;
+  flex: 0 0 auto; display: flex; flex-direction: column; min-height: 0;
   border-right: 1px solid var(--border); background: var(--panel);
 }
 .sidebar-tabs { display: flex; border-bottom: 1px solid var(--border); }
@@ -926,10 +925,9 @@ input.swatch-hex:focus { border-color: var(--accent); background: var(--panel); 
 
 /* Data drawer under the canvas */
 .data-drawer {
-  height: 270px; flex: 0 0 auto; display: flex; flex-direction: column; min-height: 0;
+  flex: 0 0 auto; display: flex; flex-direction: column; min-height: 0;
   background: var(--panel); border-top: 1px solid var(--accent);
 }
-.data-drawer.expanded { height: 58%; }
 .data-drawer-head {
   display: flex; align-items: center; gap: 8px; padding: 6px 10px;
   border-bottom: 1px solid var(--border); min-height: 40px; flex: 0 0 auto;
@@ -1093,3 +1091,18 @@ input.swatch-hex:focus { border-color: var(--accent); background: var(--panel); 
 .mark-row { display: flex; gap: 3px; }
 .mark-row .tool { flex: 1; height: 26px; display: grid; place-items: center; font-size: 12px; padding: 0; }
 .mark-row .tool.mixed { background: var(--accent-dim); color: #dbe6ff; opacity: 0.75; }
+
+/* Draggable boundaries between the panes, as in RStudio */
+.layers-wrap { flex: 0 0 auto; display: flex; flex-direction: column; min-height: 0; }
+.layers-wrap .layers { flex: 1; border-top: 0; min-height: 0; }
+.splitter {
+  flex: 0 0 auto; display: grid; place-items: center;
+  background: var(--panel);
+}
+.splitter.vertical { width: 7px; cursor: col-resize; border-left: 1px solid var(--border); border-right: 1px solid var(--border); }
+.splitter.horizontal { height: 9px; cursor: row-resize; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.splitter:hover, .splitter:focus-visible { background: var(--panel-2); outline: none; }
+.splitter:hover .grip, .splitter:focus-visible .grip { background: var(--accent); }
+.grip { border-radius: 2px; background: #4a5162; }
+.splitter.vertical .grip { width: 3px; height: 34px; }
+.splitter.horizontal .grip { width: 34px; height: 3px; }

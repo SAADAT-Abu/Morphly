@@ -100,6 +100,15 @@ export const SHORTCUTS = [
     ],
   },
   {
+    group: "Panels",
+    items: [
+      ["Drag a boundary", "Resize the sidebar, the properties panel, the layers list or the data table"],
+      ["Double-click a boundary", "Back to its usual size"],
+      ["Arrow keys on a boundary", "Resize a little at a time (Shift for more)"],
+      ["Home / End on a boundary", "Smallest / largest"],
+    ],
+  },
+  {
     group: "View",
     items: [
       ["Ctrl + wheel", "Zoom"],

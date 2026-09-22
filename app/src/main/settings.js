@@ -30,6 +30,12 @@ const DEFAULTS = {
   saveFolder: null,
   /** Save figures automatically as they change. */
   autosave: true,
+  /** Pane sizes in pixels. Every boundary in the workspace can be dragged
+   *  (renderer lib/panes.js), and where they were left is where they open. */
+  sidebarWidth: 280,
+  railWidth: 300,
+  layersHeight: 240,
+  dataHeight: 270,
 };
 
 /** Pictures/Morphly: ~/Pictures/Morphly on Linux and macOS, Pictures\Morphly on Windows. */

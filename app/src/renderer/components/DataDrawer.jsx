@@ -3,15 +3,16 @@
  *
  * It shows the numbers behind the selected graph (or the dataset chosen in the
  * Data tab) while the graph stays in view above it, so every edit is seen
- * redrawn at once. It can be made taller, closed, or popped out into a window
- * of its own (the icon in its top right corner), for a long table or a second
- * screen. While the data is in its window, a slim bar here says so and brings
- * it back.
+ * redrawn at once. Drag the handle above it to give the table or the canvas
+ * more room. It can be closed, or popped out into a window of its own (the
+ * icon in its top right corner), for a long table or a second screen. While
+ * the data is in its window, a slim bar here says so and brings it back.
  */
 
 import React, { useRef } from "react";
 import { useStore } from "../store";
 import DataGrid from "./DataGrid";
+import Splitter from "./Splitter";
 import { DATASET_KINDS } from "../lib/datasets";
 import { GROUP_COLOURS } from "../lib/plotRender";
 
@@ -29,7 +30,7 @@ const PopOutIcon = () => (
   </svg>
 );
 
-export default function DataDrawer() {
+export default function DataDrawer({ height, containerRef, onResize, onDone }) {
   const dataView = useStore((s) => s.dataView);
   const dataset = useStore((s) => s.datasets.find((d) => d.id === s.dataView.datasetId) ?? null);
   const elements = useStore((s) => s.elements);
@@ -58,7 +59,16 @@ export default function DataDrawer() {
   const onOp = (op, options) => editDataset(dataset.id, op, options);
 
   return (
-    <div className={`data-drawer${dataView.expanded ? " expanded" : ""}`}>
+    <>
+      <Splitter
+        name="data"
+        horizontal
+        containerRef={containerRef}
+        size={height}
+        onResize={onResize}
+        onDone={onDone}
+      />
+      <div className="data-drawer" style={{ height }}>
       <div className="data-drawer-head">
         <input
           className="data-name"
@@ -78,9 +88,6 @@ export default function DataDrawer() {
         <button className="ghost small" onClick={() => onOp({ op: "addRows", count: 5 })}>
           + 5 rows
         </button>
-        <button className="ghost small" onClick={() => setDataView({ expanded: !dataView.expanded })}>
-          {dataView.expanded ? "Shrink" : "Expand"}
-        </button>
         <button className="ghost small" onClick={closeData}>
           Close
         </button>
@@ -94,6 +101,7 @@ export default function DataDrawer() {
         </button>
       </div>
       <DataGrid dataset={dataset} onOp={onOp} colours={datasetColours(elements, dataset.id)} />
-    </div>
+      </div>
+    </>
   );
 }

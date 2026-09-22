@@ -19,6 +19,7 @@ import { applyDatasetOp, DATASET_KINDS } from "../lib/datasets";
 export default function DataWindow() {
   const [dataset, setDataset] = useState(null);
   const [colours, setColours] = useState([]);
+  const [extended, setExtended] = useState(false);
   const sent = useRef(0);
 
   useEffect(() => {
@@ -80,11 +81,14 @@ export default function DataWindow() {
         <button className="ghost small" onClick={() => onOp({ op: "addRows", count: 10 })}>
           + 10 rows
         </button>
+        <button className="ghost small" onClick={() => setExtended((on) => !on)}>
+          {extended ? "Fewer statistics" : "More statistics"}
+        </button>
         <button className="ghost small" onClick={() => window.morphly.dataWindow.dock()}>
           Put back under the canvas
         </button>
       </div>
-      <DataGrid dataset={dataset} onOp={onOp} colours={colours} />
+      <DataGrid dataset={dataset} onOp={onOp} colours={colours} extended={extended} />
     </div>
   );
 }

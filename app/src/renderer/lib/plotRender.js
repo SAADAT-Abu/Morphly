@@ -46,6 +46,9 @@ export const GROUPED_KINDS = [
   ["stacked100", "100% stacked"],
   ["super", "SuperPlot"],
 ];
+
+/** A table of counts draws like grouped data, without the SuperPlot. */
+export const COUNT_KINDS = GROUPED_KINDS.filter(([id]) => id !== "super");
 export const XY_KINDS = [
   ["scatter", "Scatter"],
   ["line", "Points and lines"],
@@ -190,6 +193,7 @@ export function defaultPlot(kind = "bar", { fontSize = 28 } = {}) {
     colors: [],
     legend: "auto",
     yScale: "linear",
+    normality: "shapiro",
     xScale: "linear",
     curve: false,
     binWidth: "",
@@ -1184,6 +1188,7 @@ export function renderPlotSvg(element, dataset, extras = {}) {
   const f = element.plot?.fontSize ?? 28;
   if (!dataset) return message(W, H, "The data for this graph is missing", f);
   if (dataset.kind === "xy") return xySvg(sized, dataset, extras.fits);
+  if (dataset.kind === "contingency") return groupedSvg(sized, dataset, extras.brackets ?? []);
   if (dataset.kind === "grouped") {
     if (element.plot?.kind === "super") return superSvg(sized, dataset, extras.brackets ?? []);
     return groupedSvg(sized, dataset, extras.brackets ?? []);

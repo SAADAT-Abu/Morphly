@@ -88,6 +88,13 @@ export default function DataDrawer({ height, containerRef, onResize, onDone }) {
         <button className="ghost small" onClick={() => onOp({ op: "addRows", count: 5 })}>
           + 5 rows
         </button>
+        <button
+          className="ghost small"
+          title="Median, SEM, confidence interval, geometric mean, CV, skewness and kurtosis"
+          onClick={() => setDataView({ stats: !dataView.stats })}
+        >
+          {dataView.stats ? "Fewer statistics" : "More statistics"}
+        </button>
         <button className="ghost small" onClick={closeData}>
           Close
         </button>
@@ -100,7 +107,7 @@ export default function DataDrawer({ height, containerRef, onResize, onDone }) {
           <PopOutIcon />
         </button>
       </div>
-      <DataGrid dataset={dataset} onOp={onOp} colours={datasetColours(elements, dataset.id)} />
+      <DataGrid dataset={dataset} onOp={onOp} colours={datasetColours(elements, dataset.id)} extended={Boolean(dataView.stats)} />
       </div>
     </>
   );

@@ -22,7 +22,7 @@ import {
   rowCount,
   columnNumbers,
 } from "../lib/datasets";
-import { renderPlotSvg, defaultPlot, GROUP_KINDS, GROUPED_KINDS, XY_KINDS } from "../lib/plotRender";
+import { renderPlotSvg, defaultPlot, GROUP_KINDS, GROUPED_KINDS, COUNT_KINDS, XY_KINDS } from "../lib/plotRender";
 import { toDataUrl } from "../lib/svgPalette";
 
 const SHAPES = [
@@ -43,6 +43,12 @@ const SHAPES = [
     title: "Groups by condition",
     text: "Two ways of grouping at once. The first column names each row's group; every other column is a condition.",
     example: "Genotype  Vehicle  LPS\nWild type   11.4    48.2\nKnockout    12.0    24.1",
+  },
+  {
+    id: "contingency",
+    title: "Counts in categories",
+    text: "How many fell into each category, such as responders and non-responders in each arm. One count per cell.",
+    example: "Treatment  Responded  Did not\nDrug           9          3\nPlacebo        2         10",
   },
   {
     id: "survival",
@@ -123,7 +129,8 @@ export default function GraphDialog({ datasets = [], panelLabel = null, onClose,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [source, shape, pasted, imported, existingId, datasets]);
 
-  const kinds = shape === "xy" ? XY_KINDS : shape === "grouped" ? GROUPED_KINDS : GROUP_KINDS;
+  const kinds =
+    shape === "xy" ? XY_KINDS : shape === "grouped" ? GROUPED_KINDS : shape === "contingency" ? COUNT_KINDS : GROUP_KINDS;
   const shapeOk = !SHAPES.find((s) => s.id === shape)?.later;
 
   const chooseShape = (id) => {
@@ -273,7 +280,7 @@ export default function GraphDialog({ datasets = [], panelLabel = null, onClose,
                 {columns.slice(0, 10).map((c, i) => {
                   // A grouped table's first column holds names, so counting
                   // numbers in it would report every one of them as a fault.
-                  const names = shape === "grouped" && i === 0;
+                  const names = (shape === "grouped" || shape === "contingency") && i === 0;
                   const ok = names ? c.other > 0 : c.numbers > 0;
                   return (
                     <div key={i} className={`read-row${ok ? "" : " warn"}`}>
@@ -304,6 +311,9 @@ export default function GraphDialog({ datasets = [], panelLabel = null, onClose,
                 {shape === "xy" && <p className="hint">The first column is X; every other column is a Y series.</p>}
                 {shape === "grouped" && (
                   <p className="hint">The first column names each row's group; every other column is a condition.</p>
+                )}
+                {shape === "contingency" && (
+                  <p className="hint">The first column names each row; every other column is a category, holding a count.</p>
                 )}
               </aside>
             )}

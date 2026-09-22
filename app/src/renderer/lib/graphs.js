@@ -6,7 +6,7 @@
  * graph on screen is the graph in the exported file.
  */
 
-import { analyseGroups, analyseGrouped, analyseXY, bracketsToDraw } from "./analysis";
+import { analyseGroups, analyseGrouped, analyseCounts, analyseXY, bracketsToDraw } from "./analysis";
 import { replicateMeans } from "./datasets";
 import { renderPlotSvg, defaultPlot } from "./plotRender";
 
@@ -17,6 +17,7 @@ export function graphAnalysis(element, dataset) {
   if (!dataset) return null;
   const plot = element.plot ?? defaultPlot();
   if (dataset.kind === "xy") return analyseXY(dataset);
+  if (dataset.kind === "contingency") return analyseCounts(dataset, { test: plot.test ?? "auto" });
   if (dataset.kind === "grouped" && plot.kind === "super") {
     // A SuperPlot is judged on the replicate means, not on every cell: that is
     // what makes it a SuperPlot rather than a crowded dot plot.
@@ -29,7 +30,12 @@ export function graphAnalysis(element, dataset) {
       control: plot.control ?? 0,
     });
   }
-  return analyseGroups(dataset, { test: plot.test ?? "auto", paired: Boolean(plot.paired) });
+  return analyseGroups(dataset, {
+    test: plot.test ?? "auto",
+    paired: Boolean(plot.paired),
+    normality: plot.normality ?? "shapiro",
+    control: plot.control ?? 0,
+  });
 }
 
 /** The SVG markup for a graph element. */

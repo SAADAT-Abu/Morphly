@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
   analyseGroups,
   analyseGrouped,
+  analyseCounts,
+  countsMethodsSentence,
   analyseXY,
   availableTests,
   bracketsToDraw,
@@ -19,7 +21,7 @@ describe("availableTests", () => {
   it("offers tests by the number of groups and pairing", () => {
     expect(availableTests(2, false).map((t) => t.id)).toEqual(["student", "welch", "mannwhitney"]);
     expect(availableTests(2, true).map((t) => t.id)).toEqual(["pairedt", "wilcoxon"]);
-    expect(availableTests(4, false).map((t) => t.id)).toEqual(["anova", "welchanova", "kruskal"]);
+    expect(availableTests(4, false).map((t) => t.id)).toEqual(["anova", "welchanova", "dunnett", "kruskal"]);
     expect(availableTests(3, true).map((t) => t.id)).toEqual(["rmanova", "friedman"]);
   });
 });
@@ -231,5 +233,99 @@ describe("correctPValues", () => {
     expect(correctPValues(ps, "bonferroni")).toEqual([0.02, 0.08]);
     expect(correctPValues(ps, "sidak")[0]).toBeCloseTo(1 - 0.99 ** 2, 12);
     expect(correctPValues(ps, "none")).toEqual(ps);
+  });
+});
+
+describe("the tests added for counts and for judging size", () => {
+  const table = createDataset({
+    kind: "contingency",
+    columns: [
+      { name: "Treatment", values: ["Drug", "Placebo"] },
+      { name: "Responded", values: ["9", "2"] },
+      { name: "Did not respond", values: ["3", "10"] },
+    ],
+  });
+
+  it("suggests Fisher for a 2 by 2 table and reports the odds ratio", () => {
+    const a = analyseCounts(table);
+    expect(a.suggested).toBe("fisher");
+    expect(a.label).toBe("Fisher's exact test");
+    expect(a.summary).toMatch(/^p = 0\.0123, odds ratio 15/);
+    expect(a.extra[0]).toMatch(/95% confidence interval for the odds ratio/);
+    expect(a.n).toBe(24);
+  });
+
+  it("offers the other tests a 2 by 2 table allows", () => {
+    expect(analyseCounts(table).available.map((t) => t.id)).toEqual([
+      "fisher",
+      "chisq",
+      "chisqPlain",
+      "mcnemar",
+      "trend",
+    ]);
+    expect(analyseCounts(table, { test: "chisq" }).summary).toMatch(/^χ²\(1\) = 6\.04/);
+  });
+
+  it("suggests chi-square for a bigger table, and warns on thin counts", () => {
+    const bigger = createDataset({
+      kind: "contingency",
+      columns: [
+        { name: "Site", values: ["A", "B", "C"] },
+        { name: "Mild", values: ["12", "7", "3"] },
+        { name: "Moderate", values: ["5", "14", "8"] },
+        { name: "Severe", values: ["9", "6", "15"] },
+      ],
+    });
+    const a = analyseCounts(bigger);
+    expect(a.suggested).toBe("chisq");
+    expect(a.summary).toMatch(/^χ²\(4\) = 14\.4/);
+    expect(a.available.map((t) => t.id)).toEqual(["chisq", "chisqPlain"]);
+
+    const thin = createDataset({
+      kind: "contingency",
+      columns: [
+        { name: "Arm", values: ["A", "B"] },
+        { name: "Yes", values: ["1", "8"] },
+        { name: "No", values: ["9", "2"] },
+      ],
+    });
+    expect(analyseCounts(thin, { test: "chisq" }).warnings[0]).toMatch(/smallest expected count/);
+  });
+
+  it("asks for a real table before testing one", () => {
+    const thin = createDataset({ kind: "contingency", columns: [{ name: "Arm", values: ["A"] }, { name: "Yes", values: ["3"] }] });
+    expect(analyseCounts(thin).error).toMatch(/two rows and two categories/);
+  });
+
+  it("writes a methods sentence for counts", () => {
+    const s = countsMethodsSentence(analyseCounts(table), { version: "0.5.0" });
+    expect(s).toBe("Counts were compared by Fisher's exact test (Morphly 0.5.0), on 24 observations in a 2 by 2 table.");
+  });
+
+  it("reports an effect size beside a t test and an ANOVA", () => {
+    const two = analyseGroups(groups([98, 101, 95, 103, 99, 97], [84, 78, 90, 81, 88, 83]));
+    expect(two.effect).toMatch(/Cohen's d = 3\.98 \(large\); Hedges' g/);
+    const many = analyseGroups(sampleDataset("groups"));
+    expect(many.effect).toMatch(/^ω² = 0\.9/);
+  });
+
+  it("notes a value that stands out, without removing it", () => {
+    const withOutlier = groups([5.1, 4.9, 5.0, 5.2, 4.8, 12.4], [5.0, 5.1, 4.9, 5.2, 5.0, 4.9]);
+    const a = analyseGroups(withOutlier);
+    expect(a.warnings.join(" ")).toMatch(/stands out from the rest \(Grubbs p/);
+    expect(a.warnings.join(" ")).toMatch(/Morphly keeps it/);
+  });
+
+  it("can check normality another way, and says which it used", () => {
+    const values = [1, 1.2, 1.3, 1.5, 1.9, 2.4, 3.1, 4.2, 6.0, 8.5, 12.1, 17.3, 25.0, 38.2, 55.1];
+    const other = [2, 2.2, 2.4, 2.6, 2.8, 3.0, 3.2, 3.4, 3.6, 3.8, 4.0, 4.2, 4.4, 4.6, 4.8];
+    const a = analyseGroups(groups(values, other), { normality: "dagostino" });
+    expect(a.suggestion.reason).toMatch(/D'Agostino-Pearson/);
+    expect(a.test).toBe("mannwhitney");
+  });
+
+  it("corrects by false discovery rate when asked", () => {
+    const ps = [0.01, 0.04, 0.03, 0.2];
+    expect(correctPValues(ps, "bh").map((p) => Number(p.toFixed(6)))).toEqual([0.04, 0.053333, 0.053333, 0.2]);
   });
 });

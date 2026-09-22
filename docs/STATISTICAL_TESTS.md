@@ -25,10 +25,13 @@ Morphly version: **0.5**.
 - [Descriptive statistics](#descriptive-statistics)
 - [Comparing two groups](#comparing-two-groups)
 - [Comparing three or more groups](#comparing-three-or-more-groups)
+- [Counts in categories](#counts-in-categories)
 - [Two factors at once](#two-factors-at-once)
 - [Checking the assumptions](#checking-the-assumptions)
 - [How Morphly chooses a test for you](#how-morphly-chooses-a-test-for-you)
 - [Multiple comparisons](#multiple-comparisons)
+- [Effect sizes](#effect-sizes)
+- [Outliers](#outliers)
 - [Correlation and straight lines](#correlation-and-straight-lines)
 - [SuperPlots: replicates, not cells](#superplots-replicates-not-cells)
 - [Distributions: violins, histograms and density](#distributions-violins-histograms-and-density)
@@ -70,6 +73,19 @@ the checks.
 | Repeated measures ANOVA | 3+ matched groups | `aov(v ~ g + Error(subject/g))` | `stats.js` `repeatedMeasuresAnova` | `stats.test.js` |
 | Friedman | 3+ matched groups, not normal | `friedman.test()` | `stats.js` `friedman` | `stats.test.js` |
 | Two-way ANOVA | groups by condition | `car::Anova(type = "II")` | `stats.js` `twoWayAnova` | `stats.test.js` |
+| Fisher's exact test | 2 by 2 counts | `fisher.test()` | `stats.js` `fisherExact` | `stats.test.js` |
+| Chi-square | counts, any size | `chisq.test()` | `stats.js` `chiSquareTest` | `stats.test.js` |
+| McNemar | paired counts | `mcnemar.test()` | `stats.js` `mcnemarTest` | `stats.test.js` |
+| Cochran-Armitage | trend across ordered rows | `prop.trend.test()` | `stats.js` `trendTest` | `stats.test.js` |
+| D'Agostino-Pearson | normality check | `scipy.stats.normaltest()` | `stats.js` `dAgostinoPearson` | `stats.test.js` |
+| Anderson-Darling | normality check | `scipy.stats.anderson()` | `stats.js` `andersonDarling` | `stats.test.js` |
+| Grubbs | outlier note | the standard formula | `stats.js` `grubbsTest` | `stats.test.js` |
+| Cohen's d, Hedges' g | effect size, two groups | `rstatix::cohens_d()` | `stats.js` `effectSizeD` | `stats.test.js` |
+| Omega squared | effect size, ANOVA | the standard formula | `stats.js` `omegaSquared` | `stats.test.js` |
+| Benjamini-Hochberg | multiple comparisons | `p.adjust(method = "BH")` | `stats.js` `adjustBenjaminiHochberg` | `stats.test.js` |
+| Kendall's tau-b | correlation | `cor.test(method = "kendall")`, SciPy | `stats.js` `kendall` | `stats.test.js` |
+| Skewness, kurtosis | descriptive | `scipy.stats.skew(bias = False)` | `stats.js` `shape` | `stats.test.js` |
+| Geometric mean, CV | descriptive | `scipy.stats.gmean()` | `stats.js` `geometricMean` | `stats.test.js` |
 | Dunnett's test | every group against one control | simulation (see below) | `stats.js` `dunnettTest` | `stats.test.js` |
 | Shapiro-Wilk | normality check | `shapiro.test()` | `stats.js` `shapiroWilk` | `stats.test.js` |
 | Brown-Forsythe | equal spread check | `car::leveneTest(center = median)` | `stats.js` `brownForsythe` | `stats.test.js` |
@@ -89,6 +105,12 @@ deviation** (dividing by n minus 1), **standard error** (SD over the square
 root of n), the **95% confidence interval of the mean** (t at 0.975 with n
 minus 1 degrees of freedom, times the standard error), the **median**, the
 **first and third quartiles**, the **smallest** and the **largest** value.
+
+**More statistics**, the button in the data table, adds the median, the SEM,
+the 95% confidence interval, the **geometric mean** (only when every value is
+above zero), the **coefficient of variation** as a percentage of the mean, and
+**skewness and kurtosis**: the bias-corrected G1 and G2 that Excel, SPSS and
+Prism report, and that SciPy gives with `bias = False`.
 
 Quartiles use R's default method (type 7), which is the same as
 `quantile(x, 0.25)` in R and `numpy.percentile` with linear interpolation.
@@ -209,6 +231,50 @@ corrected, are set in **Advanced statistics**:
 - groups within each condition,
 - every condition against one chosen condition.
 
+## Counts in categories
+
+The "counts in categories" data shape holds one count per cell: the first
+column names each row, every other column is a category.
+
+### Fisher's exact test
+
+- **Used when**: a 2 by 2 table. It is the suggestion there, since it is exact
+  however small the counts.
+- **What it computes**: the sum of the probabilities of every table no more
+  likely than the one observed, with the row and column totals held fixed.
+  Two-sided, as R does it.
+- **Odds ratio**: the simple cross-product, with Woolf's 95% interval on the
+  log odds ratio. R reports a conditional maximum likelihood estimate instead,
+  so R's odds ratio can differ slightly while the p-value agrees.
+- **Checked against**: `fisher.test()`.
+
+### Chi-square test of independence
+
+- **Used when**: any table; the suggestion for anything larger than 2 by 2.
+- **What it computes**: the usual sum over cells of the squared difference
+  between the observed and expected count, over the expected count, on
+  (rows minus 1) times (columns minus 1) degrees of freedom.
+- **Yates' correction** is applied to 2 by 2 tables, as R does by default, and
+  can be turned off.
+- **Warning**: Morphly reports the smallest expected count and warns below 5,
+  where the approximation starts to slip and Fisher's test is the better
+  choice.
+- **Checked against**: `chisq.test()` with and without the correction, and on
+  a 3 by 3 table.
+
+### McNemar's test
+
+- **Used when**: the same subjects counted twice (before and after, or two
+  tests on the same samples). Only the pairs that changed carry information.
+- **Checked against**: `mcnemar.test()`, with and without the continuity
+  correction.
+
+### Cochran-Armitage test for trend
+
+- **Used when**: two categories across ordered rows, asking whether the share
+  rises or falls across them. Scores are 1, 2, 3 and so on by default.
+- **Checked against**: `prop.trend.test()`.
+
 ## Checking the assumptions
 
 ### Shapiro-Wilk (normality)
@@ -223,6 +289,19 @@ corrected, are set in **Advanced statistics**:
   based counterparts. It never blocks anything; you can always choose the test
   yourself.
 - **Checked against**: `shapiro.test()`, from 3 to 30 values.
+
+### D'Agostino-Pearson and Anderson-Darling
+
+Two other normality tests can be chosen in Advanced statistics:
+
+- **D'Agostino-Pearson** combines skewness and kurtosis, each turned into a
+  standard normal and squared. It needs at least 8 values. This is what Prism
+  calls the omnibus test. Checked against `scipy.stats.normaltest()`.
+- **Anderson-Darling** weighs the tails of the distribution more heavily, which
+  makes it good at catching heavy tails. The statistic matches
+  `scipy.stats.anderson()`; its p-value comes from the published approximation
+  (D'Agostino and Stephens 1986), the same one `nortest::ad.test` reports, so
+  it is accurate to about two decimal places rather than exactly.
 
 ### Brown-Forsythe (equal spread)
 
@@ -269,6 +348,7 @@ used.
 | Holm | step down: each p times the number of tests left, kept increasing | after Dunn's test and paired follow-ups |
 | Bonferroni | p times the number of comparisons | offered on grouped graphs |
 | Šídák | 1 minus (1 minus p) to the power of the number of comparisons | the default on grouped graphs |
+| Benjamini-Hochberg | the share of false positives among those called significant, rather than the chance of any at all | offered on grouped graphs, and the usual choice when there are many comparisons |
 | Tukey | studentized range across the means in the family | after one-way ANOVA, and offered on grouped graphs |
 | None | p as it came | offered, but honest only for a single comparison planned in advance |
 
@@ -289,6 +369,29 @@ The correction applies to the family of comparisons Morphly actually draws.
   8.6e-06), Morphly gives 7.6e-06 and SciPy gives 4.5e-06. The simulation code
   and its numbers are recorded in `stats.test.js`.
 
+## Effect sizes
+
+A p-value says whether a difference is distinguishable from chance; an effect
+size says how large it is. Morphly reports one beside the test:
+
+- **Cohen's d** for two groups, using the pooled spread, with **Hedges' g**
+  (the small-sample correction) and its 95% confidence interval. Labelled
+  negligible, small, medium or large at the usual 0.2, 0.5 and 0.8.
+  Checked against `rstatix::cohens_d()`.
+- **Eta squared and omega squared** for a one-way ANOVA: the share of the
+  variation the groups explain. Omega squared removes the bias in eta squared,
+  so it is a little smaller and the better one to quote.
+
+## Outliers
+
+Morphly runs **Grubbs' test** on each group of six values or more and, if one
+value stands out, says so in a warning that names the value and its p-value.
+
+**It never removes anything.** Dropping a measurement is a decision about the
+experiment, not about the arithmetic: the right question is whether that well
+was contaminated or that reading mistyped, which no test can answer. The note
+exists to prompt that check.
+
 ## Correlation and straight lines
 
 On an X and Y graph, each Y series is compared with X:
@@ -302,6 +405,11 @@ On an X and Y graph, each Y series is compared with X:
   approximation SciPy uses. Checked against `scipy.stats.spearmanr`. R's
   `cor.test(method = "spearman")` computes an exact p for small samples
   without ties, so R and Morphly can differ slightly there.
+- **Kendall's tau-b**, which allows for ties, with a normal approximation for
+  the p-value. Checked against `cor.test(method = "kendall")` and
+  `scipy.stats.kendalltau(method = "asymptotic")`. R computes an exact p for
+  small samples without ties, so the two differ slightly there, in the same
+  way as Spearman.
 
 ## SuperPlots: replicates, not cells
 
@@ -343,10 +451,7 @@ replicates, that is a paired t test on three pairs.
 
 Mixed models, ANCOVA, Cox regression, two-way repeated measures, sphericity
 corrections (Greenhouse-Geisser), non-linear curve fitting with IC50,
-survival analysis with log-rank, contingency tables (Fisher, chi-square,
-McNemar), Benjamini-Hochberg FDR, Kendall's tau, effect sizes with confidence
-intervals, D'Agostino-Pearson and Anderson-Darling normality, Grubbs' outlier
-test, and equivalence testing.
+survival analysis with log-rank, and equivalence testing.
 
 Several of these are planned for 0.5; see the roadmap in the README. The ones
 that need a full modelling engine are meant for an optional statistics

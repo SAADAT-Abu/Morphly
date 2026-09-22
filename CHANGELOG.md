@@ -37,6 +37,27 @@ Planned work is described in the [roadmap](README.md#roadmap).
   as brackets with stars; significant ones start ticked. A methods sentence can
   be copied into a manuscript. X and Y graphs show linear fits, Pearson and
   Spearman correlations.
+- **Counts in categories**, a fourth data shape: one count per cell, drawn as
+  bars, stacked bars or 100% stacked. Fisher's exact test (with the odds ratio
+  and its confidence interval) for a 2 by 2 table, chi-square with or without
+  Yates' correction for any table, McNemar's test for the same subjects counted
+  twice, and the Cochran-Armitage test for a trend across ordered rows. Morphly
+  warns when an expected count falls below five, where chi-square starts to
+  slip and Fisher does not.
+- **Effect sizes** beside the test: Cohen's d with Hedges' g and its 95%
+  confidence interval for two groups, and omega squared for an ANOVA.
+- **Dunnett's test** offered as a choice for three or more groups, comparing
+  every group with a control chosen in Advanced statistics.
+- **Benjamini-Hochberg** (false discovery rate) alongside Šídák, Tukey,
+  Bonferroni and Holm.
+- **Two more normality tests**, D'Agostino-Pearson and Anderson-Darling,
+  choosable in Advanced statistics; the reason line says which was used.
+- **A note when a value stands out**, from Grubbs' test. Morphly never removes
+  it: whether a measurement is a mistake is a question about the experiment,
+  not about the arithmetic.
+- **More statistics** in the data table: median, SEM, 95% confidence interval,
+  geometric mean, coefficient of variation, skewness and kurtosis.
+- **Kendall's tau** alongside Pearson and Spearman on X and Y graphs.
 - **More kinds of graph.** Violin plots (with the median marked), SuperPlots
   (every measurement coloured by biological replicate, with the replicate
   means on top), before-and-after lines for paired data, histograms with an

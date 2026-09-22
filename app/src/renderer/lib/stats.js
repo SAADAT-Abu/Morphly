@@ -883,3 +883,329 @@ export function histogramBins(values, { binWidth = null } = {}) {
   }
   return { breaks, counts, width };
 }
+
+// ---------------------------------------------------------------------------
+// Counts in categories
+// ---------------------------------------------------------------------------
+
+const logFactorial = (n) => logGamma(n + 1);
+
+/** Probability of one 2 by 2 table under Fisher's model. */
+function hypergeometric(a, b, c, d) {
+  const n = a + b + c + d;
+  return Math.exp(
+    logFactorial(a + b) + logFactorial(c + d) + logFactorial(a + c) + logFactorial(b + d) - logFactorial(n) -
+      logFactorial(a) - logFactorial(b) - logFactorial(c) - logFactorial(d)
+  );
+}
+
+/**
+ * Fisher's exact test on a 2 by 2 table, two-sided as R does it: the sum of
+ * the probabilities of every table no more likely than the one observed, with
+ * the row and column totals held fixed.
+ *
+ * Returns the odds ratio as the simple cross-product, which is what most
+ * people mean by it; R reports a conditional maximum likelihood estimate
+ * instead, so the two can differ while the p-value agrees.
+ */
+export function fisherExact([[a, b], [c, d]]) {
+  const rowOne = a + b;
+  const rowTwo = c + d;
+  const colOne = a + c;
+  const n = rowOne + rowTwo;
+  const observed = hypergeometric(a, b, c, d);
+  const lowest = Math.max(0, colOne - rowTwo);
+  const highest = Math.min(colOne, rowOne);
+  let p = 0;
+  for (let x = lowest; x <= highest; x += 1) {
+    const probability = hypergeometric(x, rowOne - x, colOne - x, rowTwo - colOne + x);
+    // "No more likely than what happened", with room for rounding.
+    if (probability <= observed * (1 + 1e-7)) p += probability;
+  }
+  const oddsRatio = (a * d) / (b * c);
+  return { p: Math.min(1, p), oddsRatio, n };
+}
+
+/**
+ * Chi-square test of independence on a table of counts.
+ *
+ * Yates' continuity correction is applied to 2 by 2 tables, as R's
+ * chisq.test does unless told otherwise.
+ */
+export function chiSquareTest(table, { correct = true } = {}) {
+  const rows = table.length;
+  const cols = table[0].length;
+  const rowSums = table.map((row) => row.reduce((a, b) => a + b, 0));
+  const colSums = Array.from({ length: cols }, (_, j) => table.reduce((sum, row) => sum + row[j], 0));
+  const n = rowSums.reduce((a, b) => a + b, 0);
+  if (n === 0) return null;
+  const yates = correct && rows === 2 && cols === 2;
+  let stat = 0;
+  let smallest = Infinity;
+  for (let i = 0; i < rows; i += 1) {
+    for (let j = 0; j < cols; j += 1) {
+      const expected = (rowSums[i] * colSums[j]) / n;
+      smallest = Math.min(smallest, expected);
+      if (expected <= 0) continue;
+      let diff = Math.abs(table[i][j] - expected);
+      if (yates) diff = Math.max(0, diff - 0.5);
+      stat += (diff * diff) / expected;
+    }
+  }
+  const df = (rows - 1) * (cols - 1);
+  return { chi2: stat, df, p: chisqUpper(stat, df), n, smallestExpected: smallest, yates };
+}
+
+/**
+ * McNemar's test on paired proportions: the same subjects judged twice, so
+ * only the pairs that changed carry information.
+ */
+export function mcnemarTest([[, b], [c]], { correct = true } = {}) {
+  const changed = b + c;
+  if (changed === 0) return { chi2: 0, df: 1, p: 1, discordant: 0 };
+  let diff = Math.abs(b - c);
+  if (correct) diff = Math.max(0, diff - 1);
+  const chi2 = (diff * diff) / changed;
+  return { chi2, df: 1, p: chisqUpper(chi2, 1), discordant: changed, correct };
+}
+
+/**
+ * Cochran-Armitage test for a trend in proportions across ordered groups,
+ * as R's prop.trend.test. `successes` and `totals` are per group, and
+ * `scores` defaults to 1, 2, 3 and so on.
+ */
+export function trendTest(successes, totals, scores = null) {
+  const k = successes.length;
+  const x = scores ?? Array.from({ length: k }, (_, i) => i + 1);
+  const n = totals.reduce((a, b) => a + b, 0);
+  const s = successes.reduce((a, b) => a + b, 0);
+  const p = s / n;
+  const weightedMean = totals.reduce((sum, t, i) => sum + t * x[i], 0) / n;
+  let numerator = 0;
+  let denominator = 0;
+  for (let i = 0; i < k; i += 1) {
+    numerator += (successes[i] - totals[i] * p) * (x[i] - weightedMean);
+    denominator += totals[i] * (x[i] - weightedMean) ** 2;
+  }
+  const chi2 = (numerator * numerator) / (p * (1 - p) * denominator);
+  return { chi2, df: 1, p: chisqUpper(chi2, 1), n };
+}
+
+// ---------------------------------------------------------------------------
+// More ways to describe, and to check
+// ---------------------------------------------------------------------------
+
+/** The geometric mean: only defined when every value is above zero. */
+export function geometricMean(values) {
+  const xs = values.filter((v) => Number.isFinite(v) && v > 0);
+  if (xs.length !== values.length || xs.length === 0) return NaN;
+  return Math.exp(xs.reduce((sum, v) => sum + Math.log(v), 0) / xs.length);
+}
+
+/** Coefficient of variation, as a percentage of the mean. */
+export function coefficientOfVariation(values) {
+  const m = mean(values);
+  return m === 0 ? NaN : (Math.sqrt(variance(values)) / Math.abs(m)) * 100;
+}
+
+/**
+ * Sample skewness (G1) and excess kurtosis (G2), the bias-corrected versions
+ * used by Excel, SPSS and Prism, and by SciPy with bias = False.
+ */
+export function shape(values) {
+  const n = values.length;
+  const m = mean(values);
+  if (n < 3) return { skewness: NaN, kurtosis: NaN };
+  const m2 = values.reduce((sum, v) => sum + (v - m) ** 2, 0) / n;
+  const m3 = values.reduce((sum, v) => sum + (v - m) ** 3, 0) / n;
+  const m4 = values.reduce((sum, v) => sum + (v - m) ** 4, 0) / n;
+  const g1 = m3 / m2 ** 1.5;
+  const skewness = (g1 * Math.sqrt(n * (n - 1))) / (n - 2);
+  let kurtosis = NaN;
+  if (n > 3) {
+    const g2 = m4 / (m2 * m2) - 3;
+    kurtosis = ((n - 1) * ((n + 1) * g2 + 6)) / ((n - 2) * (n - 3));
+  }
+  return { skewness, kurtosis };
+}
+
+/**
+ * D'Agostino and Pearson's test: skewness and kurtosis together, each turned
+ * into a standard normal and squared. Same as scipy.stats.normaltest, and what
+ * Prism calls the D'Agostino-Pearson omnibus test. Needs at least 8 values.
+ */
+export function dAgostinoPearson(values) {
+  const xs = values.filter(Number.isFinite);
+  const n = xs.length;
+  if (n < 8) return null;
+  const m = mean(xs);
+  const m2 = xs.reduce((sum, v) => sum + (v - m) ** 2, 0) / n;
+  const m3 = xs.reduce((sum, v) => sum + (v - m) ** 3, 0) / n;
+  const m4 = xs.reduce((sum, v) => sum + (v - m) ** 4, 0) / n;
+  const b1 = m3 / m2 ** 1.5;
+  const b2 = m4 / (m2 * m2);
+
+  // Skewness to a standard normal (D'Agostino 1970).
+  const y = b1 * Math.sqrt(((n + 1) * (n + 3)) / (6 * (n - 2)));
+  const beta2 = (3 * (n * n + 27 * n - 70) * (n + 1) * (n + 3)) / ((n - 2) * (n + 5) * (n + 7) * (n + 9));
+  const w2 = -1 + Math.sqrt(2 * (beta2 - 1));
+  const delta = 1 / Math.sqrt(0.5 * Math.log(w2));
+  const alpha = Math.sqrt(2 / (w2 - 1));
+  const zSkew = y === 0 ? 0 : delta * Math.log(y / alpha + Math.sqrt((y / alpha) ** 2 + 1));
+
+  // Kurtosis to a standard normal (Anscombe and Glynn 1983).
+  const meanB2 = (3 * (n - 1)) / (n + 1);
+  const varB2 = (24 * n * (n - 2) * (n - 3)) / ((n + 1) ** 2 * (n + 3) * (n + 5));
+  const x = (b2 - meanB2) / Math.sqrt(varB2);
+  const sqrtBeta1 =
+    ((6 * (n * n - 5 * n + 2)) / ((n + 7) * (n + 9))) * Math.sqrt((6 * (n + 3) * (n + 5)) / (n * (n - 2) * (n - 3)));
+  const a = 6 + (8 / sqrtBeta1) * (2 / sqrtBeta1 + Math.sqrt(1 + 4 / (sqrtBeta1 * sqrtBeta1)));
+  const denominator = 1 + x * Math.sqrt(2 / (a - 4));
+  const cube = Math.sign(denominator) * Math.cbrt((1 - 2 / a) / Math.abs(denominator));
+  const zKurt = (1 - 2 / (9 * a) - cube) / Math.sqrt(2 / (9 * a));
+
+  const k2 = zSkew * zSkew + zKurt * zKurt;
+  return { k2, df: 2, p: chisqUpper(k2, 2), skewZ: zSkew, kurtosisZ: zKurt };
+}
+
+/**
+ * Anderson-Darling test for normality, with the mean and spread estimated
+ * from the data. The statistic matches scipy.stats.anderson; the p-value comes
+ * from the usual approximation (D'Agostino and Stephens 1986), which is what
+ * R's nortest::ad.test reports.
+ */
+export function andersonDarling(values) {
+  const xs = values.filter(Number.isFinite).sort((a, b) => a - b);
+  const n = xs.length;
+  if (n < 8) return null;
+  const m = mean(xs);
+  const sd = Math.sqrt(variance(xs));
+  if (!(sd > 0)) return null;
+  let sum = 0;
+  for (let i = 0; i < n; i += 1) {
+    const lower = pnorm((xs[i] - m) / sd);
+    const upper = pnorm((xs[n - 1 - i] - m) / sd);
+    sum += (2 * i + 1) * (Math.log(Math.max(lower, 1e-300)) + Math.log(Math.max(1 - upper, 1e-300)));
+  }
+  const a2 = -n - sum / n;
+  const adjusted = a2 * (1 + 0.75 / n + 2.25 / (n * n));
+  let p;
+  if (adjusted < 0.2) p = 1 - Math.exp(-13.436 + 101.14 * adjusted - 223.73 * adjusted * adjusted);
+  else if (adjusted < 0.34) p = 1 - Math.exp(-8.318 + 42.796 * adjusted - 59.938 * adjusted * adjusted);
+  else if (adjusted < 0.6) p = Math.exp(0.9177 - 4.279 * adjusted - 1.38 * adjusted * adjusted);
+  else p = Math.exp(1.2937 - 5.709 * adjusted + 0.0186 * adjusted * adjusted);
+  return { a2, p: Math.max(0, Math.min(1, p)), n };
+}
+
+/**
+ * Grubbs' test for one outlier: the value furthest from the mean, in units of
+ * the standard deviation, against the critical value from the t distribution.
+ * Two-sided, as most software reports it.
+ */
+export function grubbsTest(values) {
+  const xs = values.filter(Number.isFinite);
+  const n = xs.length;
+  if (n < 3) return null;
+  const m = mean(xs);
+  const sd = Math.sqrt(variance(xs));
+  if (!(sd > 0)) return null;
+  let worst = xs[0];
+  let g = 0;
+  for (const value of xs) {
+    const distance = Math.abs(value - m) / sd;
+    if (distance > g) {
+      g = distance;
+      worst = value;
+    }
+  }
+  // The critical value inverted: turn G back into a t and read its tail.
+  const t2 = (g * g * (n - 2)) / ((n - 1) * (n - 1) - n * g * g);
+  const t = Math.sqrt(Math.max(0, t2));
+  const p = Math.min(1, n * tTwoSided(t, n - 2));
+  return { G: g, value: worst, n, p };
+}
+
+// ---------------------------------------------------------------------------
+// Effect sizes and more corrections
+// ---------------------------------------------------------------------------
+
+/**
+ * Cohen's d and Hedges' g for two groups, with a 95% confidence interval for
+ * g from its standard error. Pooled spread, as rstatix::cohens_d gives.
+ */
+export function effectSizeD(x, y) {
+  const n1 = x.length;
+  const n2 = y.length;
+  const df = n1 + n2 - 2;
+  const pooled = Math.sqrt((((n1 - 1) * variance(x) + (n2 - 1) * variance(y)) / df));
+  const d = (mean(x) - mean(y)) / pooled;
+  // Hedges' correction for small samples.
+  const j = 1 - 3 / (4 * df - 1);
+  const g = d * j;
+  const se = Math.sqrt((n1 + n2) / (n1 * n2) + (g * g) / (2 * (n1 + n2)));
+  const t = tquantile(0.975, df);
+  return { d, g, se, low: g - t * se, high: g + t * se, magnitude: magnitudeOf(Math.abs(d)) };
+}
+
+const magnitudeOf = (d) => (d < 0.2 ? "negligible" : d < 0.5 ? "small" : d < 0.8 ? "medium" : "large");
+
+/** Omega squared for a one-way ANOVA: eta squared with its bias removed. */
+export function omegaSquared(anova, groups) {
+  const ssb = anova.F * anova.df1 * anova.mse;
+  const ssw = anova.mse * anova.df2;
+  const total = ssb + ssw;
+  const omega = (ssb - anova.df1 * anova.mse) / (total + anova.mse);
+  return { omegaSquared: Math.max(0, omega), etaSquared: ssb / total, n: groups.flat().length };
+}
+
+/**
+ * Benjamini-Hochberg: control the share of false positives among the
+ * comparisons called significant, rather than the chance of any at all. The
+ * same as p.adjust(method = "BH").
+ */
+export function adjustBenjaminiHochberg(ps) {
+  const m = ps.length;
+  const order = ps.map((p, i) => [p, i]).sort((a, b) => b[0] - a[0]);
+  const out = new Array(m);
+  let running = 1;
+  order.forEach(([p, i], k) => {
+    const rank = m - k;
+    running = Math.min(running, (m / rank) * p);
+    out[i] = Math.min(1, running);
+  });
+  return out;
+}
+
+/** Kendall's tau-b, which allows for ties, with a normal approximation for p. */
+export function kendall(x, y) {
+  const n = x.length;
+  let concordant = 0;
+  let discordant = 0;
+  let tiedX = 0;
+  let tiedY = 0;
+  for (let i = 0; i < n; i += 1) {
+    for (let j = i + 1; j < n; j += 1) {
+      const dx = Math.sign(x[i] - x[j]);
+      const dy = Math.sign(y[i] - y[j]);
+      if (dx === 0 && dy === 0) continue;
+      if (dx === 0) tiedX += 1;
+      else if (dy === 0) tiedY += 1;
+      else if (dx === dy) concordant += 1;
+      else discordant += 1;
+    }
+  }
+  const pairs = concordant + discordant;
+  const tau = (concordant - discordant) / Math.sqrt((pairs + tiedX) * (pairs + tiedY));
+  // The variance of the statistic under no association, ties included.
+  const tie = (counts) => counts.reduce((sum, t) => sum + t * (t - 1) * (2 * t + 5), 0);
+  const tiesX = tieSizes(x);
+  const tiesY = tieSizes(y);
+  const v0 = n * (n - 1) * (2 * n + 5);
+  const v =
+    (v0 - tie(tiesX) - tie(tiesY)) / 18 +
+    (tiesX.reduce((s, t) => s + t * (t - 1) * (t - 2), 0) * tiesY.reduce((s, t) => s + t * (t - 1) * (t - 2), 0)) /
+      (9 * n * (n - 1) * (n - 2)) +
+    (tiesX.reduce((s, t) => s + t * (t - 1), 0) * tiesY.reduce((s, t) => s + t * (t - 1), 0)) / (2 * n * (n - 1));
+  const z = (concordant - discordant) / Math.sqrt(v);
+  return { tau, z, p: normalTwoSided(z) };
+}

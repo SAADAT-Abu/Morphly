@@ -17,19 +17,35 @@
 import React, { useRef } from "react";
 import { rowCount, parseTable, isNumeric, hasLabelColumn, DATASET_KINDS } from "../lib/datasets";
 import { columnSummaries } from "../lib/analysis";
+import { columnNumbers } from "../lib/datasets";
+import { geometricMean, coefficientOfVariation, shape } from "../lib/stats";
 
 /** Always a few empty rows below the data, so there is somewhere to type. */
 const SPARE_ROWS = 3;
 
 const fmt = (v) => (Number.isFinite(v) ? Number(v.toPrecision(4)).toString() : "");
 
-export default function DataGrid({ dataset, onOp, colours = [] }) {
+export default function DataGrid({ dataset, onOp, colours = [], extended = false }) {
   const tableRef = useRef(null);
   // The cell being typed into, so only its first keystroke makes an undo step.
   const editing = useRef(null);
 
   const rows = rowCount(dataset) + SPARE_ROWS;
   const summaries = columnSummaries(dataset);
+  // The rest of the descriptive statistics, shown only when asked for, so the
+  // table stays short while numbers are being typed.
+  const extras = extended
+    ? dataset.columns.map((_, col) => {
+        const values = columnNumbers(dataset, col);
+        const s = values.length ? shape(values) : { skewness: NaN, kurtosis: NaN };
+        return {
+          geometric: values.length ? geometricMean(values) : NaN,
+          cv: values.length ? coefficientOfVariation(values) : NaN,
+          skewness: s.skewness,
+          kurtosis: s.kurtosis,
+        };
+      })
+    : [];
   const xy = dataset.kind === "xy";
   // A grouped table's first column holds names, not numbers.
   const labelColumn = hasLabelColumn(dataset) ? 0 : -1;
@@ -155,6 +171,13 @@ export default function DataGrid({ dataset, onOp, colours = [] }) {
               ["Mean", (s) => fmt(s?.mean)],
               ["SD", (s) => fmt(s?.sd)],
               ["n", (s) => String(s?.n ?? 0)],
+              ...(extended
+                ? [
+                    ["Median", (s) => fmt(s?.median)],
+                    ["SEM", (s) => fmt(s?.sem)],
+                    ["95% CI", (s) => (s && s.n > 1 ? `± ${fmt(s.ci)}` : "")],
+                  ]
+                : []),
             ].map(([label, value]) => (
               <tr key={label}>
                 <td className="row-head">{label}</td>
@@ -166,6 +189,23 @@ export default function DataGrid({ dataset, onOp, colours = [] }) {
                 <td />
               </tr>
             ))}
+            {extended &&
+              [
+                ["Geometric mean", (e) => fmt(e.geometric)],
+                ["CV %", (e) => fmt(e.cv)],
+                ["Skewness", (e) => fmt(e.skewness)],
+                ["Kurtosis", (e) => fmt(e.kurtosis)],
+              ].map(([label, value]) => (
+                <tr key={label}>
+                  <td className="row-head">{label}</td>
+                  {extras.map((e, col) => (
+                    <td key={col} className="summary">
+                      {value(e)}
+                    </td>
+                  ))}
+                  <td />
+                </tr>
+              ))}
           </tfoot>
         )}
       </table>

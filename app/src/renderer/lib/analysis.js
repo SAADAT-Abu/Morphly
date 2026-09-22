@@ -9,7 +9,7 @@
  * any machine.
  */
 
-import { columnNumbers, completeRows, groupedFactors } from "./datasets";
+import { columnNumbers, completeRows, groupedFactors, countsTable } from "./datasets";
 import {
   describe,
   tTest,
@@ -25,6 +25,11 @@ import {
   repeatedMeasuresAnova,
   friedman,
   shapiroWilk,
+  dAgostinoPearson,
+  andersonDarling,
+  grubbsTest,
+  effectSizeD,
+  omegaSquared,
   brownForsythe,
   pearson,
   spearman,
@@ -36,6 +41,11 @@ import {
   adjustBonferroni,
   twoWayAnova,
   dunnettTest,
+  fisherExact,
+  chiSquareTest,
+  mcnemarTest,
+  trendTest,
+  adjustBenjaminiHochberg,
   mean,
   variance,
 } from "./stats";
@@ -56,6 +66,13 @@ export const TESTS = {
     paired: false,
   },
   welchanova: { label: "Welch's ANOVA", phrase: "Welch's ANOVA", posthoc: "the Games-Howell test", groups: 3, paired: false },
+  dunnett: {
+    label: "One-way ANOVA with Dunnett's test",
+    phrase: "one-way ANOVA",
+    posthoc: "Dunnett's test against the control",
+    groups: 3,
+    paired: false,
+  },
   kruskal: {
     label: "Kruskal-Wallis test",
     phrase: "the Kruskal-Wallis test",
@@ -96,13 +113,30 @@ const pairKey = (i, j) => `${i}-${j}`;
 /** Fewer values than this and normality is assumed rather than tested. */
 export const MIN_FOR_NORMALITY = 5;
 
+/** The normality tests Morphly offers, and the smallest sample each needs. */
+export const NORMALITY_TESTS = [
+  ["shapiro", "Shapiro-Wilk", 3],
+  ["dagostino", "D'Agostino-Pearson", 8],
+  ["anderson", "Anderson-Darling", 8],
+];
+
+/** Run the chosen normality test, or nothing when the sample is too small. */
+function normalityOf(values, which = "shapiro") {
+  const entry = NORMALITY_TESTS.find(([id]) => id === which) ?? NORMALITY_TESTS[0];
+  const smallest = Math.max(MIN_FOR_NORMALITY, entry[2]);
+  if (values.length < smallest) return null;
+  if (entry[0] === "dagostino") return dAgostinoPearson(values);
+  if (entry[0] === "anderson") return andersonDarling(values);
+  return shapiroWilk(values);
+}
+
 /**
  * Suggest a test the way a careful analyst would decide, and say why:
  * normality by Shapiro-Wilk in every group (or in the differences, for two
  * paired groups), equal spread by Brown-Forsythe. Groups too small to check
  * are assumed normal, and the reason says so.
  */
-function suggest(groups, paired) {
+function suggest(groups, paired, normality = "shapiro") {
   const k = groups.length;
   const reasons = [];
   let normal = true;
@@ -112,16 +146,17 @@ function suggest(groups, paired) {
   // Below five values a normality test says almost nothing, and acting on it
   // does harm: three replicates would be sent to a rank test that cannot
   // reach significance at all, however large the difference.
-  const normality = samples.map((g) => (g.length >= MIN_FOR_NORMALITY ? shapiroWilk(g) : null));
-  if (normality.some((r) => r === null)) checkable = false;
-  const ps = normality.filter(Boolean).map((r) => r.p);
+  const results = samples.map((g) => normalityOf(g, normality));
+  if (results.some((r) => r === null)) checkable = false;
+  const ps = results.filter(Boolean).map((r) => r.p);
   if (ps.some((p) => p <= 0.05)) normal = false;
 
   const where = paired && k === 2 ? "the differences" : k === 2 ? "both groups" : "every group";
+  const testName = NORMALITY_TESTS.find(([id]) => id === normality)?.[1] ?? "Shapiro-Wilk";
   if (!normal) {
-    reasons.push(`values in at least one group do not look normally distributed (Shapiro-Wilk p = ${formatP(Math.min(...ps))})`);
+    reasons.push(`values in at least one group do not look normally distributed (${testName} p = ${formatP(Math.min(...ps))})`);
   } else if (checkable) {
-    reasons.push(`values look normally distributed in ${where} (Shapiro-Wilk p above 0.05)`);
+    reasons.push(`values look normally distributed in ${where} (${testName} p above 0.05)`);
   } else {
     reasons.push(`some groups hold fewer than ${MIN_FOR_NORMALITY} values, too few to check normality, so it is assumed`);
   }
@@ -166,7 +201,10 @@ const pPhrase = (p) => (p < 0.0001 ? "p < 0.0001" : `p = ${formatP(p)}`);
  * warnings } or { error } when the data cannot support a test yet.
  * `comparisons` use dataset column indexes, so they line up with the graph.
  */
-export function analyseGroups(dataset, { test = "auto", paired = false } = {}) {
+export function analyseGroups(
+  dataset,
+  { test = "auto", paired = false, normality = "shapiro", flagOutliers = true, control = 0 } = {}
+) {
   let cols = plottedGroups(dataset);
   if (cols.length < 2) return { error: "Add a second group to compare." };
 
@@ -199,12 +237,29 @@ export function analyseGroups(dataset, { test = "auto", paired = false } = {}) {
   }
 
   const k = cols.length;
-  const suggestion = suggest(groups, paired);
+  const suggestion = suggest(groups, paired, normality);
+
+  // Grubbs on each group: a note, never a removal. Deleting a value is the
+  // user's decision, and one they should make for a reason, not because a
+  // test said so.
+  if (flagOutliers) {
+    groups.forEach((values, index) => {
+      const outlier = values.length >= 6 ? grubbsTest(values) : null;
+      if (outlier && outlier.p < 0.05) {
+        const name = dataset.columns[cols[index]].name || `Group ${cols[index] + 1}`;
+        warnings.push(
+          `In ${name}, ${formatStat(outlier.value)} stands out from the rest (Grubbs p = ${formatP(outlier.p)}). ` +
+            "Morphly keeps it: check whether it is a mistake before removing anything."
+        );
+      }
+    });
+  }
   const options = availableTests(k, paired).map((t) => t.id);
   const chosen = test !== "auto" && options.includes(test) ? test : suggestion.test;
   const info = TESTS[chosen];
 
   let summary;
+  let effect = null;
   let pairs; // [{ i, j, p }] with i, j indexes into `groups`
   if (k === 2) {
     const [x, y] = groups;
@@ -223,10 +278,20 @@ export function analyseGroups(dataset, { test = "auto", paired = false } = {}) {
       summary = `V = ${formatStat(res.V)}, ${pPhrase(res.p)}${res.exact ? " (exact)" : ""}`;
     }
     pairs = [{ i: 0, j: 1, p: res.p }];
+    if (chosen === "student" || chosen === "welch" || chosen === "pairedt") {
+      const size = effectSizeD(x, y);
+      effect = `Cohen's d = ${formatStat(size.d)} (${size.magnitude}); Hedges' g ${formatStat(size.g)}, 95% CI ${formatStat(size.low)} to ${formatStat(size.high)}`;
+    }
   } else if (chosen === "anova") {
     const res = oneWayAnova(groups);
     summary = `F(${res.df1}, ${res.df2}) = ${formatStat(res.F)}, ${pPhrase(res.p)}, η² = ${res.etaSquared.toFixed(2)}`;
+    effect = `ω² = ${omegaSquared(res, groups).omegaSquared.toFixed(2)}, the share of the variation the groups explain`;
     pairs = tukeyHsd(groups, res);
+  } else if (chosen === "dunnett") {
+    const res = oneWayAnova(groups);
+    summary = `F(${res.df1}, ${res.df2}) = ${formatStat(res.F)}, ${pPhrase(res.p)}`;
+    effect = `Every group is compared with ${dataset.columns[cols[control]]?.name || `group ${control + 1}`}.`;
+    pairs = dunnettTest(groups, Math.min(control, groups.length - 1));
   } else if (chosen === "welchanova") {
     const res = welchAnova(groups);
     summary = `F(${res.df1}, ${fmtDf(res.df2)}) = ${formatStat(res.F)}, ${pPhrase(res.p)}`;
@@ -266,6 +331,7 @@ export function analyseGroups(dataset, { test = "auto", paired = false } = {}) {
     suggestion,
     test: chosen,
     label: info.label,
+    effect,
     posthoc: k > 2 ? info.posthoc : null,
     summary,
     comparisons,
@@ -365,6 +431,7 @@ export const CORRECTIONS = [
   ["tukey", "Tukey"],
   ["bonferroni", "Bonferroni"],
   ["holm", "Holm"],
+  ["bh", "Benjamini-Hochberg (false discovery rate)"],
   ["none", "None"],
 ];
 
@@ -381,6 +448,7 @@ export function correctPValues(ps, method) {
   if (method === "bonferroni") return adjustBonferroni(ps);
   if (method === "holm") return adjustHolm(ps);
   // Šídák: the chance of at least one false positive among m independent tests.
+  if (method === "bh") return adjustBenjaminiHochberg(ps);
   if (method === "sidak") return ps.map((p) => Math.min(1, 1 - (1 - p) ** m));
   return ps;
 }
@@ -523,5 +591,105 @@ export function groupedMethodsSentence(analysis, plot, { version = "" } = {}) {
   return (
     `The data were analysed by two-way ANOVA${by}, and ${set} with ${correction}'s correction for multiple comparisons. ` +
     `${shows}, with ${nText}. ns, not significant; * p < 0.05; ** p < 0.01; *** p < 0.001; **** p < 0.0001.`
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Counts in categories
+// ---------------------------------------------------------------------------
+
+/** The tests Morphly offers for a table of counts. */
+export const COUNT_TESTS = {
+  fisher: { label: "Fisher's exact test", needs: "2x2" },
+  chisq: { label: "Chi-square test" },
+  chisqPlain: { label: "Chi-square without Yates' correction" },
+  mcnemar: { label: "McNemar's test (the same subjects twice)", needs: "2x2" },
+  trend: { label: "Cochran-Armitage test for trend", needs: "2 columns" },
+};
+
+/**
+ * Statistics for a table of counts.
+ *
+ * Fisher's exact test is the suggestion for a 2 by 2 table, since it is exact
+ * however small the counts; chi-square is suggested for anything larger, with
+ * a warning when an expected count falls below five, which is when its
+ * approximation starts to slip.
+ */
+export function analyseCounts(dataset, { test = "auto" } = {}) {
+  const { rows, rowNames, categories } = countsTable(dataset);
+  if (rows.length < 2 || categories.length < 2) {
+    return { error: "A table of counts needs at least two rows and two categories." };
+  }
+  const twoByTwo = rows.length === 2 && categories.length === 2;
+  const total = rows.flat().reduce((a, b) => a + b, 0);
+  const warnings = [];
+
+  const available = Object.entries(COUNT_TESTS)
+    .filter(([, t]) => (t.needs === "2x2" ? twoByTwo : t.needs === "2 columns" ? categories.length === 2 : true))
+    .map(([id, t]) => ({ id, label: t.label }));
+  const suggested = twoByTwo ? "fisher" : "chisq";
+  const chosen = available.some((t) => t.id === test) ? test : suggested;
+
+  const chi = chiSquareTest(rows, { correct: chosen !== "chisqPlain" });
+  if (chi && chi.smallestExpected < 5 && chosen.startsWith("chisq")) {
+    warnings.push(
+      `The smallest expected count is ${chi.smallestExpected.toFixed(1)}. Below 5 the chi-square approximation is` +
+        `${twoByTwo ? " rough; Fisher's exact test does not have that trouble." : " rough."}`
+    );
+  }
+
+  let summary;
+  let extra = [];
+  if (chosen === "fisher") {
+    const r = fisherExact(rows);
+    summary = `p = ${formatP(r.p)}, odds ratio ${formatStat(r.oddsRatio)}`;
+    const [[a, b], [c, d]] = rows;
+    if (a && b && c && d) {
+      // Woolf's interval on the log odds ratio.
+      const se = Math.sqrt(1 / a + 1 / b + 1 / c + 1 / d);
+      const low = Math.exp(Math.log(r.oddsRatio) - 1.959963985 * se);
+      const high = Math.exp(Math.log(r.oddsRatio) + 1.959963985 * se);
+      extra = [`95% confidence interval for the odds ratio: ${formatStat(low)} to ${formatStat(high)}`];
+    } else {
+      warnings.push("A cell holds no counts, so the odds ratio has no confidence interval.");
+    }
+  } else if (chosen === "mcnemar") {
+    const r = mcnemarTest(rows);
+    summary = `χ²(1) = ${formatStat(r.chi2)}, ${pPhrase(r.p)}`;
+    extra = [`${r.discordant} of ${total} pairs changed; only those carry information.`];
+  } else if (chosen === "trend") {
+    const successes = rows.map((row) => row[0]);
+    const totals = rows.map((row) => row[0] + row[1]);
+    const r = trendTest(successes, totals);
+    summary = `χ²(1) = ${formatStat(r.chi2)}, ${pPhrase(r.p)}`;
+    extra = [`Testing whether the share of "${categories[0]}" rises or falls across the rows in order.`];
+  } else {
+    summary = `χ²(${chi.df}) = ${formatStat(chi.chi2)}, ${pPhrase(chi.p)}`;
+    if (chi.yates) extra = ["Yates' continuity correction is applied, as it is by default in R."];
+  }
+
+  return {
+    kind: "counts",
+    label: COUNT_TESTS[chosen].label,
+    test: chosen,
+    suggested,
+    available,
+    summary,
+    extra,
+    rows,
+    rowNames,
+    categories,
+    n: total,
+    warnings,
+  };
+}
+
+/** The methods sentence for a table of counts. */
+export function countsMethodsSentence(analysis, { version = "" } = {}) {
+  if (!analysis || analysis.error) return "";
+  const by = version ? ` (Morphly ${version})` : "";
+  return (
+    `Counts were compared by ${analysis.label.replace(/^The /, "")}${by}, on ${analysis.n} observations in a ` +
+    `${analysis.rows.length} by ${analysis.categories.length} table.`
   );
 }

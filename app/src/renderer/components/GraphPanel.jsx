@@ -21,6 +21,8 @@ import {
   TESTS,
   CORRECTIONS,
   COMPARISON_SETS,
+  NORMALITY_TESTS,
+  countsMethodsSentence,
 } from "../lib/analysis";
 import AdvancedDialog from "./AdvancedDialog";
 import { LINKS } from "../content/helpContent";
@@ -32,6 +34,7 @@ import {
   SERIES_COLOURS,
   LEGEND_POSITIONS,
   ROUND_KINDS,
+  COUNT_KINDS,
 } from "../lib/plotRender";
 import { formatP, formatStat } from "../lib/stats";
 
@@ -126,10 +129,11 @@ export default function GraphPanel({ element }) {
 
   const xy = dataset.kind === "xy";
   const grouped = dataset.kind === "grouped";
-  const kinds = xy ? XY_KINDS : grouped ? GROUPED_KINDS : GROUP_KINDS;
+  const counts = dataset.kind === "contingency";
+  const kinds = xy ? XY_KINDS : grouped ? GROUPED_KINDS : counts ? COUNT_KINDS : GROUP_KINDS;
   const kind = kinds.some(([id]) => id === plot.kind) ? plot.kind : kinds[0][0];
   const sameKind = datasets.filter((d) => d.kind === dataset.kind);
-  const colourCols = xy || grouped ? dataset.columns.map((_, i) => i).slice(1) : plottedGroups(dataset);
+  const colourCols = xy || grouped || counts ? dataset.columns.map((_, i) => i).slice(1) : plottedGroups(dataset);
   const palette = xy ? SERIES_COLOURS : GROUP_COLOURS;
   const colourOf = (col) => plot.colors?.[col] || palette[col % palette.length];
 
@@ -142,6 +146,8 @@ export default function GraphPanel({ element }) {
   const sentence =
     xy || !analysis || analysis.error
       ? ""
+      : counts
+      ? countsMethodsSentence(analysis, { version: VERSION })
       : grouped
       ? groupedMethodsSentence(analysis, { ...plot, kind }, { version: VERSION })
       : methodsSentence(analysis, { ...plot, kind }, { version: VERSION });
@@ -185,13 +191,13 @@ export default function GraphPanel({ element }) {
             <Segments label="Graph type" options={kinds} value={kind} onChange={(id) => set({ kind: id })} />
           </>
         )}
-        {!xy && HAS_ERROR_BARS.has(kind) && (
+        {!xy && !counts && HAS_ERROR_BARS.has(kind) && (
           <>
             <div className="field-label">Error bars</div>
             <Segments label="Error bars" options={ERRORS} value={plot.error} onChange={(id) => set({ error: id })} />
           </>
         )}
-        {!xy && HAS_POINTS.has(kind) && (
+        {!xy && !counts && HAS_POINTS.has(kind) && (
           <label className="check">
             <input type="checkbox" checked={Boolean(plot.points)} onChange={(e) => set({ points: e.target.checked })} />
             Show every point
@@ -306,15 +312,19 @@ export default function GraphPanel({ element }) {
         </AdvancedDialog>
       )}
 
+      {counts && <CountStats element={element} analysis={analysis} sentence={sentence} copied={copied} setCopied={setCopied} />}
       {grouped && <GroupedStats element={element} dataset={dataset} analysis={analysis} sentence={sentence} copied={copied} setCopied={setCopied} />}
-      {!xy && !grouped && <GroupStats element={element} analysis={analysis} sentence={sentence} copied={copied} setCopied={setCopied} />}
+      {!xy && !grouped && !counts && (
+        <GroupStats element={element} dataset={dataset} analysis={analysis} sentence={sentence} copied={copied} setCopied={setCopied} />
+      )}
       {xy && <XyStats analysis={analysis} />}
     </>
   );
 }
 
-function GroupStats({ element, analysis, sentence, copied, setCopied }) {
+function GroupStats({ element, dataset, analysis, sentence, copied, setCopied }) {
   const updatePlot = useStore((s) => s.updatePlot);
+  const [advanced, setAdvanced] = useState(false);
   const plot = element.plot;
   const set = (patch) => updatePlot(element.id, patch);
 
@@ -364,6 +374,7 @@ function GroupStats({ element, analysis, sentence, copied, setCopied }) {
           {isSuggested && <span className="pill suggested">Suggested</span>}
         </div>
         <div className="stats-result">{analysis.summary}</div>
+        {analysis.effect && <div className="hint">{analysis.effect}</div>}
         {analysis.posthoc && <div className="hint">Then {analysis.posthoc}.</div>}
         <p className="hint">{analysis.suggestion.reason}</p>
         {analysis.warnings.map((w) => (
@@ -397,6 +408,109 @@ function GroupStats({ element, analysis, sentence, copied, setCopied }) {
         </button>
       )}
 
+      <button className="link" onClick={() => setAdvanced(true)}>
+        Advanced…
+      </button>
+
+      <div className="field-label">Methods sentence</div>
+      <p className="methods">{sentence}</p>
+      <button className="ghost small" onClick={copy}>
+        {copied ? "Copied" : "Copy methods sentence"}
+      </button>
+      <button className="link" onClick={() => window.morphly.openExternal(LINKS.statistics)}>
+        How is this calculated?
+      </button>
+
+      {advanced && (
+        <AdvancedDialog
+          title="Advanced statistics"
+          onClose={() => setAdvanced(false)}
+          onReset={() => set({ normality: "shapiro", control: 0, test: "auto", brackets: {} })}
+        >
+          <label className="field">
+            <span>Check normality with</span>
+            <select value={plot.normality ?? "shapiro"} onChange={(e) => set({ normality: e.target.value })}>
+              {NORMALITY_TESTS.map(([id, label, smallest]) => (
+                <option key={id} value={id}>
+                  {label} (needs {smallest} or more values)
+                </option>
+              ))}
+            </select>
+          </label>
+          {analysis.groups.length > 2 && (
+            <label className="field">
+              <span>Control group, for Dunnett's test</span>
+              <select value={plot.control ?? 0} onChange={(e) => set({ control: Number(e.target.value) })}>
+                {analysis.groups.map((col, i) => (
+                  <option key={col} value={i}>
+                    {dataset.columns[col]?.name || `Group ${col + 1}`}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          <p className="hint">
+            Normality decides whether Morphly suggests a t test or ANOVA, or their rank based counterparts. It is only
+            checked when every group holds five values or more: below that the test says almost nothing, so normality is
+            assumed instead. Dunnett's test compares every group with the control only, which is the right comparison when
+            that is the question, and costs less than comparing everything with everything.
+          </p>
+        </AdvancedDialog>
+      )}
+    </Section>
+  );
+}
+
+/** A table of counts: which test, the result, and what it means. */
+function CountStats({ element, analysis, sentence, copied, setCopied }) {
+  const updatePlot = useStore((s) => s.updatePlot);
+  const plot = element.plot;
+  const set = (patch) => updatePlot(element.id, patch);
+
+  if (!analysis || analysis.error) {
+    return (
+      <Section title="Statistics">
+        <p className="hint">{analysis?.error ?? "No counts yet."}</p>
+      </Section>
+    );
+  }
+
+  const copy = async () => {
+    await window.morphly.writeClipboardText(sentence);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <Section title="Statistics">
+      <label className="field">
+        <span>Test</span>
+        <select value={plot.test && plot.test !== "auto" ? plot.test : "auto"} onChange={(e) => set({ test: e.target.value })}>
+          <option value="auto">Suggested: {analysis.available.find((t) => t.id === analysis.suggested)?.label}</option>
+          {analysis.available.map((t) => (
+            <option key={t.id} value={t.id}>
+              {t.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <div className="stats-card">
+        <div className="stats-head">
+          <strong>{analysis.label}</strong>
+          {analysis.test === analysis.suggested && <span className="pill suggested">Suggested</span>}
+        </div>
+        <div className="stats-result">{analysis.summary}</div>
+        {analysis.extra.map((line) => (
+          <div key={line} className="hint">
+            {line}
+          </div>
+        ))}
+        {analysis.warnings.map((w) => (
+          <p key={w} className="hint warn-text">
+            {w}
+          </p>
+        ))}
+      </div>
       <div className="field-label">Methods sentence</div>
       <p className="methods">{sentence}</p>
       <button className="ghost small" onClick={copy}>

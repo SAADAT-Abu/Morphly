@@ -1,5 +1,7 @@
 import { describe as group, it, expect } from "vitest";
 import {
+  mean,
+  variance,
   describe,
   rank,
   quantile,
@@ -22,6 +24,20 @@ import {
   bandwidthNrd0,
   kernelDensity,
   histogramBins,
+  fisherExact,
+  chiSquareTest,
+  mcnemarTest,
+  trendTest,
+  geometricMean,
+  coefficientOfVariation,
+  shape,
+  dAgostinoPearson,
+  andersonDarling,
+  grubbsTest,
+  effectSizeD,
+  omegaSquared,
+  adjustBenjaminiHochberg,
+  kendall,
   shapiroWilk,
   brownForsythe,
   pearson,
@@ -406,5 +422,145 @@ group("shapes of a distribution", () => {
     expect(histogramBins([3, 3, 3]).counts).toEqual([3]);
     expect(histogramBins([]).counts).toEqual([]);
     expect(kernelDensity([])).toEqual([]);
+  });
+});
+
+group("counts in categories", () => {
+  const table = [
+    [9, 3],
+    [2, 10],
+  ];
+
+  it("Fisher's exact test: fisher.test()", () => {
+    const r = fisherExact(table);
+    close(r.p, 0.0122781377997);
+    close(r.oddsRatio, 15);
+  });
+
+  it("chi-square, with and without Yates: chisq.test()", () => {
+    const yates = chiSquareTest(table);
+    close(yates.chi2, 6.04195804196);
+    close(yates.p, 0.0139697819212);
+    expect(yates.yates).toBe(true);
+    const plain = chiSquareTest(table, { correct: false });
+    close(plain.chi2, 8.22377622378);
+    close(plain.p, 0.00413450766959);
+  });
+
+  it("chi-square on a bigger table, where Yates never applies", () => {
+    const r = chiSquareTest([
+      [12, 5, 9],
+      [7, 14, 6],
+      [3, 8, 15],
+    ]);
+    close(r.chi2, 14.4070970867);
+    expect(r.df).toBe(4);
+    close(r.p, 0.00610295784006);
+    expect(r.yates).toBe(false);
+  });
+
+  it("warns by reporting the smallest expected count", () => {
+    const sparse = chiSquareTest([
+      [1, 9],
+      [8, 2],
+    ]);
+    expect(sparse.smallestExpected).toBeLessThan(5);
+  });
+
+  it("McNemar's test on paired proportions: mcnemar.test()", () => {
+    const paired = [
+      [20, 12],
+      [4, 25],
+    ];
+    const corrected = mcnemarTest(paired);
+    close(corrected.chi2, 3.0625);
+    close(corrected.p, 0.0801183137276);
+    const plain = mcnemarTest(paired, { correct: false });
+    close(plain.chi2, 4);
+    close(plain.p, 0.0455002638964);
+    expect(mcnemarTest([[5, 0], [0, 5]]).p).toBe(1);
+  });
+
+  it("Cochran-Armitage trend: prop.trend.test()", () => {
+    const r = trendTest([10, 15, 22, 30], [50, 50, 50, 50]);
+    close(r.chi2, 18.9589272516);
+    close(r.p, 1.33562863698e-5, 1e-5);
+  });
+});
+
+group("describing a distribution", () => {
+  const x = [4.1, 5.3, 3.8, 6.0, 4.6, 5.9, 4.4, 7.2, 5.1, 4.9, 5.5, 6.6];
+
+  it("geometric mean and coefficient of variation", () => {
+    close(geometricMean(x), 5.19503573440014);
+    expect(Number.isNaN(geometricMean([1, 0, 2]))).toBe(true);
+    close(coefficientOfVariation(x), (Math.sqrt(variance(x)) / mean(x)) * 100);
+  });
+
+  it("skewness and kurtosis, as SciPy with bias = False", () => {
+    const s = shape(x);
+    close(s.skewness, 0.40915683805022285, 1e-9);
+    close(s.kurtosis, -0.41484934329701684, 1e-9);
+  });
+
+  it("D'Agostino-Pearson: scipy.stats.normaltest()", () => {
+    const normal = dAgostinoPearson(x);
+    close(normal.k2, 0.4784234334469805, 1e-6);
+    close(normal.p, 0.7872481911200501, 1e-6);
+    const skewed = dAgostinoPearson([1, 1.2, 1.3, 1.5, 1.9, 2.4, 3.1, 4.2, 6.0, 8.5, 12.1, 17.3, 25.0, 38.2, 55.1]);
+    close(skewed.k2, 12.783668516065163, 1e-6);
+    close(skewed.p, 0.0016751806679943396, 1e-5);
+    expect(dAgostinoPearson([1, 2, 3])).toBeNull();
+  });
+
+  it("Anderson-Darling: the statistic scipy.stats.anderson() gives", () => {
+    close(andersonDarling(x).a2, 0.1304501006450316, 1e-6);
+    const skewed = andersonDarling([1, 1.2, 1.3, 1.5, 1.9, 2.4, 3.1, 4.2, 6.0, 8.5, 12.1, 17.3, 25.0, 38.2, 55.1]);
+    close(skewed.a2, 1.6443387248231218, 1e-6);
+    // The p-value is the usual approximation, so only its size is checked.
+    expect(skewed.p).toBeLessThan(0.001);
+    expect(andersonDarling(x).p).toBeGreaterThan(0.1);
+  });
+
+  it("Grubbs finds the value furthest out", () => {
+    const r = grubbsTest([5.1, 4.9, 5.0, 5.2, 4.8, 12.4]);
+    expect(r.value).toBe(12.4);
+    expect(r.p).toBeLessThan(0.01);
+    // Nothing unusual: no outlier.
+    expect(grubbsTest([5.1, 4.9, 5.0, 5.2, 4.8, 5.05]).p).toBeGreaterThan(0.05);
+  });
+});
+
+group("effect sizes and corrections", () => {
+  it("Cohen's d: rstatix::cohens_d()", () => {
+    const r = effectSizeD(A, C);
+    close(r.d, 3.98, 1e-3);
+    expect(r.magnitude).toBe("large");
+    // Hedges' g is a little smaller, and its interval excludes zero here.
+    expect(Math.abs(r.g)).toBeLessThan(Math.abs(r.d));
+    expect(r.low).toBeGreaterThan(0);
+  });
+
+  it("omega squared sits below eta squared", () => {
+    const anova = oneWayAnova([A, B, C, D]);
+    const r = omegaSquared(anova, [A, B, C, D]);
+    close(r.etaSquared, anova.etaSquared, 1e-9);
+    expect(r.omegaSquared).toBeLessThan(r.etaSquared);
+    expect(r.omegaSquared).toBeGreaterThan(0.9);
+  });
+
+  it("Benjamini-Hochberg: p.adjust(method = 'BH')", () => {
+    const adjusted = adjustBenjaminiHochberg([0.01, 0.04, 0.03, 0.2]);
+    [0.04, 0.0533333333333, 0.0533333333333, 0.2].forEach((v, i) => close(adjusted[i], v, 1e-9));
+  });
+
+  it("Kendall's tau-b: cor.test(method = 'kendall') and scipy", () => {
+    const perfect = kendall([1, 2, 3, 4, 5, 6, 7, 8], [2.1, 3.9, 6.2, 7.8, 9.9, 12.5, 13.8, 16.4]);
+    close(perfect.tau, 1, 1e-12);
+    const tied = kendall([1, 2, 2, 3, 4, 5, 6, 7], [1, 3, 3, 2, 5, 4, 7, 6]);
+    close(tied.tau, 0.703703703704, 1e-9);
+    // R computes an exact p here; this is the normal approximation, which is
+    // what scipy.stats.kendalltau(method = "asymptotic") gives.
+    close(tied.p, 0.016995993100711655, 1e-6);
   });
 });

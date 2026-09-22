@@ -27,11 +27,12 @@ import Papa from "papaparse";
 export const DATASET_KINDS = {
   groups: { label: "Groups", first: "Group" },
   grouped: { label: "Groups by condition", first: "Condition" },
+  contingency: { label: "Counts in categories", first: "Category" },
   xy: { label: "X and Y", first: "X" },
 };
 
 /** Datasets whose first column names things rather than measuring them. */
-export const hasLabelColumn = (dataset) => dataset?.kind === "grouped";
+export const hasLabelColumn = (dataset) => dataset?.kind === "grouped" || dataset?.kind === "contingency";
 
 let counter = 0;
 export const nextDatasetId = () => `ds_${Date.now().toString(36)}_${(counter++).toString(36)}`;
@@ -91,6 +92,8 @@ export function blankDataset(kind = "groups", { columns = kind === "xy" ? 2 : 3,
       ? ["X", ...Array.from({ length: columns - 1 }, (_, i) => `Y${i + 1}`)]
       : kind === "grouped"
       ? ["Group", ...Array.from({ length: columns - 1 }, (_, i) => `Condition ${i + 1}`)]
+      : kind === "contingency"
+      ? ["Group", ...Array.from({ length: columns - 1 }, (_, i) => `Category ${i + 1}`)]
       : Array.from({ length: columns }, (_, i) => `Group ${i + 1}`);
   return createDataset({
     name: "Data",
@@ -109,6 +112,17 @@ export function sampleDataset(kind = "groups") {
         { name: "Genotype", values: ["Wild type", "Wild type", "Wild type", "Wild type", "Knockout", "Knockout", "Knockout", "Knockout"] },
         { name: "Vehicle", values: ["11.4", "12.1", "10.8", "11.9", "12.0", "11.2", "12.6", "11.5"] },
         { name: "LPS", values: ["48.2", "52.7", "45.9", "50.3", "24.1", "27.8", "22.6", "25.9"] },
+      ],
+    });
+  }
+  if (kind === "contingency") {
+    return createDataset({
+      name: "Response by treatment (sample)",
+      kind: "contingency",
+      columns: [
+        { name: "Treatment", values: ["Drug", "Placebo"] },
+        { name: "Responded", values: ["9", "2"] },
+        { name: "Did not respond", values: ["3", "10"] },
       ],
     });
   }
@@ -144,7 +158,14 @@ const padTo = (values, length) =>
 
 /** Column names nobody has used yet: "Group 4", then "Group 5". */
 function freshColumnName(dataset) {
-  const stem = dataset.kind === "xy" ? "Y" : dataset.kind === "grouped" ? "Condition " : "Group ";
+  const stem =
+    dataset.kind === "xy"
+      ? "Y"
+      : dataset.kind === "grouped"
+      ? "Condition "
+      : dataset.kind === "contingency"
+      ? "Category "
+      : "Group ";
   const taken = new Set(dataset.columns.map((c) => c.name));
   for (let i = dataset.columns.length; ; i += 1) {
     const name = `${stem}${i}`;
@@ -312,6 +333,8 @@ export function datasetFromRows(rows, { kind = "groups", name = "Imported data" 
       ? (i) => (i === 0 ? "X" : `Y${i}`)
       : kind === "grouped"
       ? (i) => (i === 0 ? "Group" : `Condition ${i}`)
+      : kind === "contingency"
+      ? (i) => (i === 0 ? "Group" : `Category ${i}`)
       : (i) => `Group ${i + 1}`;
   const columns = Array.from({ length: width }, (_, i) => ({
     name: header?.[i] || stem(i),
@@ -353,6 +376,29 @@ export function groupedFactors(dataset) {
     conditions,
     valuesAt: (level, condition) => cells.get(`${level}|${condition}`) ?? [],
   };
+}
+
+/**
+ * A contingency table as rows of counts, with the row and column names.
+ * Blank cells count as zero, since a category nobody fell into is a zero.
+ */
+export function countsTable(dataset) {
+  const labels = (dataset.columns[0]?.values ?? []).map((v) => String(v ?? "").trim());
+  const categories = dataset.columns.slice(1).map((c, i) => c.name || `Category ${i + 1}`);
+  const rows = [];
+  const rowNames = [];
+  labels.forEach((label, row) => {
+    if (label === "") return;
+    const counts = dataset.columns.slice(1).map((column) => {
+      const value = parseNumber(column.values[row]);
+      return Number.isFinite(value) && value >= 0 ? Math.round(value) : 0;
+    });
+    if (counts.some((c) => c > 0)) {
+      rowNames.push(label);
+      rows.push(counts);
+    }
+  });
+  return { rows, rowNames, categories };
 }
 
 /**

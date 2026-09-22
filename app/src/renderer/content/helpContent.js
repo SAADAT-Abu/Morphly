@@ -84,6 +84,7 @@ export const SHORTCUTS = [
       ["Ctrl + G", "Group selection"],
       ["Ctrl + Shift + G", "Ungroup"],
       ["Delete", "Delete selection"],
+      ["Shift + drag a corner", "Resize the other way: keep the proportions, or let go of them"],
       ["Arrow keys", "Nudge 2 px"],
       ["Shift + arrows", "Nudge 20 px"],
       ["Ctrl + B / Ctrl + I", "Bold / italic"],
@@ -235,7 +236,11 @@ export const GETTING_STARTED = [
       "library icon, and large plots have their identical points combined so they stay " +
       "lighter. Imported images are stored " +
       "inside the .morphly file, so a saved figure still opens after the original file has " +
-      "moved. The grid button in the toolbar shows a grid at any spacing, with an option " +
+      "moved. Pictures and library artwork keep their proportions when you resize them, so a " +
+      "micrograph cannot be squashed by accident: only the corner handles resize them, and " +
+      "the width and height boxes in the properties panel follow each other. Untick Lock the " +
+      "aspect ratio there to stretch one on purpose, or hold Shift while dragging. Shapes " +
+      "work the other way round, free unless you tick the box or hold Shift. The grid button in the toolbar shows a grid at any spacing, with an option " +
       "to snap elements to it. The grid is a guide only and never appears in an export. " +
       "The panel button, or Insert → Panel layout, divides the page into lettered panels " +
       "with even spacing, including wide and tall panels for a main result. Letters follow " +

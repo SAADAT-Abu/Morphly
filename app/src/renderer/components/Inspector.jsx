@@ -12,6 +12,7 @@
 import React from "react";
 import { useStore, CANVAS_PRESETS } from "../store";
 import { isPanel } from "../lib/panelLayout";
+import { aspectLocked } from "../lib/geometry";
 import { lineEnds } from "../lib/connectors";
 import { analyseSvg, topContainer, partPalette, partLabel } from "../lib/svgParts";
 import { effectiveColorMap } from "../lib/svgPalette";
@@ -415,19 +416,44 @@ function GeometryFields({ element }) {
   const updateElement = useStore((s) => s.updateElement);
   const set = (patch) => updateElement(element.id, patch);
 
+  // Both sizes have to be there for proportions to mean anything: text is as
+  // tall as its lines make it, and a line has points rather than a box.
+  const sizable = element.width != null && element.height != null && element.type !== "text";
+  const locked = sizable && aspectLocked(element);
+  const ratio = element.width > 0 && element.height > 0 ? element.width / element.height : 1;
+  const setWidth = (v) => {
+    const width = Math.max(1, v);
+    set(locked ? { width, height: Math.max(1, Math.round(width / ratio)) } : { width });
+  };
+  const setHeight = (v) => {
+    const height = Math.max(1, v);
+    set(locked ? { height, width: Math.max(1, Math.round(height * ratio)) } : { height });
+  };
+
   return (
     <Section title="Position & size">
       <div className="field-grid">
         <NumberField label="X" value={element.x} onChange={(v) => set({ x: v })} />
         <NumberField label="Y" value={element.y} onChange={(v) => set({ y: v })} />
-        {element.width != null && (
-          <NumberField label="W" value={element.width} onChange={(v) => set({ width: Math.max(1, v) })} />
-        )}
+        {element.width != null && <NumberField label="W" value={element.width} onChange={setWidth} />}
         {element.height != null && element.type !== "text" && (
-          <NumberField label="H" value={element.height} onChange={(v) => set({ height: Math.max(1, v) })} />
+          <NumberField label="H" value={element.height} onChange={setHeight} />
         )}
         <NumberField label="Rotation" value={element.rotation} onChange={(v) => set({ rotation: v })} />
       </div>
+      {sizable && (
+        <>
+          <label className="check">
+            <input type="checkbox" checked={locked} onChange={(e) => set({ lockAspect: e.target.checked })} />
+            Lock the aspect ratio
+          </label>
+          <p className="hint">
+            {locked
+              ? "Corner handles keep the proportions, and so do the boxes above. Hold Shift while dragging to stretch it anyway."
+              : "Drag any handle to stretch it. Hold Shift while dragging a corner to keep the proportions."}
+          </p>
+        </>
+      )}
     </Section>
   );
 }

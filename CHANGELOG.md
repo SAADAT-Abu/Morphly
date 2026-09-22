@@ -11,6 +11,16 @@ and version numbers follow [Semantic Versioning](https://semver.org/).
 
 Planned work is described in the [roadmap](README.md#roadmap).
 
+### Added
+
+- **Lock the aspect ratio when resizing.** Pictures and library artwork now
+  keep their proportions: only the corner handles resize them, and the width
+  and height boxes in the properties panel follow each other, so a micrograph
+  cannot be squashed by accident. A tick box in Position & size turns the lock
+  off for one element, or on for a shape, which starts free as before. Holding
+  Shift while dragging does the opposite of whatever the box says, as it does
+  in every other editor. Asked for by a user.
+
 ## [0.5.0] - 2026-09-22
 
 Data, graphs and statistics. Morphly no longer needs a second program for the

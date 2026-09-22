@@ -74,3 +74,27 @@ export function unionBox(boxes) {
   const bottom = Math.max(...boxes.map((b) => b.y + b.height));
   return { x: left, y: top, width: right - left, height: bottom - top };
 }
+
+/**
+ * Types whose proportions are usually meant rather than chosen: a photograph
+ * or an illustration squashed sideways is nearly always a mistake, while a
+ * rectangle squashed sideways is nearly always deliberate. So those two start
+ * locked and everything else starts free, and either can be changed per
+ * element from the properties panel.
+ *
+ * Reading the default from the type rather than storing it means figures made
+ * before this existed behave the new way too, with no change to the file
+ * format.
+ */
+const LOCKED_BY_DEFAULT = new Set(["image", "asset"]);
+
+/** Whether resizing this element should keep its proportions. */
+export const aspectLocked = (el) => el?.lockAspect ?? LOCKED_BY_DEFAULT.has(el?.type);
+
+/**
+ * Whether dragging the handles around a selection should keep its
+ * proportions. A mixed selection resizes freely, since there is no one answer
+ * and freeing it is the reversible choice.
+ */
+export const selectionKeepsRatio = (elements) =>
+  elements.length > 0 && elements.every(aspectLocked);

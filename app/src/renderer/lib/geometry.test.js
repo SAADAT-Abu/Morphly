@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { pointsBounds, elementBox, visualBox, unionBox } from "./geometry";
+import { pointsBounds, elementBox, visualBox, unionBox, aspectLocked, selectionKeepsRatio } from "./geometry";
 
 describe("visualBox", () => {
   it("is the element's own box when it is upright", () => {
@@ -56,5 +56,31 @@ describe("elementBox", () => {
 
   it("treats a missing size as zero", () => {
     expect(elementBox({ x: 1, y: 2 })).toEqual({ x: 1, y: 2, width: 0, height: 0 });
+  });
+});
+
+describe("locking the proportions", () => {
+  it("starts locked for the things that should not be squashed", () => {
+    expect(aspectLocked({ type: "image" })).toBe(true);
+    expect(aspectLocked({ type: "asset" })).toBe(true);
+  });
+
+  it("starts free for the things that are meant to be shaped", () => {
+    expect(aspectLocked({ type: "rect" })).toBe(false);
+    expect(aspectLocked({ type: "plot" })).toBe(false);
+    expect(aspectLocked({ type: "table" })).toBe(false);
+  });
+
+  it("lets either default be overruled, and remembers false as a choice", () => {
+    expect(aspectLocked({ type: "image", lockAspect: false })).toBe(false);
+    expect(aspectLocked({ type: "rect", lockAspect: true })).toBe(true);
+  });
+
+  it("keeps the ratio of a selection only when every part of it is locked", () => {
+    expect(selectionKeepsRatio([{ type: "image" }, { type: "asset" }])).toBe(true);
+    // A mixed selection resizes freely: there is no one answer, and freeing it
+    // is the choice that can be taken back.
+    expect(selectionKeepsRatio([{ type: "image" }, { type: "rect" }])).toBe(false);
+    expect(selectionKeepsRatio([])).toBe(false);
   });
 });

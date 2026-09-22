@@ -36,7 +36,7 @@ import { buildIsolationSvg, effectiveColorMap } from "../lib/svgPalette";
 import { isPanel } from "../lib/panelLayout";
 import { artworkText, analyseSvg, partForLeaf, topContainer, canvasDeltaToUser } from "../lib/svgParts";
 import { useHitMap, pickLeaf, pickLeafIn, partMask, partBox } from "../lib/useHitMap";
-import { pointsBounds, visualBox, unionBox } from "../lib/geometry";
+import { pointsBounds, visualBox, unionBox, selectionKeepsRatio } from "../lib/geometry";
 import { snapContext, snapMove, snapPoint } from "../lib/snapping";
 import { measuredHeight, rememberHeight } from "../lib/measure";
 import { runsOf, hasFormatting } from "../lib/richText";
@@ -475,6 +475,23 @@ function PanelLetter({ element }) {
 
 /** Shapes that can carry a centred caption. */
 const LABELLABLE = ["rect", "ellipse", "triangle"];
+
+/**
+ * Resize handles. With the proportions locked the side handles go away: they
+ * can only stretch one way, so leaving them would offer something the lock has
+ * just forbidden.
+ */
+const ALL_ANCHORS = [
+  "top-left",
+  "top-center",
+  "top-right",
+  "middle-right",
+  "middle-left",
+  "bottom-left",
+  "bottom-center",
+  "bottom-right",
+];
+const CORNER_ANCHORS = ["top-left", "top-right", "bottom-left", "bottom-right"];
 
 // ---------------------------------------------------------------------------
 // Stage
@@ -997,6 +1014,14 @@ export default function CanvasStage({ stageRef, onRequestTextEdit, onExternalDro
 
   const visibleElements = useMemo(() => elements.filter((el) => el.visible), [elements]);
 
+  // Whether the handles around what is selected keep its proportions. Shift
+  // always does the opposite, whichever way this falls, which is what a hand
+  // trained on any other editor expects.
+  const keepsRatio = useMemo(
+    () => selectionKeepsRatio(selectedIds.map((id) => elementsById.get(id)).filter(Boolean)),
+    [selectedIds, elementsById]
+  );
+
   /**
    * Middle-button drag pans, as in most editors. It is handled here rather
    * than through Konva's own dragging because that begins on mouse down,
@@ -1234,7 +1259,11 @@ export default function CanvasStage({ stageRef, onRequestTextEdit, onExternalDro
           <Transformer
             ref={transformerRef}
             rotateEnabled
-            keepRatio={false}
+            keepRatio={keepsRatio}
+            // "inverted" lets Shift free a locked element; "default" lets it
+            // lock a free one. Together: Shift does the opposite.
+            shiftBehavior={keepsRatio ? "inverted" : "default"}
+            enabledAnchors={keepsRatio ? CORNER_ANCHORS : ALL_ANCHORS}
             borderStroke="#4c8dff"
             anchorStroke="#4c8dff"
             anchorFill="#ffffff"

@@ -2,21 +2,26 @@
  * The asset sidebar: browse, search and place assets from one or more scraped
  * libraries.
  *
- * Morphly points at library folders rather than bundling them. Two producers
- * exist -- NIH BioArt (scraper/bioart_scraper.py) and Bioicons
- * (scraper/bioicons_fetcher.py) -- and both emit the same manifest format, so
- * several can be mounted at once and browsed together.
+ * Morphly points at library folders rather than bundling them. Several
+ * producers exist, NIH BioArt (scraper/bioart_scraper.py), Bioicons
+ * (scraper/bioicons_fetcher.py) and SciDraw (scraper/scidraw_fetcher.py), and
+ * all emit the same manifest format, so several can be mounted at once and
+ * browsed together.
  *
- * Licence is shown on every tile because it genuinely differs between the two:
+ * Licence is shown on every tile because it genuinely differs between them:
  * BioArt is mostly Public Domain, while ~83% of Bioicons requires attribution
  * and a few icons are share-alike. That is much easier to respect while
  * choosing an asset than to reconstruct at submission time.
+ *
+ * Thumbnails load continuously: a batch is mounted whenever the end of the
+ * grid comes near, so 2,000 thumbnails never load together and there is no
+ * button to press. A counter above the grid says which illustrations are on
+ * screen ("Showing 181 to 225 of 2,531"), and a button returns to the top.
  */
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "../store";
-
-const PAGE_SIZE = 90;
+import { BATCH_SIZE, nextLimit, visibleRange, rangeLabel } from "../lib/libraryScroll";
 
 /** Compact badge text; full detail goes in the tooltip. */
 function licenceBadge(asset) {
@@ -35,10 +40,14 @@ export default function AssetLibrary({ onPlaceAsset, onOpenStore, onNotice }) {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("All");
   const [collection, setCollection] = useState("All");
-  const [limit, setLimit] = useState(PAGE_SIZE);
+  const [limit, setLimit] = useState(BATCH_SIZE);
+  const [shown, setShown] = useState(null);
+  const [scrolledDown, setScrolledDown] = useState(false);
   const [expandedId, setExpandedId] = useState(null);
   const [loading, setLoading] = useState(false);
   const [managing, setManaging] = useState(false);
+  const gridRef = useRef(null);
+  const sentinelRef = useRef(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -92,7 +101,85 @@ export default function AssetLibrary({ onPlaceAsset, onOpenStore, onNotice }) {
     });
   }, [library, query, category, collection]);
 
-  useEffect(() => setLimit(PAGE_SIZE), [query, category, collection]);
+  const mounted = Math.min(limit, filtered.length);
+
+  // A new search starts again from the top with the first batch.
+  useEffect(() => {
+    setLimit(BATCH_SIZE);
+    if (gridRef.current) gridRef.current.scrollTop = 0;
+  }, [query, category, collection]);
+
+  /**
+   * Work out which tiles are on screen from their positions, for the counter
+   * and the back-to-top button. Reading positions is cheap once the grid has
+   * been laid out, and the search in visibleRange touches only a few tiles.
+   */
+  const measure = useCallback(() => {
+    const grid = gridRef.current;
+    if (!grid) return;
+    const tiles = grid.getElementsByClassName("asset-tile");
+    const next = visibleRange(
+      tiles.length,
+      (i) => tiles[i].offsetTop,
+      (i) => tiles[i].offsetTop + tiles[i].offsetHeight,
+      grid.scrollTop,
+      grid.clientHeight
+    );
+    setShown((prev) =>
+      prev && next && prev.first === next.first && prev.last === next.last ? prev : next
+    );
+    setScrolledDown(grid.scrollTop > grid.clientHeight);
+  }, []);
+
+  // Measure on scroll (once per frame at most), when the sidebar is resized,
+  // and whenever the tiles themselves change.
+  useEffect(() => {
+    const grid = gridRef.current;
+    if (!grid) return;
+    let frame = 0;
+    const onScroll = () => {
+      if (frame) return;
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        measure();
+      });
+    };
+    grid.addEventListener("scroll", onScroll, { passive: true });
+    const resize = new ResizeObserver(onScroll);
+    resize.observe(grid);
+    return () => {
+      grid.removeEventListener("scroll", onScroll);
+      resize.disconnect();
+      if (frame) cancelAnimationFrame(frame);
+    };
+  }, [measure, library]);
+
+  useEffect(() => {
+    measure();
+  }, [measure, mounted, filtered, expandedId]);
+
+  // Load the next batch when the end of the grid comes within reach. The
+  // margin starts loading about two screens early, so scrolling rarely meets
+  // an empty gap.
+  useEffect(() => {
+    const grid = gridRef.current;
+    const sentinel = sentinelRef.current;
+    if (!grid || !sentinel || mounted >= filtered.length) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          setLimit((current) => nextLimit(current, filtered.length));
+        }
+      },
+      { root: grid, rootMargin: "0px 0px 1200px 0px" }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [mounted, filtered.length]);
+
+  const backToTop = () => {
+    if (gridRef.current) gridRef.current.scrollTo({ top: 0, behavior: "smooth" });
+  };
 
   if (!library) {
     return (
@@ -115,6 +202,8 @@ export default function AssetLibrary({ onPlaceAsset, onOpenStore, onNotice }) {
       </div>
     );
   }
+
+  const narrowed = query.trim() !== "" || category !== "All" || collection !== "All";
 
   return (
     <div className="panel library">
@@ -177,8 +266,11 @@ export default function AssetLibrary({ onPlaceAsset, onOpenStore, onNotice }) {
         </div>
       </div>
 
-      <div className="library-count">
-        {filtered.length.toLocaleString()} of {library.stats.assets.toLocaleString()}
+      <div className="library-count" aria-live="polite">
+        {rangeLabel(filtered.length > 0 ? shown : null, filtered.length, narrowed)}
+        {narrowed && filtered.length > 0 && (
+          <span className="muted"> in {library.stats.assets.toLocaleString()}</span>
+        )}
         {library.stats.shareAlike > 0 && (
           <span title="Share-alike icons can oblige your whole figure to carry the same licence">
             {" · "}
@@ -187,8 +279,8 @@ export default function AssetLibrary({ onPlaceAsset, onOpenStore, onNotice }) {
         )}
       </div>
 
-      <div className="asset-grid">
-        {filtered.slice(0, limit).map((asset) => (
+      <div className="asset-grid" ref={gridRef}>
+        {filtered.slice(0, mounted).map((asset) => (
           <AssetTile
             key={asset.id}
             asset={asset}
@@ -197,11 +289,12 @@ export default function AssetLibrary({ onPlaceAsset, onOpenStore, onNotice }) {
             onPlace={onPlaceAsset}
           />
         ))}
+        {mounted < filtered.length && <div className="asset-grid-sentinel" ref={sentinelRef} aria-hidden="true" />}
       </div>
 
-      {filtered.length > limit && (
-        <button className="load-more" onClick={() => setLimit((n) => n + PAGE_SIZE)}>
-          Show {Math.min(PAGE_SIZE, filtered.length - limit)} more
+      {scrolledDown && (
+        <button className="back-to-top" onClick={backToTop} title="Back to the top of the library">
+          ↑ Top
         </button>
       )}
 

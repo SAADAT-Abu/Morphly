@@ -88,6 +88,7 @@ function buildMenu(getWindow) {
     {
       label: "&Insert",
       submenu: [
+        { label: "Graph…", accelerator: "CmdOrCtrl+Shift+B", click: send("insertGraph") },
         { label: "Table…", accelerator: "CmdOrCtrl+Shift+T", click: send("insertTable") },
         { label: "Panel layout…", accelerator: "CmdOrCtrl+Shift+L", click: send("insertPanels") },
         // Not Ctrl+Shift+I: Chromium claims that one for the developer tools,

@@ -16,6 +16,8 @@ import { lineEnds } from "../lib/connectors";
 import { analyseSvg, topContainer, partPalette, partLabel } from "../lib/svgParts";
 import { effectiveColorMap } from "../lib/svgPalette";
 import { extractPalette } from "../lib/svgPalette";
+import { baseMarks, marksIn, plainText, runsOf, withBase } from "../lib/richText";
+import GraphPanel from "./GraphPanel";
 
 export default function Inspector() {
   const elements = useStore((s) => s.elements);
@@ -58,6 +60,8 @@ export default function Inspector() {
           {single && single.type === "table" && <TableFields element={single} />}
 
           {single && single.type === "image" && <ImageFields element={single} />}
+
+          {single && single.type === "plot" && <GraphPanel element={single} />}
 
           {single && single.type === "asset" && (
             partEdit?.elementId === single.id ? (
@@ -450,12 +454,7 @@ function TextFields({ element }) {
           </select>
         </Field>
         <Field label="Style">
-          <select value={element.fontStyle} onChange={(e) => set({ fontStyle: e.target.value })}>
-            <option value="normal">Regular</option>
-            <option value="bold">Bold</option>
-            <option value="italic">Italic</option>
-            <option value="italic bold">Bold italic</option>
-          </select>
+          <TextMarks element={element} />
         </Field>
         <Field label="Align">
           <select value={element.align} onChange={(e) => set({ align: e.target.value })}>
@@ -1023,6 +1022,60 @@ function ImageFields({ element }) {
         </button>
       </div>
     </Section>
+  );
+}
+
+/**
+ * Bold, italic, underline, strikethrough, superscript and subscript for the
+ * whole text element. A button is on when every character carries the mark,
+ * and half lit when only some do; double-click the text on the canvas to mark
+ * single words instead.
+ */
+function TextMarks({ element }) {
+  const toggleTextStyle = useStore((s) => s.toggleTextStyle);
+  const runs = withBase(runsOf(element), baseMarks(element.fontStyle));
+  const marks = marksIn(runs, 0, plainText(runs).length);
+  const state = (mark) =>
+    mark === "super" || mark === "sub"
+      ? marks.baseline === mark
+        ? "on"
+        : marks.baseline === "mixed"
+        ? "mixed"
+        : "off"
+      : marks[mark] === true
+      ? "on"
+      : marks[mark] === "mixed"
+      ? "mixed"
+      : "off";
+
+  const BUTTONS = [
+    ["bold", "B", "Bold (Ctrl+B)", { fontWeight: 700 }],
+    ["italic", "I", "Italic (Ctrl+I)", { fontStyle: "italic" }],
+    ["underline", "U", "Underline (Ctrl+U)", { textDecoration: "underline" }],
+    ["strike", "S", "Strikethrough", { textDecoration: "line-through" }],
+    ["super", "x²", "Superscript", {}],
+    ["sub", "x₂", "Subscript", {}],
+  ];
+
+  return (
+    <div className="mark-row" role="group" aria-label="Text style">
+      {BUTTONS.map(([mark, glyph, title, css]) => {
+        const how = state(mark);
+        return (
+          <button
+            key={mark}
+            className={`tool${how === "on" ? " active" : how === "mixed" ? " mixed" : ""}`}
+            title={title}
+            aria-label={title}
+            aria-pressed={how === "on"}
+            style={css}
+            onClick={() => toggleTextStyle(mark)}
+          >
+            {glyph}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 

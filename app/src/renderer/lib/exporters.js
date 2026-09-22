@@ -10,6 +10,12 @@
 import { artworkText } from "./svgParts";
 import { offsets, cellCorners, isHeaderCell } from "./tableLayout";
 import { connectorGeometry } from "./connectors";
+import { graphSvg } from "./graphs";
+import { runsOf, hasFormatting, layoutRichText } from "./richText";
+import { measureText } from "./textMeasure";
+
+/** Two decimals is finer than any printer, and keeps the file readable. */
+const r = (v) => Math.round(v * 100) / 100;
 
 const escapeXml = (s) =>
   String(s ?? "")
@@ -141,6 +147,55 @@ function tableToSvg(element) {
   return parts.join("");
 }
 
+/**
+ * Formatted text as SVG: one <text> per line, one <tspan> per piece, at the
+ * baseline the shared layout worked out (lib/richText.js), plus a bar for
+ * anything underlined or struck through. Because the canvas draws from the
+ * same layout, the export matches the screen piece for piece.
+ */
+function richTextToSvg({ runs, width, fontSize, fontFamily, lineHeight, align, fill, offsetX = 0, offsetY = 0 }) {
+  const layout = layoutRichText({ runs, width, fontSize, fontFamily, lineHeight, align, measure: measureText });
+  const anchor = align === "center" ? "middle" : align === "right" ? "end" : "start";
+  const parts = [];
+
+  for (const line of layout.lines) {
+    const pieces = line.pieces.filter((piece) => piece.text !== "");
+    if (pieces.length === 0) continue;
+
+    // The line is placed as a whole and its pieces flow inside it, rather than
+    // each piece being pinned to a measured position. Whoever opens the file
+    // then spaces the words with their own font metrics, instead of inheriting
+    // ours and showing a gap wherever the formatting changes.
+    const x =
+      anchor === "middle" ? offsetX + (width ?? line.width) / 2 : anchor === "end" ? offsetX + (width ?? line.width) : offsetX + (pieces[0].x ?? 0);
+
+    let rise = 0;
+    const spans = pieces
+      .map((piece) => {
+        const { run } = piece;
+        const dy = piece.rise - rise;
+        rise = piece.rise;
+        const decoration = [run.underline ? "underline" : "", run.strike ? "line-through" : ""].filter(Boolean).join(" ");
+        return (
+          `<tspan${dy ? ` dy="${r(dy)}"` : ""}` +
+          `${run.bold ? ` font-weight="bold"` : ""}${run.italic ? ` font-style="italic"` : ""}` +
+          `${run.color ? ` fill="${escapeXml(run.color)}"` : ""}` +
+          `${piece.size !== fontSize ? ` font-size="${r(piece.size)}"` : ""}` +
+          `${decoration ? ` text-decoration="${decoration}"` : ""}` +
+          ` xml:space="preserve">${escapeXml(piece.text)}</tspan>`
+        );
+      })
+      .join("");
+
+    parts.push(
+      `<text x="${r(x)}" y="${r(offsetY + line.y)}" text-anchor="${anchor}" ` +
+        `font-family="${escapeXml(fontFamily)}" font-size="${r(fontSize)}" fill="${fill}" ` +
+        `xml:space="preserve">${spans}</text>`
+    );
+  }
+  return { svg: parts.join(""), height: layout.height };
+}
+
 /** Konva wraps text internally; reuse its computed lines so the exported SVG
  *  breaks in exactly the same places the canvas does. */
 function textLines(element, stage) {
@@ -151,7 +206,7 @@ function textLines(element, stage) {
   return String(element.text ?? "").split("\n");
 }
 
-function elementToSvg(element, stage, lookup) {
+function elementToSvg(element, stage, lookup, datasetOf) {
   const transform = `translate(${element.x} ${element.y})${
     element.rotation ? ` rotate(${element.rotation})` : ""
   }`;
@@ -201,6 +256,19 @@ function elementToSvg(element, stage, lookup) {
     }
 
     case "text": {
+      const runs = runsOf(element);
+      if (hasFormatting(runs)) {
+        body = richTextToSvg({
+          runs,
+          width: element.width,
+          fontSize: element.fontSize,
+          fontFamily: element.fontFamily ?? "Helvetica",
+          lineHeight: element.lineHeight ?? 1.25,
+          align: element.align ?? "left",
+          fill: element.fill,
+        }).svg;
+        break;
+      }
       const lines = textLines(element, stage);
       const lineHeight = element.fontSize * (element.lineHeight ?? 1.25);
       const anchor =
@@ -261,6 +329,12 @@ function elementToSvg(element, stage, lookup) {
       break;
     }
 
+    case "plot":
+      // Drawn from its data by the same code as on the canvas (lib/graphs.js),
+      // so axes, points and brackets come out as real vectors.
+      body = sizedSvg(graphSvg(element, datasetOf(element.datasetId)), element.width, element.height);
+      break;
+
     default:
       return "";
   }
@@ -269,21 +343,38 @@ function elementToSvg(element, stage, lookup) {
   // top, matching the canvas.
   if (element.label && ["rect", "ellipse", "triangle"].includes(element.type)) {
     const size = element.labelSize ?? 16;
-    const lines = String(element.label).split("\n");
-    const blockHeight = lines.length * size * 1.2;
-    // Centre the block vertically, then offset each line from its own baseline.
-    const firstBaseline = element.height / 2 - blockHeight / 2 + size * 0.95;
-    const tspans = lines
-      .map(
-        (line, i) =>
-          `<tspan x="${element.width / 2}" y="${firstBaseline + i * size * 1.2}">` +
-          `${escapeXml(line)}</tspan>`
-      )
-      .join("");
-    body +=
-      `<text font-family="${escapeXml(element.labelFont ?? "Helvetica")}" ` +
-      `font-size="${size}" fill="${element.labelColor ?? "#ffffff"}" ` +
-      `text-anchor="middle" xml:space="preserve">${tspans}</text>`;
+    const labelRuns = runsOf(element, { text: "label", runs: "labelRuns" });
+    if (hasFormatting(labelRuns)) {
+      const laid = richTextToSvg({
+        runs: labelRuns,
+        width: element.width - 8,
+        fontSize: size,
+        fontFamily: element.labelFont ?? "Helvetica",
+        lineHeight: 1.2,
+        align: "center",
+        fill: element.labelColor ?? "#ffffff",
+        offsetX: 4,
+        offsetY: 0,
+      });
+      // Centred in the shape, as the canvas draws it.
+      body += `<g transform="translate(0 ${Math.max(0, (element.height - laid.height) / 2)})">${laid.svg}</g>`;
+    } else {
+      const lines = String(element.label).split("\n");
+      const blockHeight = lines.length * size * 1.2;
+      // Centre the block vertically, then offset each line from its own baseline.
+      const firstBaseline = element.height / 2 - blockHeight / 2 + size * 0.95;
+      const tspans = lines
+        .map(
+          (line, i) =>
+            `<tspan x="${element.width / 2}" y="${firstBaseline + i * size * 1.2}">` +
+            `${escapeXml(line)}</tspan>`
+        )
+        .join("");
+      body +=
+        `<text font-family="${escapeXml(element.labelFont ?? "Helvetica")}" ` +
+        `font-size="${size}" fill="${element.labelColor ?? "#ffffff"}" ` +
+        `text-anchor="middle" xml:space="preserve">${tspans}</text>`;
+    }
   }
 
   // A panel's letter, where the canvas draws it: top-left, just inside.
@@ -299,12 +390,13 @@ function elementToSvg(element, stage, lookup) {
 }
 
 /** Full SVG document for the current figure. */
-export function buildSvg({ elements, canvas, stage, transparent = false, citationText = null }) {
+export function buildSvg({ elements, canvas, stage, transparent = false, citationText = null, datasets = [] }) {
   const visible = elements.filter((el) => el.visible);
   // Glued connectors need to find their targets, hidden or not.
   const byId = new Map(elements.map((el) => [el.id, el]));
   const lookup = (id) => byId.get(id);
-  const body = visible.map((el) => elementToSvg(el, stage, lookup)).join("\n  ");
+  const datasetOf = (id) => datasets.find((d) => d.id === id) ?? null;
+  const body = visible.map((el) => elementToSvg(el, stage, lookup, datasetOf)).join("\n  ");
 
   const background = transparent
     ? ""
@@ -345,20 +437,43 @@ export function buildSvg({ elements, canvas, stage, transparent = false, citatio
   );
 }
 
+/** Raster formats the export dialog offers, with their MIME type and extension. */
+export const RASTER_FORMATS = {
+  png: { mimeType: "image/png", extension: "png" },
+  jpeg: { mimeType: "image/jpeg", extension: "jpg" },
+};
+
 /**
- * PNG of just the page area.
+ * PNG or JPEG of just the page area, as a data URL.
  *
  * Konva's toDataURL takes a rect in screen coordinates and re-renders the
  * scene into it, so we hand it the page's on-screen box and let pixelRatio do
  * the scaling. That yields exactly canvas.width * scale pixels regardless of
  * the current zoom level or how the page is scrolled.
+ *
+ * JPEG has no transparency: anything transparent would come out black, so the
+ * page background is always drawn for it, whatever `transparent` says.
+ * `quality` (0 to 1) applies to JPEG only.
  */
-export function buildPng({ stage, canvas, zoom, stagePos, scale = 2, transparent = false }) {
+export function buildRaster({
+  stage,
+  canvas,
+  zoom,
+  stagePos,
+  scale = 2,
+  transparent = false,
+  format = "png",
+  quality = 0.92,
+}) {
+  const kind = RASTER_FORMATS[format];
+  if (!kind) throw new Error(`Unknown raster format: ${format}`);
+  const hideBackground = transparent && format === "png";
+
   const bg = stage.findOne(".canvas-bg");
   const transformers = stage.find("Transformer");
 
   const bgWasVisible = bg?.visible();
-  if (transparent && bg) bg.visible(false);
+  if (bg) bg.visible(hideBackground ? false : true);
   transformers.forEach((t) => t.visible(false));
   stage.batchDraw();
 
@@ -369,7 +484,8 @@ export function buildPng({ stage, canvas, zoom, stagePos, scale = 2, transparent
       width: canvas.width * zoom,
       height: canvas.height * zoom,
       pixelRatio: scale / zoom,
-      mimeType: "image/png",
+      mimeType: kind.mimeType,
+      ...(format === "jpeg" ? { quality } : {}),
     });
   } finally {
     if (bg && bgWasVisible !== undefined) bg.visible(bgWasVisible);

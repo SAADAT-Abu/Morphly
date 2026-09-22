@@ -16,6 +16,9 @@ import { alignMoves, distributeMoves, applyMoves } from "./lib/align";
 import { measuredHeight } from "./lib/measure";
 import { copyElements, pasteElements, offsetToCentre, reorderSelection } from "./lib/clipboard";
 import { analyseSvg, topContainer, parentKey, cleanEdit, canvasDeltaToUser } from "./lib/svgParts";
+import { applyDatasetOp, createDataset, DATASET_KINDS } from "./lib/datasets";
+import { applyMarks, baseMarks, hasFormatting, marksIn, plainText, runsOf, withBase } from "./lib/richText";
+import { defaultPlot } from "./lib/plotRender";
 
 let groupCounter = 0;
 
@@ -55,11 +58,29 @@ const makePage = (name, canvas = DEFAULT_CANVAS, elements = []) => ({
   elements,
 });
 
-/** Fields that make up a saved document -- everything else is view state. */
+/** Fields that make up a saved document -- everything else is view state.
+ *  Datasets belong to the whole document rather than to a page, but they are
+ *  snapshotted with the page's history, so editing numbers can be undone like
+ *  any other change. */
 const documentSlice = (state) => ({
   elements: state.elements,
   canvas: state.canvas,
+  datasets: state.datasets,
 });
+
+/** A dataset read from a file, checked and brought into shape. Anything that
+ *  is not recognisably a table is dropped rather than trusted. */
+const cleanDataset = (d) =>
+  d && typeof d === "object" && typeof d.id === "string" && Array.isArray(d.columns)
+    ? createDataset({
+        id: d.id,
+        name: typeof d.name === "string" ? d.name : "Data",
+        kind: DATASET_KINDS[d.kind] ? d.kind : "groups",
+        columns: d.columns
+          .filter((c) => c && typeof c === "object")
+          .map((c) => ({ name: String(c.name ?? ""), values: Array.isArray(c.values) ? c.values.map((v) => String(v ?? "")) : [] })),
+      })
+    : null;
 
 const INITIAL_PAGE = makePage("Figure 1");
 
@@ -76,6 +97,8 @@ export const useStore = create((set, get) => ({
    *  through allPages(), which refreshes the active entry first. */
   pages: [INITIAL_PAGE],
   activePageId: INITIAL_PAGE.id,
+  /** The numbers behind graphs (lib/datasets.js), shared by every page. */
+  datasets: [],
 
   // -- view state (never saved, never undone) ------------------------------
   selectedIds: [],
@@ -97,6 +120,15 @@ export const useStore = create((set, get) => ({
   clipboard: null,
   /** How many times the clipboard has been pasted, so copies step away. */
   pasteCount: 0,
+  /** Datasets used by copied graphs, so a graph pasted into another figure
+   *  brings its numbers along. */
+  clipboardDatasets: [],
+  /** The data drawer under the canvas: which dataset it shows, and whether it
+   *  is open, expanded, or popped out into its own window. */
+  dataView: { datasetId: null, open: false, expanded: false, popped: false },
+  /** Which tab the left sidebar shows: "illustrations" or "data". */
+  sidebarTab: "illustrations",
+  setSidebarTab: (sidebarTab) => set({ sidebarTab }),
   /** Editing the parts of one illustration (lib/svgParts.js), or null:
    *  { elementId, container: part key being looked inside, selected: [part keys] } */
   partEdit: null,
@@ -519,6 +551,96 @@ export const useStore = create((set, get) => ({
     return element.id;
   },
 
+  // -- graphs and their data -------------------------------------------------
+
+  /**
+   * Insert a graph. `dataset` is a new dataset to add with it; `datasetId`
+   * points at one the document already has instead. With `box`, the graph
+   * fills that area (a panel); otherwise it goes in the middle of the page.
+   * Type and lines are sized for the page, so a graph reads the same on a
+   * poster as in a single column figure.
+   */
+  addGraph: ({ dataset = null, datasetId = null, kind = "bar", box = null, name = "Graph" } = {}) => {
+    const { canvas, datasets, elements } = get();
+    const id = dataset ? dataset.id : datasetId;
+    if (!id) return null;
+    const fontSize = Math.max(10, Math.round(Math.min(canvas.width, canvas.height) * 0.02));
+    let area = box;
+    if (!area) {
+      const width = Math.round(canvas.width * 0.42);
+      const height = Math.round(width * 0.75);
+      area = { x: canvas.width / 2 - width / 2, y: canvas.height / 2 - height / 2, width, height };
+    }
+    const count = elements.filter((el) => el.type === "plot").length + 1;
+    const element = get()._base({
+      type: "plot",
+      name: `${name} ${count}`,
+      x: area.x,
+      y: area.y,
+      width: area.width,
+      height: area.height,
+      datasetId: id,
+      plot: defaultPlot(kind, { fontSize }),
+    });
+    get().commit();
+    set({
+      datasets: dataset ? [...datasets, dataset] : datasets,
+      elements: [...elements, element],
+      selectedIds: [element.id],
+      activeTool: "select",
+      dataView: { ...get().dataView, datasetId: id, open: !get().dataView.popped || get().dataView.open },
+      dirty: true,
+    });
+    return element.id;
+  },
+
+  /** Change a graph's settings (element.plot). */
+  updatePlot: (id, patch, { commit = true } = {}) => {
+    if (commit) get().commit();
+    set((s) => ({
+      elements: s.elements.map((el) => (el.id === id && el.type === "plot" ? { ...el, plot: { ...el.plot, ...patch } } : el)),
+      dirty: true,
+    }));
+  },
+
+  /** Add a dataset on its own, for example one imported from the Data tab. */
+  addDataset: (dataset) => {
+    get().commit();
+    set((s) => ({ datasets: [...s.datasets, dataset], dirty: true }));
+    return dataset.id;
+  },
+
+  /**
+   * Edit a dataset (lib/datasets.js applyDatasetOp). Typing in a cell calls
+   * this on every keystroke with commit=false after the first, so a word typed
+   * is one undo step rather than one per letter.
+   */
+  editDataset: (id, op, { commit = true } = {}) => {
+    const current = get().datasets.find((d) => d.id === id);
+    if (!current) return;
+    const next = applyDatasetOp(current, op);
+    if (next === current) return;
+    if (commit) get().commit();
+    set((s) => ({ datasets: s.datasets.map((d) => (d.id === id ? next : d)), dirty: true }));
+  },
+
+  /** Remove a dataset. Graphs still using it show that their data is missing. */
+  deleteDataset: (id) => {
+    if (!get().datasets.some((d) => d.id === id)) return;
+    get().commit();
+    set((s) => ({
+      datasets: s.datasets.filter((d) => d.id !== id),
+      dataView: s.dataView.datasetId === id ? { ...s.dataView, datasetId: null, open: false } : s.dataView,
+      dirty: true,
+    }));
+  },
+
+  /** Show a dataset in the drawer (or in its window, when popped out). */
+  openData: (datasetId) =>
+    set((s) => ({ dataView: { ...s.dataView, datasetId: datasetId ?? s.dataView.datasetId, open: true } })),
+  closeData: () => set((s) => ({ dataView: { ...s.dataView, open: false } })),
+  setDataView: (patch) => set((s) => ({ dataView: { ...s.dataView, ...patch } })),
+
   // -- element mutation ----------------------------------------------------
 
   /** Live drags call this with commit=false to avoid flooding the undo stack;
@@ -728,6 +850,85 @@ export const useStore = create((set, get) => ({
         next.width = next.colWidths.reduce((a, b) => a + b, 0);
         next.height = next.rowHeights.reduce((a, b) => a + b, 0);
         return next;
+      }),
+      dirty: true,
+    }));
+  },
+
+  /**
+   * Turn a mark on or off for whole text elements: the selection, or one
+   * element by id. "bold", "italic", "underline", "strike", "super" or "sub".
+   *
+   * The state of the first text element decides, so one press makes a mixed
+   * selection agree. Marking part of the text instead happens in the editor
+   * on the canvas (applyTextMarks).
+   */
+  toggleTextStyle: (mark, id = null) => {
+    const { elements, selectedIds } = get();
+    const targets = elements.filter(
+      (el) => el.type === "text" && !el.locked && (id ? el.id === id : selectedIds.includes(el.id))
+    );
+    if (targets.length === 0) return;
+    const marksOfElement = (el) => {
+      const runs = withBase(runsOf(el), baseMarks(el.fontStyle));
+      return marksIn(runs, 0, plainText(runs).length);
+    };
+    const current = marksOfElement(targets[0]);
+    const isBaseline = mark === "super" || mark === "sub";
+    const on = isBaseline ? current.baseline === mark : current[mark] === true;
+    const patch = isBaseline ? { baseline: on ? false : mark } : { [mark]: !on };
+    for (const target of targets) get().applyTextMarks(target.id, patch);
+  },
+
+  /**
+   * Change the text of an element, formatting and all: what the in-place
+   * editor sends back as it is typed in. `field` is "text" for a text element
+   * or "label" for a shape's caption.
+   */
+  setRichText: (id, { text, runs, field = "text", resetStyle = false }, { commit = true } = {}) => {
+    if (commit) get().commit();
+    const runsField = field === "label" ? "labelRuns" : "runs";
+    set((s) => ({
+      elements: s.elements.map((el) => {
+        if (el.id !== id) return el;
+        const next = { ...el, [field]: text };
+        // Once the marks are in the runs, an element-wide bold or italic would
+        // apply twice and could not be taken off one word.
+        if (resetStyle && field === "text") next.fontStyle = "normal";
+        // Plain text keeps no runs at all, so old figures and old Morphly
+        // versions see exactly what they did before.
+        if (hasFormatting(runs)) next[runsField] = runs;
+        else delete next[runsField];
+        return next;
+      }),
+      dirty: true,
+    }));
+  },
+
+  /**
+   * Apply marks (bold, italic, underline, strike, superscript, subscript,
+   * colour) to part of an element's text, or to all of it when no range is
+   * given. An element-wide fontStyle is folded into the runs first, so the two
+   * cannot fight over the same characters.
+   */
+  applyTextMarks: (id, patch, { start = null, end = null, field = "text" } = {}) => {
+    const el = get().elements.find((e) => e.id === id);
+    if (!el || el.locked) return;
+    const runsField = field === "label" ? "labelRuns" : "runs";
+    const base = field === "text" ? baseMarks(el.fontStyle) : {};
+    const runs = withBase(runsOf(el, { text: field, runs: runsField }), base);
+    const length = plainText(runs).length;
+    const next = applyMarks(runs, start ?? 0, end ?? length, patch);
+    get().commit();
+    set((s) => ({
+      elements: s.elements.map((e) => {
+        if (e.id !== id) return e;
+        const updated = { ...e };
+        if (hasFormatting(next)) updated[runsField] = next;
+        else delete updated[runsField];
+        // The base style now lives in the runs, so it must not apply twice.
+        if (field === "text" && (base.bold || base.italic)) updated.fontStyle = "normal";
+        return updated;
       }),
       dirty: true,
     }));
@@ -1014,7 +1215,13 @@ export const useStore = create((set, get) => ({
   copySelected: () => {
     const { elements, selectedIds } = get();
     if (selectedIds.length === 0) return false;
-    set({ clipboard: copyElements(elements, selectedIds), pasteCount: 0 });
+    const clipboard = copyElements(elements, selectedIds);
+    const used = new Set(clipboard.filter((el) => el.type === "plot").map((el) => el.datasetId));
+    set({
+      clipboard,
+      clipboardDatasets: get().datasets.filter((d) => used.has(d.id)),
+      pasteCount: 0,
+    });
     return true;
   },
 
@@ -1045,7 +1252,11 @@ export const useStore = create((set, get) => ({
       ...offset,
     });
     get().commit();
+    // A graph pasted into a figure that lacks its data brings the data along.
+    const have = new Set(get().datasets.map((d) => d.id));
+    const missing = get().clipboardDatasets.filter((d) => !have.has(d.id));
     set((s) => ({
+      datasets: missing.length ? [...s.datasets, ...missing] : s.datasets,
       elements: [...s.elements, ...pasted],
       selectedIds: pasted.map((el) => el.id),
       pasteCount: count,
@@ -1265,6 +1476,8 @@ export const useStore = create((set, get) => ({
 
     const active = pages.find((p) => p.id === doc.activePageId) ?? pages[0];
     set({
+      datasets: (Array.isArray(doc.datasets) ? doc.datasets : []).map(cleanDataset).filter(Boolean),
+      dataView: { ...get().dataView, datasetId: null, open: false },
       pages,
       activePageId: active.id,
       elements: active.elements,
@@ -1282,6 +1495,8 @@ export const useStore = create((set, get) => ({
   newDocument: () => {
     const page = makePage("Figure 1");
     set({
+      datasets: [],
+      dataView: { ...get().dataView, datasetId: null, open: false },
       pages: [page],
       activePageId: page.id,
       elements: [],

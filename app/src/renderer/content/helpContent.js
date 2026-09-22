@@ -60,6 +60,7 @@ export const SHORTCUTS = [
       ["L", "Line"],
       ["A", "Arrow"],
       ["T", "Text"],
+      ["Ctrl + Shift + B", "Insert a graph"],
       ["Ctrl + Shift + T", "Insert a table"],
       ["Ctrl + Shift + L", "Insert a panel layout"],
       ["Ctrl + Shift + M", "Insert an image"],
@@ -85,13 +86,26 @@ export const SHORTCUTS = [
       ["Delete", "Delete selection"],
       ["Arrow keys", "Nudge 2 px"],
       ["Shift + arrows", "Nudge 20 px"],
+      ["Ctrl + B / Ctrl + I", "Bold / italic"],
+      ["Ctrl + U", "Underline (while editing text)"],
+      ["Ctrl + = / Ctrl + Shift + =", "Subscript / superscript (while editing text)"],
       ["Double-click text", "Edit in place"],
       ["Double-click a cell", "Edit that table cell"],
+      ["Double-click a graph", "Open its data under the canvas"],
       ["Shift + click", "Add to selection"],
       ["Drag on empty space", "Select everything the band touches"],
       ["Shift + drag", "Add the band to the selection"],
       ["Ctrl + drag", "Move or resize without snapping"],
       ["Esc", "Deselect / back to Select tool"],
+    ],
+  },
+  {
+    group: "Panels",
+    items: [
+      ["Drag a boundary", "Resize the sidebar, the properties panel, the layers list or the data table"],
+      ["Double-click a boundary", "Back to its usual size"],
+      ["Arrow keys on a boundary", "Resize a little at a time (Shift for more)"],
+      ["Home / End on a boundary", "Smallest / largest"],
     ],
   },
   {
@@ -106,6 +120,16 @@ export const SHORTCUTS = [
       ["Ctrl + apostrophe", "Show or hide the grid"],
       ["Ctrl + PageDown", "Next figure page"],
       ["Ctrl + PageUp", "Previous figure page"],
+    ],
+  },
+  {
+    group: "Data table",
+    items: [
+      ["Enter / Down", "Next row"],
+      ["Up", "Previous row"],
+      ["Tab", "Next column"],
+      ["Ctrl + V", "Paste a block of cells from a spreadsheet"],
+      ["Ctrl + Z (data window)", "Undo in the figure"],
     ],
   },
   {
@@ -185,7 +209,20 @@ export const GETTING_STARTED = [
       "order, renaming, hiding and locking.",
   },
   {
-    title: "5. Add tables, plots and a grid",
+    title: "5. Formatting inside a text box",
+    body:
+      "Double-click a text box, or a caption inside a shape, and a small toolbar appears above it: " +
+      "bold, italic, underline, strikethrough, superscript, subscript and a colour. " +
+      "They apply to whatever you have selected, so a single word can be italic (a gene or species " +
+      "name), the 2 in CO2 can sit low and the -3 in 10-3 can sit high, and a term can be coloured " +
+      "to match the thing it labels on the canvas. Ctrl+B, Ctrl+I and Ctrl+U work as usual, Ctrl+= " +
+      "makes a subscript and Ctrl+Shift+= a superscript. The same buttons in the properties panel " +
+      "apply to the whole text box at once, and show half lit when only part of it carries the mark. " +
+      "Formatting is kept in the figure file, drawn on the canvas, and exported as real text in SVG " +
+      "and PDF, so it stays editable and selectable wherever the figure goes next.",
+  },
+  {
+    title: "6. Add tables, plots and a grid",
     body:
       "The table button in the toolbar, or Insert → Table, draws a table you can size by "
       + "pointing at the grid in the dialog. " +
@@ -205,7 +242,39 @@ export const GETTING_STARTED = [
       "reading order and update by themselves when a panel is moved or deleted.",
   },
   {
-    title: "6. Keep several figures in one document",
+    title: "7. Make a graph from your data",
+    body:
+      "The graph button in the toolbar, or Insert → Graph, asks three things. First, what " +
+      "your data looks like: groups (control, treated and so on, one column each), X and Y " +
+      "(a time course or a dose response, X in the first column), groups by condition, " +
+      "counts in categories, survival, a table of numbers (one row per gene, sample or " +
+      "subject), results per row (a fold change and a p value for each test), or lists of " +
+      "names. Then the numbers: " +
+      "sample data to try things with, cells pasted from Excel, LibreOffice, R or Python, " +
+      "a CSV file, an empty table, or data already in the figure. Morphly shows how it read " +
+      "each column, and understands semicolons and decimal commas. Last, the kind of graph, " +
+      "previewed with your numbers: bar and points, dot plot, box and whiskers, violin, " +
+      "before and after, histogram, pie or donut for groups; scatter, or points and lines " +
+      "with a fitted curve, for X and Y; Kaplan-Meier curves for survival; and, from the " +
+      "last three shapes, heatmaps, PCA, correlation matrices, ROC curves, Bland-Altman, " +
+      "volcano, MA and forest plots, Venn diagrams and UpSet plots. With a panel selected, the graph " +
+      "fills it. The numbers open in a table under the canvas: type, paste a block, and the " +
+      "graph redraws as you go. The icon in the table's top right corner moves it into a " +
+      "window of its own, for a long table or a second screen. Double-click a graph to get " +
+      "its numbers back, and find every table in the figure in the Data tab of the left " +
+      "sidebar. The properties panel sets error bars (SD, SEM or 95% CI), axis titles and " +
+      "limits, text size and colours. For groups it also suggests a test and says why " +
+      "(normality by Shapiro-Wilk, spread by Brown-Forsythe): t tests, Mann-Whitney, " +
+      "one-way, Welch's or repeated measures ANOVA with Tukey, Games-Howell or Holm " +
+      "follow-up, Kruskal-Wallis with Dunn's test, Wilcoxon and Friedman. Tick a comparison " +
+      "to draw it as a bracket with stars; significant ones start ticked. Every p-value is " +
+      "checked against R. Copy the methods sentence into your manuscript. How each test is " +
+      "calculated, and what it was checked against, is written out in docs/STATISTICAL_TESTS.md; " +
+      "the Statistics panel links straight to it. Graphs export as " +
+      "true vectors, like everything else.",
+  },
+  {
+    title: "8. Keep several figures in one document",
     body:
       "The tabs above the canvas are pages, one per figure. A paper's figures are " +
       "usually built together, so they live in a single .morphly file: add a page with " +
@@ -224,7 +293,7 @@ export const GETTING_STARTED = [
       "off with File → Autosave if you prefer to save by hand.",
   },
   {
-    title: "7. Art Packs",
+    title: "9. Art Packs",
     body:
       "The Art Store, in the sidebar header, lists illustration libraries you can add. Each " +
       "card says how many illustrations the pack holds, which subjects it covers, how large " +
@@ -235,9 +304,10 @@ export const GETTING_STARTED = [
       "pack is removed, because each element carries its own copy of the artwork.",
   },
   {
-    title: "8. Export",
+    title: "10. Export",
     body:
-      "PNG for a quick look, SVG if you want to keep editing in Illustrator or Inkscape, PDF " +
+      "PNG for a quick look or slides, JPEG where a smaller file matters more than " +
+      "transparency, SVG if you want to keep editing in Illustrator or Inkscape, PDF " +
       "for submission. SVG and PDF stay true vector, so they scale to any size without going " +
       "blurry. Leave “Append asset citations” ticked and your credits are written into " +
       "the file automatically.",
@@ -259,6 +329,8 @@ export const AUTHOR = {
 export const LINKS = {
   repo: "https://github.com/SAADAT-Abu/Morphly",
   issues: "https://github.com/SAADAT-Abu/Morphly/issues",
+  /** How every test is calculated, and what it was checked against. */
+  statistics: "https://github.com/SAADAT-Abu/Morphly/blob/main/docs/STATISTICAL_TESTS.md",
   /** Concept DOI: always resolves to the most recent archived release. */
   zenodo: "https://doi.org/10.5281/zenodo.22238248",
 };
@@ -297,6 +369,9 @@ export const SOFTWARE_CREDITS = [
   { name: "React", version: "19", license: "MIT", what: "User interface" },
   { name: "Konva / react-konva", version: "10 / 19", license: "MIT", what: "Canvas engine" },
   { name: "Zustand", version: "5", license: "MIT", what: "Editor state" },
+  { name: "stdlib", version: "0.2", license: "Apache-2.0", what: "Statistical distributions for p-values" },
+  { name: "d3-array", version: "3", license: "ISC", what: "Graph axis ticks" },
+  { name: "Papa Parse", version: "5", license: "MIT", what: "Reading CSV and pasted tables" },
   { name: "Vite", version: "7", license: "MIT", what: "Build tooling" },
   { name: "electron-builder", version: "26", license: "MIT", what: "Installers" },
   { name: "Requests", version: "2", license: "Apache-2.0", what: "Asset fetching (Python)" },

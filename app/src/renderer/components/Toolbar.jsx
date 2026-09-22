@@ -33,6 +33,8 @@ const ICON = {
   ),
   image: <path d="M3.5 5.5h17v13h-17zM3.5 15l4.5-4.5 4 4 3-2.5 5.5 4.5M15.5 9.5h.01" />,
   panels: <path d="M3.5 4.5h7.5v7h-7.5zM13 4.5h7.5v7H13zM3.5 13.5h17v6h-17z" />,
+  // Bars on a pair of axes: a graph, not a table.
+  graph: <path d="M4.5 3.5v16h16M8.5 16.5v-5M12.5 16.5V7.5M16.5 16.5v-7" />,
   grid: <path d="M8 3v18M16 3v18M3 8h18M3 16h18" />,
   // A droplet, not a page: a page outline reads as the image button.
   canvas: <path d="M12 3.4c3.6 4.1 5.6 6.6 5.6 9.1a5.6 5.6 0 1 1-11.2 0c0-2.5 2-5 5.6-9.1z" />,
@@ -339,6 +341,7 @@ export default function Toolbar({
   onInsertTable,
   onInsertPanels,
   onInsertImage,
+  onInsertGraph,
   onRename,
   autosave,
 }) {
@@ -422,6 +425,7 @@ export default function Toolbar({
         <div className="divider" />
 
         <div className="group" role="group" aria-label="Insert">
+          <IconButton icon="graph" label="Insert a graph (Ctrl+Shift+B)" onClick={onInsertGraph} />
           <IconButton icon="table" label="Insert a table (Ctrl+Shift+T)" onClick={onInsertTable} />
           <IconButton icon="image" label="Insert an image (Ctrl+Shift+M)" onClick={onInsertImage} />
           <IconButton icon="panels" label="Insert a panel layout (Ctrl+Shift+L)" onClick={onInsertPanels} />

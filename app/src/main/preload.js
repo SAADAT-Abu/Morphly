@@ -8,6 +8,13 @@
 
 const { contextBridge, ipcRenderer } = require("electron");
 
+/** Subscribe to one channel; returns the unsubscribe function. */
+function listen(channel, callback) {
+  const handler = (_event, payload) => callback(payload);
+  ipcRenderer.on(channel, handler);
+  return () => ipcRenderer.removeListener(channel, handler);
+}
+
 contextBridge.exposeInMainWorld("morphly", {
   // settings
   getSettings: () => ipcRenderer.invoke("settings:get"),
@@ -91,6 +98,28 @@ contextBridge.exposeInMainWorld("morphly", {
   chooseSaveFolder: () => ipcRenderer.invoke("files:chooseSaveFolder"),
   setAutosave: (enabled) => ipcRenderer.invoke("files:setAutosave", enabled),
   openProject: () => ipcRenderer.invoke("project:open"),
+
+  /** Pick a CSV or TSV file of numbers; resolves to { ok, text, name }. */
+  importTable: () => ipcRenderer.invoke("data:importTable"),
+
+  /**
+   * The data window. The editor opens and closes it, sends it the dataset and
+   * hears its edits; the data window asks for the dataset, sends edits and
+   * can ask to be put back under the canvas.
+   */
+  dataWindow: {
+    open: () => ipcRenderer.invoke("dataWindow:open"),
+    close: () => ipcRenderer.invoke("dataWindow:close"),
+    push: (payload) => ipcRenderer.send("dataWindow:push", payload),
+    ready: () => ipcRenderer.send("dataWindow:ready"),
+    op: (payload) => ipcRenderer.send("dataWindow:op", payload),
+    dock: () => ipcRenderer.send("dataWindow:dock"),
+    onDataset: (callback) => listen("dataWindow:dataset", callback),
+    onOp: (callback) => listen("dataWindow:op", callback),
+    onWantDataset: (callback) => listen("dataWindow:wantDataset", callback),
+    onClosed: (callback) => listen("dataWindow:closed", callback),
+    onDocked: (callback) => listen("dataWindow:docked", callback),
+  },
 
   // export
   exportFile: (opts) => ipcRenderer.invoke("export:file", opts),

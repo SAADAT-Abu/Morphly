@@ -30,6 +30,7 @@ import {
 
 import { useStore } from "../store";
 import { useSvgImage, useSvgImageFromText, useRasterImage } from "../lib/useSvgImage";
+import { graphSvg } from "../lib/graphs";
 import { offsets, cellAtPoint, cellCorners, isHeaderCell } from "../lib/tableLayout";
 import { buildIsolationSvg, effectiveColorMap } from "../lib/svgPalette";
 import { isPanel } from "../lib/panelLayout";
@@ -38,6 +39,8 @@ import { useHitMap, pickLeaf, pickLeafIn, partMask, partBox } from "../lib/useHi
 import { pointsBounds, visualBox, unionBox } from "../lib/geometry";
 import { snapContext, snapMove, snapPoint } from "../lib/snapping";
 import { measuredHeight, rememberHeight } from "../lib/measure";
+import { runsOf, hasFormatting } from "../lib/richText";
+import RichText from "./RichText";
 import {
   isConnector,
   connectorGeometry,
@@ -121,6 +124,28 @@ function AssetShape({ element }) {
     );
   }
   return <KonvaImage image={image} width={element.width} height={element.height} />;
+}
+
+/**
+ * A graph, drawn from its dataset (lib/graphs.js) and shown as a picture, the
+ * same way an illustration is. The picture is rebuilt only when the graph's
+ * size, settings or numbers change, so dragging a graph costs nothing.
+ */
+function PlotShape({ element }) {
+  const dataset = useStore((s) => s.datasets.find((d) => d.id === element.datasetId) ?? null);
+  const text = useMemo(
+    () => graphSvg(element, dataset),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [element.width, element.height, element.plot, dataset]
+  );
+  const image = useSvgImageFromText(text);
+  return (
+    <>
+      {/* An invisible face, so the whole box can be clicked, not just its ink. */}
+      <Rect width={element.width} height={element.height} fill="#ffffff" opacity={0.001} />
+      {image && <KonvaImage image={image} width={element.width} height={element.height} listening={false} />}
+    </>
+  );
 }
 
 /**
@@ -341,7 +366,25 @@ function ElementShape({ element, lookup }) {
     case "line":
     case "arrow":
       return <ConnectorShape element={element} lookup={lookup} />;
-    case "text":
+    case "text": {
+      // Text carrying marks is laid out and painted by Morphly (lib/richText.js);
+      // plain text stays with Konva, which wraps and measures it as before.
+      const runs = runsOf(element);
+      if (hasFormatting(runs)) {
+        return (
+          <RichText
+            runs={runs}
+            width={element.width}
+            fontSize={element.fontSize}
+            fontFamily={element.fontFamily}
+            align={element.align}
+            lineHeight={element.lineHeight ?? 1.25}
+            fill={element.fill}
+            listening
+            onLayout={(layout) => rememberHeight(element.id, layout.height)}
+          />
+        );
+      }
       return (
         <KonvaText
           text={element.text}
@@ -355,12 +398,15 @@ function ElementShape({ element, lookup }) {
           wrap="word"
         />
       );
+    }
     case "image":
       return <ImageShape element={element} />;
     case "table":
       return <TableShape element={element} />;
     case "asset":
       return <AssetShape element={element} />;
+    case "plot":
+      return <PlotShape element={element} />;
     default:
       return null;
   }
@@ -373,6 +419,23 @@ function ElementShape({ element, lookup }) {
  */
 function ShapeLabel({ element }) {
   if (!element.label) return null;
+  const runs = runsOf(element, { text: "label", runs: "labelRuns" });
+  if (hasFormatting(runs)) {
+    return (
+      <RichText
+        runs={runs}
+        width={element.width - 8}
+        height={element.height}
+        x={4}
+        fontSize={element.labelSize ?? 16}
+        fontFamily={element.labelFont ?? "Helvetica"}
+        align="center"
+        verticalAlign="middle"
+        lineHeight={1.2}
+        fill={element.labelColor ?? "#ffffff"}
+      />
+    );
+  }
   return (
     <KonvaText
       text={element.label}
@@ -1138,6 +1201,11 @@ export default function CanvasStage({ stageRef, onRequestTextEdit, onExternalDro
                 }
                 if (element.type === "asset" && !partEdit) {
                   enterPartEdit(element.id);
+                  return;
+                }
+                if (element.type === "plot") {
+                  // A graph's content is its numbers: double-click opens them.
+                  useStore.getState().openData(element.datasetId);
                   return;
                 }
                 if (element.type === "text" || LABELLABLE.includes(element.type)) {

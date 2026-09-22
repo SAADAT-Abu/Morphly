@@ -14,10 +14,14 @@
  *      (glue points, curves, elbow connectors) that older elements simply lack,
  *      and a 0.3 Morphly opening a version 3 file still draws every arrow from
  *      its stored points.
+ *   4  Morphly 0.5: graphs. A `datasets` list sits beside the pages, and graph
+ *      elements point into it. Older files simply have no datasets. The
+ *      version goes up because a 0.4 Morphly would open such a file and
+ *      quietly lose every graph in it; refusing is kinder.
  */
 
 export const FORMAT = "morphly-figure";
-export const CURRENT_VERSION = 3;
+export const CURRENT_VERSION = 4;
 
 /** A file that cannot be opened, with a message fit to show the user. */
 export class DocumentError extends Error {
@@ -43,6 +47,7 @@ const STEPS = {
     activePageId: null,
   }),
   2: (doc) => ({ ...doc, version: 3 }),
+  3: (doc) => ({ ...doc, version: 4, datasets: Array.isArray(doc.datasets) ? doc.datasets : [] }),
 };
 
 /**
@@ -85,6 +90,6 @@ export function migrate(input) {
 }
 
 /** The document written to disk, always at the current version. */
-export function serialise({ pages, activePageId }) {
-  return { format: FORMAT, version: CURRENT_VERSION, pages, activePageId };
+export function serialise({ pages, activePageId, datasets = [] }) {
+  return { format: FORMAT, version: CURRENT_VERSION, pages, activePageId, datasets };
 }

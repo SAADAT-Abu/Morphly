@@ -154,6 +154,93 @@ function registerRecovery(win) {
   win.on("closed", () => recovery.close());
 }
 
+/**
+ * The data window: a dataset's table popped out of the editor, for a long
+ * table or a second screen.
+ *
+ * It is a second view of the editor's data, not a second editor. The editor
+ * window sends it the dataset whenever it changes, and it sends edits back,
+ * all relayed here. Every message is checked against the window it must come
+ * from, so neither page can speak for the other.
+ */
+let dataWindow = null;
+/** Set while Morphly itself closes the data window, which is not a "closed by the user". */
+let closingDataWindow = false;
+
+function openDataWindow() {
+  if (dataWindow && !dataWindow.isDestroyed()) {
+    dataWindow.focus();
+    return;
+  }
+  dataWindow = new BrowserWindow({
+    width: 760,
+    height: 560,
+    minWidth: 420,
+    minHeight: 280,
+    parent: mainWindow ?? undefined,
+    backgroundColor: "#1e1f24",
+    title: "Data",
+    icon: path.join(__dirname, "../../build/icon.png"),
+    show: false,
+    webPreferences: {
+      preload: path.join(__dirname, "preload.js"),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+  // The editor's menu acts on the figure, so the data window goes without.
+  dataWindow.setMenu(null);
+  dataWindow.once("ready-to-show", () => dataWindow?.show());
+  dataWindow.on("closed", () => {
+    dataWindow = null;
+    if (!closingDataWindow && mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send("dataWindow:closed");
+    }
+    closingDataWindow = false;
+  });
+  if (isDev) dataWindow.loadURL(`${DEV_SERVER_URL}/#data`);
+  else dataWindow.loadFile(path.join(__dirname, "../../dist/index.html"), { hash: "data" });
+}
+
+function closeDataWindow() {
+  if (!dataWindow || dataWindow.isDestroyed()) return;
+  closingDataWindow = true;
+  dataWindow.close();
+}
+
+const fromMain = (event) => mainWindow && event.sender === mainWindow.webContents;
+const fromData = (event) => dataWindow && !dataWindow.isDestroyed() && event.sender === dataWindow.webContents;
+const toMain = (channel, payload) => {
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(channel, payload);
+};
+
+function registerDataWindowIpc() {
+  ipcMain.handle("dataWindow:open", (event) => {
+    if (fromMain(event)) openDataWindow();
+    return { ok: true };
+  });
+  ipcMain.handle("dataWindow:close", (event) => {
+    if (fromMain(event)) closeDataWindow();
+    return { ok: true };
+  });
+  ipcMain.on("dataWindow:push", (event, payload) => {
+    if (fromMain(event) && dataWindow && !dataWindow.isDestroyed()) {
+      dataWindow.webContents.send("dataWindow:dataset", payload);
+    }
+  });
+  ipcMain.on("dataWindow:ready", (event) => {
+    if (fromData(event)) toMain("dataWindow:wantDataset");
+  });
+  ipcMain.on("dataWindow:op", (event, payload) => {
+    if (fromData(event)) toMain("dataWindow:op", payload);
+  });
+  ipcMain.on("dataWindow:dock", (event) => {
+    if (!fromData(event)) return;
+    toMain("dataWindow:docked");
+    closeDataWindow();
+  });
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1600,
@@ -186,6 +273,7 @@ app.whenReady().then(() => {
   registerAssetProtocol();
   recovery = createRecovery(path.join(app.getPath("userData"), "recovery"));
   registerIpc({ recovery });
+  registerDataWindowIpc();
   createWindow();
   buildMenu(() => mainWindow);
   readSettings().then((settings) => {

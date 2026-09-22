@@ -32,7 +32,7 @@ import { pointsBounds } from "./geometry";
 export const isConnector = (el) => el?.type === "line" || el?.type === "arrow";
 
 /** Element types a connector end can be glued to. */
-const GLUE_TYPES = new Set(["rect", "ellipse", "triangle", "image", "table", "asset"]);
+const GLUE_TYPES = new Set(["rect", "ellipse", "triangle", "image", "table", "asset", "plot"]);
 
 export const canGlueTo = (el) =>
   Boolean(el) && GLUE_TYPES.has(el.type) && el.width > 0 && el.height > 0;

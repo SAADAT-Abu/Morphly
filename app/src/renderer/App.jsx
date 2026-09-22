@@ -12,6 +12,12 @@ import WelcomeDialog from "./components/WelcomeDialog";
 import TableDialog from "./components/TableDialog";
 import PanelLayoutDialog from "./components/PanelLayoutDialog";
 import ArtStore from "./components/ArtStore";
+import GraphDialog from "./components/GraphDialog";
+import DataDrawer, { datasetColours } from "./components/DataDrawer";
+import DataPanel from "./components/DataPanel";
+import RichTextEditor from "./components/RichTextEditor";
+import Splitter from "./components/Splitter";
+import { defaultSizes, sizesFromSettings, settingFor } from "./lib/panes";
 import { useStore } from "./store";
 import { cellBox, isHeaderCell } from "./lib/tableLayout";
 import { migrate, serialise, DocumentError } from "./lib/document";
@@ -38,6 +44,16 @@ export default function App() {
   const [tableDialogOpen, setTableDialogOpen] = useState(false);
   const [panelDialogOpen, setPanelDialogOpen] = useState(false);
   const [storeOpen, setStoreOpen] = useState(false);
+  const [graphDialogOpen, setGraphDialogOpen] = useState(false);
+  /** How big each pane is: every boundary between them can be dragged, and
+   *  where they were left is where they open next time (lib/panes.js). */
+  const [paneSizes, setPaneSizes] = useState(defaultSizes);
+  const workspaceRef = useRef(null);
+  const rightRailRef = useRef(null);
+  const canvasColumnRef = useRef(null);
+
+  const resizePane = useCallback((name, size) => setPaneSizes((sizes) => ({ ...sizes, [name]: size })), []);
+  const rememberPane = useCallback((name, size) => window.morphly.setSettings(settingFor(name, size)), []);
   /** { latest, url } when Zenodo has a newer release than this build. */
   const [update, setUpdate] = useState(null);
 
@@ -53,6 +69,12 @@ export default function App() {
   const addSvgArtwork = useStore((s) => s.addSvgArtwork);
   const addPanelLayout = useStore((s) => s.addPanelLayout);
   const addTable = useStore((s) => s.addTable);
+  const addGraph = useStore((s) => s.addGraph);
+  const datasets = useStore((s) => s.datasets);
+  const selectedIds = useStore((s) => s.selectedIds);
+  const sidebarTab = useStore((s) => s.sidebarTab);
+  const setSidebarTab = useStore((s) => s.setSidebarTab);
+  const dataPopped = useStore((s) => s.dataView.popped);
   const setZoom = useStore((s) => s.setZoom);
   const setStagePos = useStore((s) => s.setStagePos);
   const loadDocument = useStore((s) => s.loadDocument);
@@ -73,7 +95,9 @@ export default function App() {
     (async () => {
       try {
         const res = await window.morphly.getSettings();
-        if (!cancelled && res.ok && res.settings.showWelcome !== false) setWelcomeOpen(true);
+        if (cancelled || !res.ok) return;
+        if (res.settings.showWelcome !== false) setWelcomeOpen(true);
+        setPaneSizes(sizesFromSettings(res.settings));
       } catch {
         /* if settings can't be read, just don't show it */
       }
@@ -256,6 +280,106 @@ export default function App() {
     }
   }, [addImageFromDataUrl, placeSvgArtwork, flash]);
 
+  // -- graphs ------------------------------------------------------------------
+
+  /** The one selected panel, if a single panel is selected: a new graph can fill it. */
+  const selectedPanel =
+    selectedIds.length === 1 ? elements.find((el) => el.id === selectedIds[0] && isPanel(el)) ?? null : null;
+
+  /** The area of a panel a graph fills: inside its edges, below its letter. */
+  const panelBox = (panel) => {
+    const letter = panel.panelLetterSize ?? 32;
+    const pad = Math.round(Math.min(panel.width, panel.height) * 0.03);
+    const top = Math.round(letter * 1.3);
+    return {
+      x: panel.x + pad,
+      y: panel.y + top,
+      width: Math.max(40, panel.width - 2 * pad),
+      height: Math.max(40, panel.height - top - pad),
+    };
+  };
+
+  const handleInsertGraph = useCallback(
+    ({ dataset, datasetId, kind, place }) => {
+      const box = place === "panel" && selectedPanel ? panelBox(selectedPanel) : null;
+      addGraph({ dataset, datasetId, kind, box });
+      setGraphDialogOpen(false);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [addGraph, selectedPanel]
+  );
+
+  /** "Graph" in the Data tab: another graph of numbers already in the figure. */
+  const graphFromDataset = useCallback(
+    (datasetId) => {
+      const ds = store.getState().datasets.find((d) => d.id === datasetId);
+      if (!ds) return;
+      addGraph({ datasetId, kind: ds.kind === "xy" ? "scatter" : "bar", box: selectedPanel ? panelBox(selectedPanel) : null });
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [store, addGraph, selectedPanel]
+  );
+
+  /**
+   * The data on show follows the selected graph, so what is typed in the
+   * drawer (or in the data window) always belongs to the graph in front of
+   * you. It never opens the drawer by itself: only what is already open
+   * changes.
+   */
+  useEffect(() => {
+    const s = store.getState();
+    if (!s.dataView.open && !s.dataView.popped) return;
+    if (selectedIds.length !== 1) return;
+    const selected = elements.find((el) => el.id === selectedIds[0]);
+    if (selected?.type === "plot" && selected.datasetId && selected.datasetId !== s.dataView.datasetId) {
+      s.setDataView({ datasetId: selected.datasetId });
+    }
+  }, [selectedIds, elements, store]);
+
+  /**
+   * Keep the popped-out data window in step. It shows the dataset in the
+   * drawer; each of its edits comes back here as an operation, is applied to
+   * the store (so undo, autosave and the graph all see it), and the result
+   * goes back to it, tagged with the number of the last edit applied.
+   */
+  useEffect(() => {
+    const bridge = window.morphly.dataWindow;
+    if (!bridge) return undefined;
+    if (!dataPopped) {
+      bridge.close();
+      return undefined;
+    }
+    bridge.open();
+    let seq = 0;
+    const push = () => {
+      const s = store.getState();
+      const dataset = s.datasets.find((d) => d.id === s.dataView.datasetId) ?? null;
+      bridge.push({ dataset, colours: dataset ? datasetColours(s.elements, dataset.id) : [], seq });
+    };
+    push();
+    const unsubscribe = store.subscribe((state, previous) => {
+      if (state.datasets !== previous.datasets || state.dataView.datasetId !== previous.dataView.datasetId) push();
+    });
+    const offs = [
+      bridge.onWantDataset(push),
+      bridge.onOp(({ op, commit, seq: n }) => {
+        seq = Math.max(seq, Number(n) || 0);
+        const s = store.getState();
+        if (op?.op === "__undo") s.undo();
+        else if (op?.op === "__redo") s.redo();
+        else if (s.dataView.datasetId) s.editDataset(s.dataView.datasetId, op, { commit: commit !== false });
+        push();
+      }),
+      // Closed by the user: the data goes away. Put back: it returns to the drawer.
+      bridge.onClosed(() => store.getState().setDataView({ popped: false, open: false })),
+      bridge.onDocked(() => store.getState().setDataView({ popped: false, open: true })),
+    ];
+    return () => {
+      unsubscribe();
+      offs.forEach((off) => off());
+    };
+  }, [dataPopped, store]);
+
   // -- figure name, default folder and autosave -----------------------------
 
   const [fileSettings, setFileSettings] = useState({ autosave: true, saveFolder: null });
@@ -316,8 +440,8 @@ export default function App() {
       }
       saving = true;
       firstPending = 0;
-      const taken = { elements: s.elements, canvas: s.canvas, pages: s.pages, activePageId: s.activePageId, title: s.title };
-      const doc = serialise({ pages: s.allPages(), activePageId: s.activePageId });
+      const taken = { elements: s.elements, canvas: s.canvas, pages: s.pages, activePageId: s.activePageId, datasets: s.datasets, title: s.title };
+      const doc = serialise({ pages: s.allPages(), activePageId: s.activePageId, datasets: s.datasets });
       const res = await window.morphly.autosaveProject({
         json: JSON.stringify(doc, null, 2),
         filePath: s.projectPath,
@@ -353,6 +477,7 @@ export default function App() {
         state.canvas !== previous.canvas ||
         state.pages !== previous.pages ||
         state.activePageId !== previous.activePageId ||
+        state.datasets !== previous.datasets ||
         state.title !== previous.title;
       if (changed) schedule();
     });
@@ -564,7 +689,7 @@ export default function App() {
       const state = store.getState();
       // Always written at the current format version; lib/document.js is the
       // one place that knows what that is.
-      const doc = serialise({ pages: state.allPages(), activePageId: state.activePageId });
+      const doc = serialise({ pages: state.allPages(), activePageId: state.activePageId, datasets: state.datasets });
       const res = await window.morphly.saveProject(
         JSON.stringify(doc, null, 2),
         saveAs ? null : state.projectPath,
@@ -685,6 +810,11 @@ export default function App() {
         e.preventDefault();
         const up = e.code === "BracketRight";
         s.reorderSelected(e.shiftKey ? (up ? "front" : "back") : up ? "forward" : "backward");
+      } else if (mod && (e.key.toLowerCase() === "b" || e.key.toLowerCase() === "i")) {
+        // Only when text is selected, so the keys stay free otherwise.
+        if (!s.elements.some((el) => el.type === "text" && s.selectedIds.includes(el.id))) return;
+        e.preventDefault();
+        s.toggleTextStyle(e.key.toLowerCase() === "b" ? "bold" : "italic");
       } else if (mod && e.key.toLowerCase() === "d") {
         e.preventDefault();
         s.duplicateSelected();
@@ -766,6 +896,7 @@ export default function App() {
         case "pageNext": return s.stepPage(1);
         case "pagePrev": return s.stepPage(-1);
         case "insertTable": return setTableDialogOpen(true);
+        case "insertGraph": return setGraphDialogOpen(true);
         case "insertPanels": return setPanelDialogOpen(true);
         case "toggleSnapping": return s.toggleSnapping();
         case "align:left": case "align:hcenter": case "align:right":
@@ -877,16 +1008,54 @@ export default function App() {
         onRename={handleRename}
         autosave={fileSettings.autosave}
         onInsertImage={handleInsertImage}
+        onInsertGraph={() => setGraphDialogOpen(true)}
       />
 
-      <div className="workspace">
-        <AssetLibrary
-          onPlaceAsset={(asset, variant) => placeAsset(asset, variant)}
-          onOpenStore={() => setStoreOpen(true)}
-          onNotice={flash}
+      <div className="workspace" ref={workspaceRef}>
+        <div className="sidebar" style={{ width: paneSizes.sidebar }}>
+          <div className="sidebar-tabs" role="tablist" aria-label="Sidebar">
+            <button
+              role="tab"
+              aria-selected={sidebarTab === "illustrations"}
+              className={sidebarTab === "illustrations" ? "active" : undefined}
+              onClick={() => setSidebarTab("illustrations")}
+            >
+              Illustrations
+            </button>
+            <button
+              role="tab"
+              aria-selected={sidebarTab === "data"}
+              className={sidebarTab === "data" ? "active" : undefined}
+              onClick={() => setSidebarTab("data")}
+            >
+              Data{datasets.length ? ` (${datasets.length})` : ""}
+            </button>
+          </div>
+          {/* The library stays mounted while hidden, so its search and scroll survive a tab switch. */}
+          <div className="sidebar-pane" hidden={sidebarTab !== "illustrations"}>
+            <AssetLibrary
+              onPlaceAsset={(asset, variant) => placeAsset(asset, variant)}
+              onOpenStore={() => setStoreOpen(true)}
+              onNotice={flash}
+            />
+          </div>
+          {sidebarTab === "data" && (
+            <div className="sidebar-pane">
+              <DataPanel onGraph={graphFromDataset} flash={flash} />
+            </div>
+          )}
+        </div>
+
+        <Splitter
+          name="sidebar"
+          edge="start"
+          containerRef={workspaceRef}
+          size={paneSizes.sidebar}
+          onResize={(size) => resizePane("sidebar", size)}
+          onDone={(size) => rememberPane("sidebar", size)}
         />
 
-        <div className="canvas-column">
+        <div className="canvas-column" ref={canvasColumnRef}>
           <PageTabs />
 
           <div className="canvas-wrap" ref={canvasWrapRef}>
@@ -898,21 +1067,56 @@ export default function App() {
             onContextMenu={handleCanvasContextMenu}
           />
 
-          {editingElement && (
-            <TextEditorOverlay
-              element={editingElement}
-              cell={editing.cell}
-              zoom={zoom}
-              stagePos={stagePos}
-              onClose={() => setEditing(null)}
-            />
-            )}
+          {editingElement &&
+            (editingElement.type === "table" && editing.cell ? (
+              <TextEditorOverlay
+                element={editingElement}
+                cell={editing.cell}
+                zoom={zoom}
+                stagePos={stagePos}
+                onClose={() => setEditing(null)}
+              />
+            ) : (
+              // Text and captions can be formatted word by word, so they are
+              // edited in a rich box rather than a plain one.
+              <RichTextEditor
+                element={editingElement}
+                field={editingElement.type === "text" ? "text" : "label"}
+                zoom={zoom}
+                stagePos={stagePos}
+                onClose={() => setEditing(null)}
+              />
+            ))}
           </div>
+          <DataDrawer
+            height={paneSizes.data}
+            containerRef={canvasColumnRef}
+            onResize={(size) => resizePane("data", size)}
+            onDone={(size) => rememberPane("data", size)}
+          />
         </div>
 
-        <div className="right-rail">
+        <Splitter
+          name="rail"
+          containerRef={workspaceRef}
+          size={paneSizes.rail}
+          onResize={(size) => resizePane("rail", size)}
+          onDone={(size) => rememberPane("rail", size)}
+        />
+
+        <div className="right-rail" ref={rightRailRef} style={{ width: paneSizes.rail }}>
           <Inspector />
-          <LayersPanel />
+          <Splitter
+            name="layers"
+            horizontal
+            containerRef={rightRailRef}
+            size={paneSizes.layers}
+            onResize={(size) => resizePane("layers", size)}
+            onDone={(size) => rememberPane("layers", size)}
+          />
+          <div className="layers-wrap" style={{ height: paneSizes.layers }}>
+            <LayersPanel />
+          </div>
         </div>
       </div>
 
@@ -935,6 +1139,15 @@ export default function App() {
             addPanelLayout(options);
             setPanelDialogOpen(false);
           }}
+        />
+      )}
+      {graphDialogOpen && (
+        <GraphDialog
+          datasets={datasets}
+          panelLabel={selectedPanel ? selectedPanel.panelLabel || "" : null}
+          onClose={() => setGraphDialogOpen(false)}
+          onInsert={handleInsertGraph}
+          flash={flash}
         />
       )}
       {tableDialogOpen && (
@@ -1057,6 +1270,10 @@ function TextEditorOverlay({ element, cell, zoom, stagePos, onClose }) {
         height: isLabel ? element.height * zoom : undefined,
         fontSize,
         fontFamily: isLabel ? element.labelFont ?? "Helvetica" : element.fontFamily,
+        // Without these, text being edited lost its bold and italic while the
+        // properties panel still showed them.
+        fontWeight: !isLabel && String(element.fontStyle ?? "").includes("bold") ? 700 : 400,
+        fontStyle: !isLabel && String(element.fontStyle ?? "").includes("italic") ? "italic" : "normal",
         lineHeight: isLabel ? 1.2 : element.lineHeight ?? 1.25,
         textAlign: isLabel ? "center" : element.align,
         color: isLabel ? element.labelColor ?? "#ffffff" : element.fill,
@@ -1071,6 +1288,14 @@ function TextEditorOverlay({ element, cell, zoom, stagePos, onClose }) {
       onChange={(e) => setValue(e.target.value)}
       onBlur={commitText}
       onKeyDown={(e) => {
+        // Bold and italic apply to the whole text element, so they work while
+        // typing as well as from the properties panel.
+        if ((e.ctrlKey || e.metaKey) && !isCell && !isLabel && ["b", "i"].includes(e.key.toLowerCase())) {
+          e.preventDefault();
+          useStore.getState().toggleTextStyle(e.key.toLowerCase() === "b" ? "bold" : "italic", element.id);
+          e.stopPropagation();
+          return;
+        }
         if (e.key === "Escape") onClose();
         // Enter commits a cell (a table cell is one line in practice); text
         // elements and captions keep Enter for a new line and commit on

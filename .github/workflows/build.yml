@@ -70,13 +70,19 @@ jobs:
             exit 1
           fi
           tar -xzf "$archive"
-          svgs=$(find bioart_library -name '*.svg' | wc -l | tr -d ' ')
+          # Counted with a glob rather than find: on the Windows runner `find`
+          # can resolve to C:\Windows\System32\find.exe, which takes different
+          # arguments, prints nothing and leaves the count empty.
+          shopt -s globstar nullglob
+          svgs_found=(bioart_library/**/*.svg)
+          svgs=${#svgs_found[@]}
+          echo "bioart_library: $svgs svg files extracted, $BIOART_SVGS expected"
           # Fail loudly rather than ship an installer with an empty sidebar.
           if [ ! -f bioart_library/manifest.json ] || [ "$svgs" -lt "$BIOART_SVGS" ]; then
             echo "::error::bioart_library is incomplete: manifest present $([ -f bioart_library/manifest.json ] && echo yes || echo no), $svgs svg files"
             exit 1
           fi
-          echo "bioart_library: $svgs svg files, sha256 verified"
+          echo "bioart_library: sha256 verified"
 
       - uses: actions/setup-node@v4
         with:

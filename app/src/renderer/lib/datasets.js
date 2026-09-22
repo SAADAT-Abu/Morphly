@@ -30,13 +30,22 @@ export const DATASET_KINDS = {
   contingency: { label: "Counts in categories", first: "Category" },
   survival: { label: "Survival", first: "Column" },
   xy: { label: "X and Y", first: "X" },
+  table: { label: "Table of numbers", first: "Column" },
+  results: { label: "Results per row", first: "Column" },
+  sets: { label: "Lists of names", first: "Set" },
 };
 
 /** Datasets whose first column names things rather than measuring them. */
-export const hasLabelColumn = (dataset) => dataset?.kind === "grouped" || dataset?.kind === "contingency";
+export const hasLabelColumn = (dataset) =>
+  dataset?.kind === "grouped" ||
+  dataset?.kind === "contingency" ||
+  dataset?.kind === "table" ||
+  dataset?.kind === "results";
 
 /** Columns that hold words rather than measurements, by data shape. */
 export function textColumns(dataset) {
+  // A list of names is words from end to end.
+  if (dataset?.kind === "sets") return dataset.columns.map((_, i) => i);
   if (hasLabelColumn(dataset)) return [0];
   // Survival: the time is a number; the event and the group are not.
   if (dataset?.kind === "survival") return [1, 2];
@@ -103,6 +112,29 @@ export function blankDataset(kind = "groups", { columns = kind === "xy" ? 2 : 3,
       columns: ["Time", "Event", "Group"].map((name) => ({ name, values: Array(rows).fill("") })),
     });
   }
+  if (kind === "table" || kind === "results") {
+    return createDataset({
+      name: "Data",
+      kind,
+      columns: [
+        { name: "Name", values: Array(rows).fill("") },
+        ...Array.from({ length: Math.max(1, columns - 1) }, (_, i) => ({
+          name: `Column ${i + 1}`,
+          values: Array(rows).fill(""),
+        })),
+      ],
+    });
+  }
+  if (kind === "sets") {
+    return createDataset({
+      name: "Data",
+      kind,
+      columns: Array.from({ length: Math.max(2, columns) }, (_, i) => ({
+        name: `Set ${i + 1}`,
+        values: Array(rows).fill(""),
+      })),
+    });
+  }
   const names =
     kind === "xy"
       ? ["X", ...Array.from({ length: columns - 1 }, (_, i) => `Y${i + 1}`)]
@@ -155,6 +187,76 @@ export function sampleDataset(kind = "groups") {
       ],
     });
   }
+  if (kind === "table") {
+    // Patients measured four ways, half of them tumour: a matrix for a heatmap
+    // or a PCA, two columns that measure the same thing for a Bland-Altman,
+    // and a class column for a ROC curve.
+    return createDataset({
+      name: "Markers by patient (sample)",
+      kind: "table",
+      columns: [
+        { name: "Patient", values: ["P01", "P02", "P03", "P04", "P05", "P06", "P07", "P08", "P09", "P10", "P11", "P12"] },
+        { name: "CD44", values: ["6.10", "6.31", "5.91", "5.48", "5.78", "4.10", "4.24", "5.14", "3.86", "3.77", "5.60", "4.45"] },
+        { name: "VIM", values: ["7.19", "6.26", "7.07", "7.73", "5.89", "6.69", "4.29", "4.84", "4.34", "5.79", "4.86", "6.24"] },
+        { name: "GAPDH", values: ["3.43", "3.15", "1.29", "2.87", "3.26", "3.39", "1.88", "2.72", "2.32", "2.45", "3.95", "2.45"] },
+        { name: "CD44 by qPCR", values: ["5.48", "5.99", "5.11", "4.89", "5.24", "3.85", "3.39", "4.65", "3.95", "2.85", "5.10", "4.05"] },
+        {
+          name: "Group",
+          values: ["Tumour", "Tumour", "Tumour", "Tumour", "Tumour", "Tumour", "Normal", "Normal", "Normal", "Normal", "Normal", "Normal"],
+        },
+      ],
+    });
+  }
+  if (kind === "results") {
+    // Forty genes tested for a difference: the makings of a volcano, an MA
+    // plot or a forest.
+    return createDataset({
+      name: "Differential expression (sample)",
+      kind: "results",
+      columns: [
+        {
+          name: "Gene",
+          values: ["TP53", "MYC", "EGFR", "KRAS", "BRAF", "PTEN", "AKT1", "MTOR", "CDK4", "CCND1", "RB1", "NOTCH1", "JAK2", "STAT3", "IL6", "TNF", "VEGFA", "HIF1A", "SOX2", "NANOG", "GAPDH", "ACTB", "TUBB", "RPL13A", "B2M", "SDHA", "HPRT1", "PGK1", "YWHAZ", "UBC", "CXCL8", "MMP9", "TIMP1", "COL1A1", "FN1", "CDH1", "CDH2", "SNAI1", "ZEB1", "TWIST1"],
+        },
+        {
+          name: "log2 fold change",
+          values: ["-2.342", "3.289", "2.422", "-0.312", "-0.159", "-2.599", "0.021", "0.469", "-0.172", "-0.217", "0.171", "0.125", "3.162", "2.426", "2.925", "0.243", "-0.470", "-0.160", "-0.665", "-0.451", "-0.008", "0.080", "0.173", "-0.081", "0.024", "-0.056", "0.015", "-0.142", "-0.070", "-0.024", "1.229", "2.407", "-0.342", "-0.283", "2.885", "-3.226", "3.157", "2.560", "2.472", "1.668"],
+        },
+        {
+          name: "SE",
+          values: ["0.179", "0.440", "0.215", "0.352", "0.240", "0.412", "0.349", "0.189", "0.404", "0.433", "0.421", "0.321", "0.194", "0.208", "0.428", "0.316", "0.204", "0.415", "0.342", "0.321", "0.263", "0.273", "0.222", "0.161", "0.413", "0.290", "0.314", "0.247", "0.375", "0.158", "0.262", "0.159", "0.187", "0.440", "0.347", "0.278", "0.307", "0.412", "0.253", "0.327"],
+        },
+        {
+          name: "p value",
+          values: ["4.04e-39", "8.05e-14", "1.47e-29", "0.375", "0.508", "2.87e-10", "0.952", "0.0133", "0.669", "0.616", "0.684", "0.697", "6.22e-60", "1.67e-31", "8.61e-12", "0.441", "0.0212", "0.7", "0.052", "0.16", "0.976", "0.77", "0.437", "0.615", "0.953", "0.848", "0.961", "0.564", "0.853", "0.881", "2.63e-06", "1.07e-51", "0.0668", "0.52", "9.8e-17", "5.02e-31", "8.73e-25", "5.12e-10", "1.63e-22", "3.43e-07"],
+        },
+        {
+          name: "Mean expression",
+          values: ["319.6", "464.5", "194.5", "187.2", "609.8", "481.0", "63.8", "220.8", "256.2", "62.1", "343.0", "80.2", "865.8", "314.4", "274.8", "113.5", "209.7", "18.2", "56.2", "392.2", "15.4", "735.5", "25.3", "654.4", "81.5", "673.6", "290.1", "33.2", "1241.3", "1594.3", "224.6", "171.4", "198.8", "68.9", "1020.6", "120.8", "228.9", "87.2", "108.4", "46.5"],
+        },
+      ],
+    });
+  }
+  if (kind === "sets") {
+    return createDataset({
+      name: "Genes found by each drug (sample)",
+      kind: "sets",
+      columns: [
+        {
+          name: "Drug A",
+          values: ["TP53", "MYC", "EGFR", "KRAS", "PTEN", "AKT1", "STAT3", "IL6", "VEGFA", "CDH1", "SNAI1", "ZEB1"],
+        },
+        {
+          name: "Drug B",
+          values: ["MYC", "EGFR", "BRAF", "PTEN", "MTOR", "CCND1", "STAT3", "TNF", "HIF1A", "CDH2", "ZEB1"],
+        },
+        {
+          name: "Drug C",
+          values: ["EGFR", "PTEN", "JAK2", "STAT3", "IL6", "CXCL8", "MMP9", "FN1", "CDH2", "TWIST1"],
+        },
+      ],
+    });
+  }
   if (kind === "xy") {
     return createDataset({
       name: "Growth curve (sample)",
@@ -194,6 +296,10 @@ function freshColumnName(dataset) {
       ? "Condition "
       : dataset.kind === "contingency"
       ? "Category "
+      : dataset.kind === "table" || dataset.kind === "results"
+      ? "Column "
+      : dataset.kind === "sets"
+      ? "Set "
       : "Group ";
   const taken = new Set(dataset.columns.map((c) => c.name));
   for (let i = dataset.columns.length; ; i += 1) {
@@ -366,6 +472,10 @@ export function datasetFromRows(rows, { kind = "groups", name = "Imported data" 
       ? (i) => (i === 0 ? "Group" : `Category ${i}`)
       : kind === "survival"
       ? (i) => ["Time", "Event", "Group"][i] ?? `Column ${i + 1}`
+      : kind === "table" || kind === "results"
+      ? (i) => (i === 0 ? "Name" : `Column ${i}`)
+      : kind === "sets"
+      ? (i) => `Set ${i + 1}`
       : (i) => `Group ${i + 1}`;
   const columns = Array.from({ length: width }, (_, i) => ({
     name: header?.[i] || stem(i),

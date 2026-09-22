@@ -77,6 +77,26 @@ Planned work is described in the [roadmap](README.md#roadmap).
   log-rank (Mantel-Cox) test or Gehan-Breslow-Wilcoxon, with median survival
   per group and the hazard ratio with its interval. Checked against R's
   survival package.
+- **Heatmaps, PCA and correlation matrices**, from a sixth data shape: a table
+  of numbers, one row per gene, sample or subject. Heatmaps show each row as a
+  z score by default, with rows and columns ordered by average linkage
+  clustering; PCA gives the share of variance on each axis and colours the
+  points by a group column; correlation matrices take Pearson or Spearman.
+  Checked against prcomp(), cor() and hclust().
+- **ROC curves and Bland-Altman plots**, from the same table. The area under
+  the curve is the exact rank statistic with a DeLong interval, as pROC
+  reports it, with the best cut by Youden's J marked. Bland-Altman draws the
+  bias and the limits of agreement, each with its own interval.
+- **Volcano, MA and forest plots**, from a seventh data shape: results per
+  row, one row per test. Morphly finds the fold change and the p value by
+  their column names and lets you say otherwise, corrects for multiple testing
+  by Benjamini-Hochberg unless told not to, and names the most significant
+  points. Forest plots take an interval from two columns or from a standard
+  error.
+- **Venn diagrams and UpSet plots**, from an eighth data shape: a list of
+  names per column. For two lists, Fisher's exact test says whether the
+  overlap is more than chance would give, once you say how many things were
+  tested.
 - **A written account of every statistical test.**
   [docs/STATISTICAL_TESTS.md](docs/STATISTICAL_TESTS.md) gives each test's
   formula, assumptions, the R or SciPy command it was checked against, and

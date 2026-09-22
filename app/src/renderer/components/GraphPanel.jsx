@@ -40,6 +40,17 @@ import {
   SURVIVAL_KINDS,
 } from "../lib/plotRender";
 import { MODELS } from "../lib/curveFit";
+import { TABLE_KINDS, RESULT_KINDS, SET_KINDS, PALETTE_NAMES } from "../lib/plotRenderBio";
+import {
+  guessColumns,
+  wordColumns,
+  HEATMAP_SCALES,
+  RESULT_ADJUSTMENTS,
+  tableMethodsSentence,
+  resultsMethodsSentence,
+  setsMethodsSentence,
+} from "../lib/tableAnalysis";
+import { numericColumns, CORRELATION_METHODS } from "../lib/matrix";
 import { formatP, formatStat } from "../lib/stats";
 
 /* global __APP_VERSION__ */
@@ -54,6 +65,25 @@ const ERRORS = [
 /** Which graph types take which options. */
 const HAS_ERROR_BARS = new Set(["bar", "dots", "super"]);
 const HAS_POINTS = new Set(["bar", "box", "violin"]);
+/** Graphs that draw no axes, so the axis fields would do nothing. */
+const NO_AXES = new Set(["heatmap", "correlation", "venn", "upset"]);
+/** Graphs drawn in one colour, whose swatch list is a single entry. */
+const ONE_COLOUR = new Set(["roc", "bland", "forest", "upset"]);
+
+/** Which colour swatches a bioinformatics graph offers. */
+function bioColourCols(kind, analysis) {
+  if (kind === "venn") return (analysis?.sets ?? []).slice(0, 3).map((_, i) => i);
+  if (kind === "pca") return (analysis?.groups?.names ?? ["Points"]).map((_, i) => i);
+  if (ONE_COLOUR.has(kind)) return [0];
+  // A heatmap and a correlation matrix are coloured by a scale, not by column.
+  return [];
+}
+
+function bioColourName(kind, analysis, col) {
+  if (kind === "venn") return analysis?.sets?.[col]?.name;
+  if (kind === "pca") return analysis?.groups?.names?.[col] ?? "Points";
+  return "Graph";
+}
 
 function Section({ title, children }) {
   return (
@@ -135,6 +165,12 @@ export default function GraphPanel({ element }) {
   const grouped = dataset.kind === "grouped";
   const counts = dataset.kind === "contingency";
   const survival = dataset.kind === "survival";
+  const table = dataset.kind === "table";
+  const results = dataset.kind === "results";
+  const sets = dataset.kind === "sets";
+  // The graphs built for bioinformatics share a panel of their own, since
+  // their settings are about which column means what rather than about bars.
+  const bio = table || results || sets;
   const kinds = xy
     ? XY_KINDS
     : grouped
@@ -143,6 +179,12 @@ export default function GraphPanel({ element }) {
     ? COUNT_KINDS
     : survival
     ? SURVIVAL_KINDS
+    : table
+    ? TABLE_KINDS
+    : results
+    ? RESULT_KINDS
+    : sets
+    ? SET_KINDS
     : GROUP_KINDS;
   const kind = kinds.some(([id]) => id === plot.kind) ? plot.kind : kinds[0][0];
   const sameKind = datasets.filter((d) => d.kind === dataset.kind);
@@ -150,12 +192,18 @@ export default function GraphPanel({ element }) {
   // swatches are named after the groups the analysis found.
   const colourCols = survival
     ? (analysis?.groups ?? []).map((_, i) => i)
+    : bio
+    ? bioColourCols(kind, analysis)
     : xy || grouped || counts
     ? dataset.columns.map((_, i) => i).slice(1)
     : plottedGroups(dataset);
   const colourName = (col) =>
-    (survival ? analysis?.groups?.[col]?.name : dataset.columns[col]?.name) || `Column ${col + 1}`;
-  const palette = xy || survival ? SERIES_COLOURS : GROUP_COLOURS;
+    (survival
+      ? analysis?.groups?.[col]?.name
+      : bio
+      ? bioColourName(kind, analysis, col)
+      : dataset.columns[col]?.name) || `Column ${col + 1}`;
+  const palette = kind === "venn" ? GROUP_COLOURS : xy || survival || bio ? SERIES_COLOURS : GROUP_COLOURS;
   const colourOf = (col) => plot.colors?.[col] || palette[col % palette.length];
 
   const setColour = (col, value) => {
@@ -167,6 +215,12 @@ export default function GraphPanel({ element }) {
   const sentence =
     !analysis || analysis.error
       ? ""
+      : table
+      ? tableMethodsSentence(analysis, { version: VERSION })
+      : results
+      ? resultsMethodsSentence(analysis, { version: VERSION })
+      : sets
+      ? setsMethodsSentence(analysis, { version: VERSION })
       : xy
       ? fitMethodsSentence(analysis, plot.fitModel ?? "none", { version: VERSION })
       : survival
@@ -216,7 +270,8 @@ export default function GraphPanel({ element }) {
             <Segments label="Graph type" options={kinds} value={kind} onChange={(id) => set({ kind: id })} />
           </>
         )}
-        {!xy && !counts && !survival && HAS_ERROR_BARS.has(kind) && (
+        {bio && <BioOptions element={element} dataset={dataset} analysis={analysis} kind={kind} />}
+        {!xy && !counts && !survival && !bio && HAS_ERROR_BARS.has(kind) && (
           <>
             <div className="field-label">Error bars</div>
             <Segments label="Error bars" options={ERRORS} value={plot.error} onChange={(id) => set({ error: id })} />
@@ -228,7 +283,7 @@ export default function GraphPanel({ element }) {
             Mark censored subjects with a tick
           </label>
         )}
-        {!xy && !counts && !survival && HAS_POINTS.has(kind) && (
+        {!xy && !counts && !survival && !bio && HAS_POINTS.has(kind) && (
           <label className="check">
             <input type="checkbox" checked={Boolean(plot.points)} onChange={(e) => set({ points: e.target.checked })} />
             Show every point
@@ -264,8 +319,8 @@ export default function GraphPanel({ element }) {
         )}
       </Section>
 
-      <Section title={ROUND_KINDS.has(kind) ? "Text" : "Axes and text"}>
-        {!ROUND_KINDS.has(kind) && (
+      <Section title={NO_AXES.has(kind) || ROUND_KINDS.has(kind) ? "Text" : "Axes and text"}>
+        {!ROUND_KINDS.has(kind) && !NO_AXES.has(kind) && (
           <>
             <PlotText element={element} field="yTitle" label="Y axis title" placeholder={kind === "histogram" ? "Count" : "For example: Viability (%)"} />
             <PlotText element={element} field="xTitle" label="X axis title" placeholder={xy ? dataset.columns[0]?.name || "X" : "None"} />
@@ -364,10 +419,11 @@ export default function GraphPanel({ element }) {
       )}
       {counts && <CountStats element={element} analysis={analysis} sentence={sentence} copied={copied} setCopied={setCopied} />}
       {grouped && <GroupedStats element={element} dataset={dataset} analysis={analysis} sentence={sentence} copied={copied} setCopied={setCopied} />}
-      {!xy && !grouped && !counts && !survival && (
+      {bio && <BioStats element={element} analysis={analysis} sentence={sentence} copied={copied} setCopied={setCopied} />}
+      {!xy && !grouped && !counts && !survival && !bio && (
         <GroupStats element={element} dataset={dataset} analysis={analysis} sentence={sentence} copied={copied} setCopied={setCopied} />
       )}
-      {xy && <XyStats analysis={analysis} sentence={sentence} copied={copied} setCopied={setCopied} />}
+      {xy && !bio && <XyStats analysis={analysis} sentence={sentence} copied={copied} setCopied={setCopied} />}
     </>
   );
 }
@@ -839,6 +895,387 @@ function XyStats({ analysis, sentence, copied, setCopied }) {
           </button>
         </>
       )}
+    </Section>
+  );
+}
+
+/** A drop-down that picks one column of the data, with "None" when allowed. */
+function ColumnPicker({ dataset, label, columns, value, onChange, allowNone = false, hint = null }) {
+  return (
+    <label className="field">
+      <span>{label}</span>
+      <select
+        value={value == null ? "" : String(value)}
+        onChange={(e) => onChange(e.target.value === "" ? null : Number(e.target.value))}
+        title={hint ?? undefined}
+      >
+        {allowNone && <option value="">None</option>}
+        {columns.map((col) => (
+          <option key={col} value={col}>
+            {dataset.columns[col]?.name || `Column ${col + 1}`}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+/**
+ * The settings for a heatmap, volcano, PCA and the rest.
+ *
+ * Which column holds the fold change, and which the p value, is the whole
+ * question for these graphs, so the guesses Morphly made are shown as the
+ * chosen values rather than hidden: every drop-down starts on what is being
+ * used, and changing it changes the figure.
+ */
+function BioOptions({ element, dataset, analysis, kind }) {
+  const updatePlot = useStore((s) => s.updatePlot);
+  const plot = element.plot;
+  const set = (patch) => updatePlot(element.id, patch);
+  const guess = useMemo(() => guessColumns(dataset), [dataset]);
+  const numbers = guess.numeric;
+  const words = guess.words;
+  const check = (field, text, fallback = true) => (
+    <label className="check">
+      <input
+        type="checkbox"
+        checked={fallback ? plot[field] !== false : Boolean(plot[field])}
+        onChange={(e) => set({ [field]: e.target.checked })}
+      />
+      {text}
+    </label>
+  );
+
+  if (kind === "heatmap") {
+    return (
+      <>
+        <label className="field">
+          <span>Show each row as</span>
+          <select value={plot.scaleRows ?? "row"} onChange={(e) => set({ scaleRows: e.target.value })}>
+            {HEATMAP_SCALES.map(([id, label]) => (
+              <option key={id} value={id}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </label>
+        {check("clusterRows", "Order the rows by how alike they are")}
+        {check("clusterColumns", "Order the columns the same way")}
+        {check("rowNames", "Write the row names")}
+        {check("key", "Show the colour key")}
+      </>
+    );
+  }
+
+  if (kind === "correlation") {
+    return (
+      <>
+        <label className="field">
+          <span>Correlation</span>
+          <select value={plot.corrMethod ?? "pearson"} onChange={(e) => set({ corrMethod: e.target.value })}>
+            {CORRELATION_METHODS.map(([id, label]) => (
+              <option key={id} value={id}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </label>
+        {check("showValues", "Write the numbers in the squares")}
+        <p className="hint">Pearson looks for a straight line; Spearman only for an order, which suits a skewed column.</p>
+      </>
+    );
+  }
+
+  if (kind === "pca") {
+    return (
+      <>
+        <ColumnPicker
+          dataset={dataset}
+          label="Colour the points by"
+          columns={words}
+          value={plot.groupCol ?? guess.words[0] ?? null}
+          onChange={(col) => set({ groupCol: col })}
+          allowNone
+        />
+        {check("pcaScale", "Give every column the same weight")}
+        {check("pointNames", "Name each point", false)}
+        <p className="hint">
+          Each row is a point. Giving every column the same weight is usually right when the columns are measured in
+          different units.
+        </p>
+      </>
+    );
+  }
+
+  if (kind === "roc") {
+    const classCol = plot.classCol ?? guess.words[0] ?? null;
+    const levels = analysis?.levels ?? [];
+    return (
+      <>
+        <ColumnPicker
+          dataset={dataset}
+          label="Score"
+          columns={numbers}
+          value={plot.scoreCol ?? numbers[0] ?? null}
+          onChange={(col) => set({ scoreCol: col })}
+        />
+        <ColumnPicker
+          dataset={dataset}
+          label="True class"
+          columns={words.length ? words : numbers}
+          value={classCol}
+          onChange={(col) => set({ classCol: col, positive: null })}
+        />
+        {levels.length > 1 && (
+          <label className="field">
+            <span>Counts as positive</span>
+            <select value={analysis?.positive ?? ""} onChange={(e) => set({ positive: e.target.value })}>
+              {levels.map((level) => (
+                <option key={level} value={level}>
+                  {level}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        {check("markBest", "Mark the best cut")}
+        {check("fillArea", "Shade the area under the curve")}
+        {check("showAuc", "Write the area on the graph")}
+      </>
+    );
+  }
+
+  if (kind === "bland") {
+    return (
+      <>
+        <ColumnPicker
+          dataset={dataset}
+          label="First method"
+          columns={numbers}
+          value={plot.methodA ?? numbers[0] ?? null}
+          onChange={(col) => set({ methodA: col })}
+        />
+        <ColumnPicker
+          dataset={dataset}
+          label="Second method"
+          columns={numbers}
+          value={plot.methodB ?? numbers.find((c) => c !== (plot.methodA ?? numbers[0])) ?? null}
+          onChange={(col) => set({ methodB: col })}
+        />
+        <p className="hint">Both columns should measure the same thing on the same subjects, one row each.</p>
+      </>
+    );
+  }
+
+  if (kind === "volcano" || kind === "ma") {
+    return (
+      <>
+        <ColumnPicker
+          dataset={dataset}
+          label="Effect (log2 fold change)"
+          columns={numbers}
+          value={plot.effectCol ?? guess.effect}
+          onChange={(col) => set({ effectCol: col })}
+        />
+        {kind === "ma" && (
+          <ColumnPicker
+            dataset={dataset}
+            label="Mean expression"
+            columns={numbers}
+            value={plot.meanCol ?? guess.mean}
+            onChange={(col) => set({ meanCol: col })}
+            allowNone
+          />
+        )}
+        <ColumnPicker
+          dataset={dataset}
+          label="p value"
+          columns={numbers}
+          value={plot.pCol ?? guess.p}
+          onChange={(col) => set({ pCol: col })}
+          allowNone
+        />
+        <label className="field">
+          <span>Correct for multiple testing</span>
+          <select value={analysis?.adjust ?? "bh"} onChange={(e) => set({ adjust: e.target.value })}>
+            {RESULT_ADJUSTMENTS.map(([id, label]) => (
+              <option key={id} value={id}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <div className="field-grid">
+          <label className="field">
+            <span>Fold change at least</span>
+            <input
+              type="number"
+              step="0.1"
+              value={plot.fcCutoff ?? 1}
+              onChange={(e) => set({ fcCutoff: Number(e.target.value) })}
+            />
+          </label>
+          <label className="field">
+            <span>p at most</span>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              max="1"
+              value={plot.pCutoff ?? 0.05}
+              onChange={(e) => set({ pCutoff: Number(e.target.value) })}
+            />
+          </label>
+        </div>
+        <label className="field">
+          <span>Name the top</span>
+          <input
+            type="number"
+            min="0"
+            max="200"
+            value={plot.labelTop ?? 10}
+            onChange={(e) => set({ labelTop: Number(e.target.value) })}
+          />
+        </label>
+      </>
+    );
+  }
+
+  if (kind === "forest") {
+    return (
+      <>
+        <ColumnPicker
+          dataset={dataset}
+          label="Effect"
+          columns={numbers}
+          value={plot.effectCol ?? guess.effect}
+          onChange={(col) => set({ effectCol: col })}
+        />
+        <ColumnPicker
+          dataset={dataset}
+          label="Interval, lower"
+          columns={numbers}
+          value={plot.lowCol ?? guess.low}
+          onChange={(col) => set({ lowCol: col })}
+          allowNone
+        />
+        <ColumnPicker
+          dataset={dataset}
+          label="Interval, upper"
+          columns={numbers}
+          value={plot.highCol ?? guess.high}
+          onChange={(col) => set({ highCol: col })}
+          allowNone
+        />
+        <ColumnPicker
+          dataset={dataset}
+          label="Standard error"
+          columns={numbers}
+          value={plot.seCol ?? guess.se}
+          onChange={(col) => set({ seCol: col })}
+          allowNone
+        />
+        <label className="field">
+          <span>Line of no effect at</span>
+          <input
+            type="number"
+            step="0.5"
+            value={plot.reference ?? 0}
+            onChange={(e) => set({ reference: Number(e.target.value) })}
+          />
+        </label>
+        <p className="hint">
+          Two interval columns are used when there are two; otherwise the interval is the effect plus and minus 1.96
+          standard errors. A ratio belongs on a line of no effect at 1.
+        </p>
+      </>
+    );
+  }
+
+  if (kind === "upset") {
+    return (
+      <>
+        <label className="field">
+          <span>Count each name</span>
+          <select value={plot.setMode ?? "exclusive"} onChange={(e) => set({ setMode: e.target.value })}>
+            <option value="exclusive">Once, in the lists it is in</option>
+            <option value="inclusive">In every overlap it belongs to</option>
+          </select>
+        </label>
+        <label className="field">
+          <span>Show at most</span>
+          <input
+            type="number"
+            min="1"
+            max="60"
+            value={plot.setLimit ?? 20}
+            onChange={(e) => set({ setLimit: Number(e.target.value) })}
+          />
+        </label>
+        {check("showValues", "Write the size above each bar")}
+      </>
+    );
+  }
+
+  return null;
+}
+
+/** The numbers beside a heatmap, volcano, ROC curve and the rest. */
+function BioStats({ element, analysis, sentence, copied, setCopied }) {
+  const updatePlot = useStore((s) => s.updatePlot);
+  const plot = element.plot;
+
+  if (!analysis || analysis.error) {
+    return (
+      <Section title="Statistics">
+        <p className="hint">{analysis?.error ?? "No data yet."}</p>
+      </Section>
+    );
+  }
+
+  const copy = async () => {
+    await window.morphly.writeClipboardText(sentence);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <Section title="Statistics">
+      {analysis.kind === "sets" && (
+        <label className="field">
+          <span>Things tested in all</span>
+          <input
+            inputMode="decimal"
+            placeholder="For example: 20000 genes"
+            value={plot.background ?? ""}
+            onChange={(e) => updatePlot(element.id, { background: e.target.value })}
+          />
+        </label>
+      )}
+      <div className="stats-card">
+        <strong>{analysis.label}</strong>
+        <div className="stats-result">{analysis.summary}</div>
+        {analysis.extra && <div className="hint">{analysis.extra}</div>}
+        {(analysis.warnings ?? []).map((warning) => (
+          <p key={warning} className="hint">
+            {warning}
+          </p>
+        ))}
+      </div>
+      {analysis.kind === "results" && analysis.plot !== "forest" && (
+        <p className="hint">
+          Red and blue mark what passed both cuts; grey is everything else. A volcano drawn on uncorrected p values
+          overstates what was found, so the correction is on unless you turn it off.
+        </p>
+      )}
+      <div className="field-label">Methods sentence</div>
+      <p className="methods">{sentence}</p>
+      <button className="ghost small" onClick={copy}>
+        {copied ? "Copied" : "Copy methods sentence"}
+      </button>
+      <button className="link" onClick={() => window.morphly.openExternal(LINKS.statistics)}>
+        How is this calculated?
+      </button>
     </Section>
   );
 }

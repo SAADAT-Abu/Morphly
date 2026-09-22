@@ -7,15 +7,23 @@
  */
 
 import { analyseGroups, analyseGrouped, analyseCounts, analyseSurvival, analyseXY, bracketsToDraw } from "./analysis";
+import { analyseTable, analyseResults, analyseSets } from "./tableAnalysis";
+import { renderBioSvg } from "./plotRenderBio";
 import { replicateMeans } from "./datasets";
 import { renderPlotSvg, defaultPlot } from "./plotRender";
 
 export const isGraph = (el) => el?.type === "plot";
 
+/** Data shapes drawn by lib/plotRenderBio.js rather than lib/plotRender.js. */
+const BIO_KINDS = new Set(["table", "results", "sets"]);
+
 /** The statistics for a graph, or null when its data is missing. */
 export function graphAnalysis(element, dataset) {
   if (!dataset) return null;
   const plot = element.plot ?? defaultPlot();
+  if (dataset.kind === "table") return analyseTable(dataset, plot);
+  if (dataset.kind === "results") return analyseResults(dataset, plot);
+  if (dataset.kind === "sets") return analyseSets(dataset, plot);
   if (dataset.kind === "xy") return analyseXY(dataset, { model: plot.fitModel ?? "none" });
   if (dataset.kind === "contingency") return analyseCounts(dataset, { test: plot.test ?? "auto" });
   if (dataset.kind === "survival") return analyseSurvival(dataset, { test: plot.test ?? "logrank" });
@@ -42,6 +50,12 @@ export function graphAnalysis(element, dataset) {
 /** The SVG markup for a graph element. */
 export function graphSvg(element, dataset, analysis = graphAnalysis(element, dataset)) {
   const plot = element.plot ?? defaultPlot();
+  // The graphs built for bioinformatics are drawn from their analysis alone,
+  // since the picture and the numbers beside it are the same calculation.
+  if (BIO_KINDS.has(dataset?.kind)) {
+    const svg = renderBioSvg({ ...element, plot }, dataset, analysis);
+    if (svg) return svg;
+  }
   return renderPlotSvg({ ...element, plot }, dataset, {
     brackets: analysis && !analysis.error ? bracketsToDraw(analysis, plot.brackets) : [],
     fits: analysis?.series,

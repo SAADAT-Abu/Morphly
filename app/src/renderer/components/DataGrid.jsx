@@ -47,6 +47,10 @@ export default function DataGrid({ dataset, onOp, colours = [], extended = false
       })
     : [];
   const xy = dataset.kind === "xy";
+  // Shapes whose columns are not groups: no colour swatch, and for lists of
+  // names no column of means either.
+  const sets = dataset.kind === "sets";
+  const bio = sets || dataset.kind === "table" || dataset.kind === "results";
   // Some columns hold names rather than measurements: a grouped table's
   // first column, and the event and group of survival data.
   const words = textColumns(dataset);
@@ -97,7 +101,7 @@ export default function DataGrid({ dataset, onOp, colours = [], extended = false
             {dataset.columns.map((column, col) => (
               <th key={col}>
                 <div className="col-head">
-                  {!xy && !isWords(col) && (
+                  {!xy && !bio && !isWords(col) && (
                     <span
                       className="col-swatch"
                       style={{ background: colours[hasLabelColumn(dataset) ? col : col] ?? "transparent" }}
@@ -133,6 +137,8 @@ export default function DataGrid({ dataset, onOp, colours = [], extended = false
                 {dataset.kind === "survival" && (
                   <div className="col-role">{["Time", "1 for the event, 0 if censored", "Group"][col] ?? ""}</div>
                 )}
+                {sets && <div className="col-role">One list</div>}
+                {dataset.kind === "results" && col === 0 && <div className="col-role">Names each test</div>}
               </th>
             ))}
             <th className="add-col">
@@ -171,7 +177,7 @@ export default function DataGrid({ dataset, onOp, colours = [], extended = false
             </tr>
           ))}
         </tbody>
-        {!xy && (
+        {!xy && !sets && (
           <tfoot>
             {[
               ["Mean", (s) => fmt(s?.mean)],

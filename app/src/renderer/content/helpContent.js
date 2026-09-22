@@ -245,13 +245,19 @@ export const GETTING_STARTED = [
     title: "7. Make a graph from your data",
     body:
       "The graph button in the toolbar, or Insert → Graph, asks three things. First, what " +
-      "your data looks like: groups (control, treated and so on, one column each) or X and " +
-      "Y (a time course or a dose response, X in the first column). Then the numbers: " +
+      "your data looks like: groups (control, treated and so on, one column each), X and Y " +
+      "(a time course or a dose response, X in the first column), groups by condition, " +
+      "counts in categories, survival, a table of numbers (one row per gene, sample or " +
+      "subject), results per row (a fold change and a p value for each test), or lists of " +
+      "names. Then the numbers: " +
       "sample data to try things with, cells pasted from Excel, LibreOffice, R or Python, " +
       "a CSV file, an empty table, or data already in the figure. Morphly shows how it read " +
       "each column, and understands semicolons and decimal commas. Last, the kind of graph, " +
-      "previewed with your numbers: bar and points, dot plot, or box and whiskers for " +
-      "groups; scatter, or points and lines, for X and Y. With a panel selected, the graph " +
+      "previewed with your numbers: bar and points, dot plot, box and whiskers, violin, " +
+      "before and after, histogram, pie or donut for groups; scatter, or points and lines " +
+      "with a fitted curve, for X and Y; Kaplan-Meier curves for survival; and, from the " +
+      "last three shapes, heatmaps, PCA, correlation matrices, ROC curves, Bland-Altman, " +
+      "volcano, MA and forest plots, Venn diagrams and UpSet plots. With a panel selected, the graph " +
       "fills it. The numbers open in a table under the canvas: type, paste a block, and the " +
       "graph redraws as you go. The icon in the table's top right corner moves it into a " +
       "window of its own, for a long table or a second screen. Double-click a graph to get " +

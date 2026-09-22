@@ -35,6 +35,11 @@ Morphly version: **0.5**.
 - [Correlation and straight lines](#correlation-and-straight-lines)
 - [Fitting a curve](#fitting-a-curve)
 - [Survival curves](#survival-curves)
+- [Matrices: heatmaps, PCA and correlation](#matrices-heatmaps-pca-and-correlation)
+- [Volcano, MA and forest plots](#volcano-ma-and-forest-plots)
+- [ROC curves](#roc-curves)
+- [Agreement between two methods](#agreement-between-two-methods)
+- [Overlapping lists: Venn and UpSet](#overlapping-lists-venn-and-upset)
 - [SuperPlots: replicates, not cells](#superplots-replicates-not-cells)
 - [Distributions: violins, histograms and density](#distributions-violins-histograms-and-density)
 - [How p-values are written](#how-p-values-are-written)
@@ -105,6 +110,16 @@ the checks.
 | Holm's correction | multiple comparisons | `p.adjust(method = "holm")` | `stats.js` `adjustHolm` | `stats.test.js` |
 | Bonferroni | multiple comparisons | `p.adjust(method = "bonferroni")` | `stats.js` `adjustBonferroni` | `stats.test.js` |
 | Šídák | multiple comparisons | the formula below | `analysis.js` `correctPValues` | `analysis.test.js` |
+| Average linkage clustering | ordering heatmap rows and columns | `hclust(method = "average")` | `matrix.js` `clusterRows` | `matrix.test.js` |
+| Principal components | PCA of a table | `prcomp(scale. = TRUE)` | `matrix.js` `pca` | `matrix.test.js` |
+| Jacobi eigenvalues | inside the PCA | `eigen()` | `matrix.js` `jacobiEigen` | `matrix.test.js` |
+| Pearson correlation matrix | correlation matrix | `cor()` and `cor.test()` | `matrix.js` `correlationMatrix` | `matrix.test.js` |
+| Spearman correlation matrix | correlation matrix, ranks | `cor(method = "spearman")` | `matrix.js` `correlationMatrix` | `matrix.test.js` |
+| Area under a ROC curve | a score against a true class | `pROC::auc()` | `matrix.js` `rocCurve` | `matrix.test.js` |
+| DeLong interval | the interval on an AUC | `pROC::ci.auc(method = "delong")` | `matrix.js` `rocCurve` | `matrix.test.js` |
+| Bland-Altman limits | agreement between two methods | Bland and Altman 1986 | `matrix.js` `blandAltman` | `matrix.test.js` |
+| Benjamini-Hochberg | volcano plots, many tests at once | `p.adjust(method = "BH")` | `stats.js` `adjustBenjaminiHochberg` | `stats.test.js` |
+| Fisher's exact test on an overlap | is an overlap of two lists more than chance | `fisher.test()` | `sets.js` `overlapTest` | `sets.test.js` |
 | Kernel density | violins and density curves | `density(kernel = "gaussian")` | `stats.js` `kernelDensity` | `stats.test.js` |
 | Histogram bins | histograms | Freedman-Diaconis, rounded | `stats.js` `histogramBins` | `stats.test.js` |
 
@@ -504,6 +519,205 @@ with covariates is not in Morphly yet.
 A group with no events at all cannot be compared properly, and Morphly says so
 rather than printing a p-value that means nothing.
 
+## Matrices: heatmaps, PCA and correlation
+
+**Used when**: the data shape is a table of numbers: one row per gene, sample
+or subject, one column per measurement.
+
+### Heatmap
+
+A heatmap is not a test, but two choices in it decide what a reader sees.
+
+**Scaling.** By default each row is shown as a z score: every value has that
+row's mean taken off and is divided by that row's standard deviation. This is
+what nearly every published expression heatmap does, and it is why a heatmap
+shows pattern rather than level: a gene expressed a thousand times over and a
+gene barely expressed can sit in the same picture. Turning scaling off draws
+the numbers as they are, and then one loud row takes the whole colour scale.
+Morphly says which of the two it is doing, in the panel and in the methods
+sentence.
+
+**Ordering.** Rows and columns are ordered by average linkage hierarchical
+clustering on Euclidean distance, which is `hclust(method = "average")`, also
+called UPGMA: the distance between two clusters is the mean distance between
+their members. Morphly draws no dendrogram yet; the order is the tree read left
+to right, with the tighter branch first so the picture is the same every time.
+The merge heights are checked against `hclust` exactly. Clustering can be
+turned off, and then the rows stay in the order they were typed.
+
+**Code**: `matrix.js` `zScoreRows`, `clusterRows`; `tableAnalysis.js`
+`analyseTable`. **Test**: `matrix.test.js`, `plotRenderBio.test.js`.
+
+### Principal components
+
+**What it computes**: the columns are centred, and by default divided by their
+standard deviations, so that a column measured in thousands does not outweigh
+one measured in units. The covariance matrix of what is left is decomposed by
+cyclic Jacobi rotation into eigenvalues and eigenvectors. The eigenvalues are
+the variance along each component, the eigenvectors are the loadings, and the
+points are the centred data multiplied by the loadings.
+
+Scaling first is `prcomp(scale. = TRUE)`, and not scaling is
+`prcomp(scale. = FALSE)`. The axis labels give the share of the total variance
+each component holds.
+
+A component and its negative describe the same axis, so the sign is arbitrary.
+Morphly turns each one so that its largest loading is positive, which means the
+same data is never drawn mirrored from one run to the next. It also means a
+Morphly PCA may be flipped against R's; the shape, the spacing and the
+percentages are the same.
+
+**Checked against**: `prcomp()` on a 8 by 4 matrix, to nine figures on the
+standard deviations, loadings and scores.
+
+**Code**: `matrix.js` `pca`, `jacobiEigen`. **Test**: `matrix.test.js`.
+
+### Correlation matrix
+
+**What it computes**: every column against every other, by Pearson's
+correlation or Spearman's rank correlation, over the rows where both columns
+hold a number. The p value is from the t statistic on n - 2 degrees of freedom,
+which is what `cor.test()` reports.
+
+A correlation matrix of a handful of rows says very little, and Morphly says so
+rather than drawing it silently.
+
+**Checked against**: `cor()`, `cor(method = "spearman")` and `cor.test()`.
+
+**Code**: `matrix.js` `correlationMatrix`. **Test**: `matrix.test.js`.
+
+## Volcano, MA and forest plots
+
+**Used when**: the data shape is results per row: one row per test, with an
+effect such as a log2 fold change and a p value.
+
+### Which column is which
+
+Morphly guesses from the column names: a column called `padj`, `FDR`,
+`p value` or `q value` is the p value; one called `log2FoldChange`, `lfc`,
+`estimate` or `coef` is the effect; `baseMean` or `expression` is the mean.
+Every guess is shown as the chosen value in the panel and can be changed. A
+guess is a guess: check it before the figure goes anywhere.
+
+### Multiple testing
+
+A volcano plot is thousands of tests in one picture, so the p value drawn is
+corrected unless you say otherwise. The default is Benjamini-Hochberg, which
+controls the false discovery rate: p values are ordered, each is multiplied by
+the number of tests and divided by its rank, and the result is made
+non-decreasing from the largest down. Bonferroni, which multiplies every p
+value by the number of tests, is offered for when a family-wise error rate is
+wanted. This is `p.adjust(method = "BH")` and `p.adjust(method = "bonferroni")`.
+
+If the column you chose looks as though it has been corrected already, by its
+name, Morphly leaves it alone and says why, since correcting twice is simply
+wrong.
+
+A point is coloured only if it passes both cuts: the fold change is at least
+the threshold in size, and the p value is at most the threshold. Both are
+yours to set, and both are written into the methods sentence, because "we found
+812 differentially expressed genes" means nothing without them.
+
+### Forest plots
+
+A forest plot draws an effect and its 95% confidence interval for each row.
+Morphly takes the interval from two columns when the data has them, and
+otherwise from a standard error column as the effect plus and minus 1.96
+standard errors. It does no meta-analysis: there is no pooled estimate, no
+weighting and no heterogeneity statistic, because a pooled estimate that nobody
+asked for is a result nobody checked. The line of no effect is at zero for a
+difference and should be moved to one for a ratio.
+
+**Code**: `tableAnalysis.js` `analyseResults`; `plotRenderBio.js` `volcanoSvg`,
+`forestSvg`. **Test**: `plotRenderBio.test.js`.
+
+## ROC curves
+
+**Used when**: a table of numbers with a column of scores and a column saying
+which class each row truly belongs to.
+
+**What it computes**: at every distinct score, how many of each class are at or
+above it, which gives the sensitivity and one minus the specificity, and the
+staircase joining those points is the curve.
+
+The area under it is **not** measured from the drawing. It is the rank
+statistic: over every pairing of one positive with one negative, the proportion
+in which the positive has the higher score, counting a tie as half. That is the
+Mann-Whitney U over the number of pairs, and it is exact even when many
+subjects share a score.
+
+The interval is DeLong's. For each positive subject, the proportion of
+negatives it outranks is recorded, and for each negative the proportion of
+positives that outrank it. The variance of the area is the variance of the
+first set over the number of positives plus the variance of the second over the
+number of negatives. This is what `pROC::ci.auc(method = "delong")` reports.
+
+The marked point is Youden's J: the threshold at which sensitivity plus
+specificity is largest, that is, where the curve stands furthest above the
+diagonal.
+
+An area below a half means the score runs the other way. Morphly says so rather
+than quietly flipping it, since which class is the positive one is a decision,
+not a detail.
+
+**Checked against**: `pROC::roc()` and `pROC::ci.auc()`, to nine figures.
+
+**Code**: `matrix.js` `rocCurve`. **Test**: `matrix.test.js`.
+
+## Agreement between two methods
+
+**Used when**: two columns measure the same thing on the same subjects, one
+row each.
+
+**What it computes**: what Bland and Altman set out in 1986. Each subject gives
+a mean of the two measurements and the difference between them, and the
+differences are summarised by:
+
+- the **bias**, their mean, with the 95% interval of a paired t test,
+- the **limits of agreement**, the bias plus and minus 1.96 standard
+  deviations, the range in which 95% of differences are expected to fall.
+
+Each limit gets its own interval, at 1.96 SD plus and minus t times
+`SD * sqrt(3 / n)`, because with few subjects the limits are themselves poorly
+pinned down. Morphly warns below twenty pairs.
+
+A correlation between two methods is not agreement: two thermometers that read
+twice each other's value correlate perfectly and agree not at all. That is the
+reason this plot exists.
+
+**Checked against**: Bland and Altman's own peak flow figures, and `t.test`
+paired for the bias interval.
+
+**Code**: `matrix.js` `blandAltman`. **Test**: `matrix.test.js`.
+
+## Overlapping lists: Venn and UpSet
+
+**Used when**: the data shape is lists of names, one list per column.
+
+**What it computes**: each column becomes a set, so a blank cell is not a
+member and a name typed twice is one member. Every region of the Venn diagram
+is the names in exactly that combination of lists and no other, so the regions
+add up to the total. An UpSet plot shows the same counts as bars, and can
+instead count a name in every overlap it satisfies, which is what people
+usually mean by "the overlap of A and B" when a third list exists.
+
+A Venn diagram of more than three lists cannot be drawn honestly with circles,
+so Morphly draws the first three and says to use an UpSet plot for the rest.
+
+**Is the overlap more than chance?** For two lists, Fisher's exact test on the
+four counts: in both, in one only, in the other only, and in neither. The last
+of those needs a background, which is the number of things that could have been
+on a list at all, usually the number of genes tested, not the number that came
+out. Without one there is no test, so Morphly shows the Jaccard index and asks
+for the background rather than inventing it. The enrichment shown beside it is
+the overlap divided by the overlap expected from the two list sizes and the
+background.
+
+**Checked against**: `fisher.test()`.
+
+**Code**: `sets.js` `vennRegions`, `upsetIntersections`, `overlapTest`.
+**Test**: `sets.test.js`.
+
 ## SuperPlots: replicates, not cells
 
 A SuperPlot draws every measurement coloured by which biological replicate it
@@ -546,6 +760,11 @@ Mixed models, ANCOVA, Cox regression with covariates, two-way repeated
 measures, sphericity corrections (Greenhouse-Geisser), shared-parameter curve
 fitting across data sets, and equivalence testing.
 
+On the graphs built for bioinformatics: no dendrograms beside a heatmap, no
+confidence ellipses on a PCA, no comparison of two ROC curves, no pooled
+estimate on a forest plot, and no differential expression itself. Morphly draws
+the results of DESeq2, edgeR or limma; it does not replace them.
+
 The ones that need a full modelling engine are meant for an optional
 statistics download rather than for the app itself.
 
@@ -568,6 +787,13 @@ nls(y ~ bottom + (top - bottom) / (1 + (ic50 / x)^hill), d,
 library(survival)
 survfit(Surv(time, event) ~ group, d)
 survdiff(Surv(time, event) ~ group, d)
+
+# a PCA, a correlation matrix, a ROC curve and an overlap
+prcomp(m, scale. = TRUE)
+cor(m)
+hclust(dist(m), method = "average")
+pROC::ci.auc(pROC::roc(truth, score), method = "delong")
+fisher.test(matrix(c(both, only_a, only_b, neither), nrow = 2, byrow = TRUE))
 ```
 
 To run Morphly's own checks, which compare against numbers R produced:

@@ -37,7 +37,16 @@ describe("graph interface", () => {
   it("opens the graph dialog on the data shape step", () => {
     const out = html(h(GraphDialog, { datasets: [], onClose() {}, onInsert() {} }));
     expect(out).toContain("What does your data look like?");
-    for (const shape of ["Groups", "X and Y", "Groups by condition", "Counts in categories", "Survival"]) {
+    for (const shape of [
+      "Groups",
+      "X and Y",
+      "Groups by condition",
+      "Counts in categories",
+      "Survival",
+      "Table of numbers",
+      "Results per row",
+      "Lists of names",
+    ]) {
       expect(out).toContain(shape);
     }
     // Every shape is available now, so none is marked as coming later.
@@ -54,6 +63,65 @@ describe("graph interface", () => {
     expect(out).toContain("F(3, 20) = 111.6");
     expect(out).toContain("Control vs Vehicle");
     expect(out).toContain("Copy methods sentence");
+    expect(out).not.toMatch(/[–—]/);
+  });
+
+  it("names the columns of a volcano and writes what it found", () => {
+    const id = state().addGraph({ dataset: sampleDataset("results"), kind: "volcano" });
+    const el = state().elements.find((e) => e.id === id);
+    const out = html(h(GraphPanel, { element: el }));
+    // The columns were found by their names, and can be changed.
+    expect(out).toContain("Effect (log2 fold change)");
+    expect(out).toContain("p value");
+    expect(out).toContain("Correct for multiple testing");
+    expect(out).toContain("Benjamini-Hochberg (FDR)");
+    expect(out).toContain("Volcano plot");
+    expect(out).toContain("of 40 tested");
+    expect(out).toContain("Copy methods sentence");
+    expect(out).not.toMatch(/[–—]/);
+  });
+
+  it("offers the settings a heatmap needs and none it does not", () => {
+    const id = state().addGraph({ dataset: sampleDataset("table"), kind: "heatmap" });
+    const el = state().elements.find((e) => e.id === id);
+    const out = html(h(GraphPanel, { element: el }));
+    expect(out).toContain("Z score across each row");
+    expect(out).toContain("Order the rows by how alike they are");
+    expect(out).toContain("12 rows by 4 columns");
+    // A heatmap has no Y axis to set limits on.
+    expect(out).not.toContain("Y from");
+    expect(out).not.toMatch(/[–—]/);
+  });
+
+  it("shows the area under a ROC curve, and which class counts as positive", () => {
+    const id = state().addGraph({ dataset: sampleDataset("table"), kind: "roc" });
+    const el = state().elements.find((e) => e.id === id);
+    const out = html(h(GraphPanel, { element: el }));
+    expect(out).toContain("True class");
+    expect(out).toContain("Counts as positive");
+    expect(out).toContain("Tumour");
+    expect(out).toContain("AUC 0.861");
+    expect(out).toContain("95% CI");
+    expect(out).not.toMatch(/[–—]/);
+  });
+
+  it("asks for a background before testing an overlap", () => {
+    const id = state().addGraph({ dataset: sampleDataset("sets"), kind: "venn" });
+    const el = state().elements.find((e) => e.id === id);
+    const out = html(h(GraphPanel, { element: el }));
+    expect(out).toContain("Venn diagram");
+    expect(out).toContain("3 lists");
+    expect(out).toContain("Things tested in all");
+    expect(out).not.toMatch(/[–—]/);
+  });
+
+  it("writes PCA axes with how much each component explains", () => {
+    const id = state().addGraph({ dataset: sampleDataset("table"), kind: "pca" });
+    const el = state().elements.find((e) => e.id === id);
+    const out = html(h(GraphPanel, { element: el }));
+    expect(out).toContain("Colour the points by");
+    expect(out).toContain("Give every column the same weight");
+    expect(out).toMatch(/PC1 explains \d+\.\d%/);
     expect(out).not.toMatch(/[–—]/);
   });
 

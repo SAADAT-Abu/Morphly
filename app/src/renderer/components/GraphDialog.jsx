@@ -23,7 +23,6 @@ import {
   columnNumbers,
 } from "../lib/datasets";
 import {
-  renderPlotSvg,
   defaultPlot,
   GROUP_KINDS,
   GROUPED_KINDS,
@@ -31,6 +30,7 @@ import {
   SURVIVAL_KINDS,
   XY_KINDS,
 } from "../lib/plotRender";
+import { TABLE_KINDS, RESULT_KINDS, SET_KINDS } from "../lib/plotRenderBio";
 import { graphSvg } from "../lib/graphs";
 import { toDataUrl } from "../lib/svgPalette";
 
@@ -65,6 +65,24 @@ const SHAPES = [
     text: "Time to an event, with censored subjects, for Kaplan-Meier curves. One row per subject: the time, 1 for the event or 0 if censored, and the group.",
     example: "Time  Event  Group\n  12     1    Drug\n  30     0    Control",
   },
+  {
+    id: "table",
+    title: "Table of numbers",
+    text: "A matrix: one row per gene, sample or subject, and a column for each measurement. For heatmaps, PCA, correlation matrices, ROC curves and agreement.",
+    example: "Patient  CD44  VIM  Group\nP01      6.10  7.19 Tumour\nP02      6.31  6.26 Tumour",
+  },
+  {
+    id: "results",
+    title: "Results per row",
+    text: "One row per test: a name, an effect such as a log2 fold change, and a p value. For volcano, MA and forest plots.",
+    example: "Gene  log2FC  p value\nMYC    3.29   8e-14\nTP53  -2.34   4e-39",
+  },
+  {
+    id: "sets",
+    title: "Lists of names",
+    text: "A list per column, each cell a name. For Venn diagrams and UpSet plots.",
+    example: "Drug A  Drug B  Drug C\nTP53    MYC     EGFR\nMYC     EGFR    PTEN",
+  },
 ];
 
 const SOURCES = [
@@ -89,9 +107,10 @@ function Preview({ kind, dataset }) {
     const hasNumbers = dataset.columns.some((_, i) => columnNumbers(dataset, i).length > 0);
     const data = hasNumbers ? dataset : sampleDataset(dataset.kind);
     const element = { width: 220, height: 160, plot: { ...defaultPlot(kind, { fontSize: 11 }) } };
-    // Survival curves need their analysis to be drawn at all, so previews go
-    // through the same path the canvas uses.
-    return toDataUrl(data.kind === "survival" ? graphSvg(element, data) : renderPlotSvg(element, data));
+    // Every preview goes through the path the canvas uses, since survival
+    // curves and the graphs built for bioinformatics are drawn from their
+    // analysis rather than from the numbers directly.
+    return toDataUrl(graphSvg(element, data));
   }, [kind, dataset]);
   return <img src={url} alt="" width={220} height={160} />;
 }
@@ -148,12 +167,20 @@ export default function GraphDialog({ datasets = [], panelLabel = null, onClose,
       ? COUNT_KINDS
       : shape === "survival"
       ? SURVIVAL_KINDS
+      : shape === "table"
+      ? TABLE_KINDS
+      : shape === "results"
+      ? RESULT_KINDS
+      : shape === "sets"
+      ? SET_KINDS
       : GROUP_KINDS;
   const shapeOk = !SHAPES.find((s) => s.id === shape)?.later;
 
   const chooseShape = (id) => {
     setShape(id);
-    setKind(id === "xy" ? "scatter" : "bar");
+    setKind(
+      { xy: "scatter", table: "heatmap", results: "volcano", sets: "venn" }[id] ?? "bar"
+    );
     // Keep the source sensible for the new shape.
     const fits = initialSource(datasets, id);
     if (source === "existing" || source === "sample") setSource(fits);
@@ -299,7 +326,10 @@ export default function GraphDialog({ datasets = [], panelLabel = null, onClose,
                   // A grouped table's first column holds names, so counting
                   // numbers in it would report every one of them as a fault.
                   const names =
-                    ((shape === "grouped" || shape === "contingency") && i === 0) || (shape === "survival" && i === 2);
+                    ((shape === "grouped" || shape === "contingency" || shape === "table" || shape === "results") &&
+                      i === 0) ||
+                    (shape === "survival" && i === 2) ||
+                    shape === "sets";
                   const ok = names ? c.other > 0 : c.numbers > 0;
                   return (
                     <div key={i} className={`read-row${ok ? "" : " warn"}`}>
@@ -337,6 +367,13 @@ export default function GraphDialog({ datasets = [], panelLabel = null, onClose,
                 {shape === "survival" && (
                   <p className="hint">Three columns: the time, whether the event happened (1) or the subject was censored (0), and the group.</p>
                 )}
+                {shape === "table" && (
+                  <p className="hint">The first column names each row; every other column is a measurement. A column of words can name the group or the class.</p>
+                )}
+                {shape === "results" && (
+                  <p className="hint">The first column names each test. Morphly looks for an effect and a p value by their column names, and the panel lets you say which is which.</p>
+                )}
+                {shape === "sets" && <p className="hint">Each column is one list. Blank cells and repeats are ignored.</p>}
               </aside>
             )}
           </div>

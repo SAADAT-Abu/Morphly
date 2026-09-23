@@ -115,8 +115,17 @@ If `requires_attribution` is missing, Morphly works it out from `license`:
 anything other than public domain or CC0 is treated as needing credit.
 
 The fetchers in `scraper/` are working examples. `scidraw_fetcher.py` is the
-best one to copy for a source with an API, and `bioicons_fetcher.py` for a
-source that publishes its files in a repository.
+best one to copy for a source with an API, `phylopic_fetcher.py` for one whose
+licence and metadata have to be read per item, and `bioicons_fetcher.py`,
+`reactome_fetcher.py` or `healthicons_fetcher.py` for a source that publishes
+its files in a repository. The newer ones share `scraper/assetlib.py`, which
+holds the retrying fetch, the slug maker, the SVG sanitiser and the manifest
+writer, so a new fetcher is mostly a loop and a licence table.
+
+**Leave out what a licence would spread.** Non-commercial artwork makes a
+figure unpublishable in most journals, and share-alike artwork can oblige the
+whole figure to carry the same licence. Both are better dropped at fetch time
+than flagged later, which is what `phylopic_fetcher.py` does by default.
 
 **Only vectors.** Raster files (PNG, JPEG) cannot be recoloured and blur when
 scaled, so leave them out of the manifest.

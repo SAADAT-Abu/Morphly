@@ -54,6 +54,34 @@ PACKS = {
                   "each under CC BY 4.0 or CC0 with its own DOI, recorded per drawing in "
                   "manifest.json.",
     },
+    "reactome": {
+        "title": "Morphly Art Pack: Reactome Icons",
+        "license": "cc-by-4.0",
+        "source": "https://reactome.org/icon-lib",
+        "credit": "Icons from the Reactome Icon Library (reactome.org/icon-lib), each drawn "
+                  "by a named designer and licensed CC BY 4.0 under Reactome's licence "
+                  "agreement. The designer of each icon is recorded in manifest.json.",
+    },
+    "healthicons": {
+        "title": "Morphly Art Pack: Health Icons",
+        "license": "cc0-1.0",
+        "source": "https://healthicons.org",
+        "credit": "Icons from Health Icons (healthicons.org), released under CC0 1.0 by "
+                  "their contributors. Crediting is not required for any icon in this pack.",
+    },
+    "phylopic": {
+        # PhyloPic mixes CC0, Public Domain Mark and CC BY 3.0/4.0. CC BY is the
+        # strictest of those, so it describes the pack without understating what
+        # any one silhouette obliges. Non-commercial and share-alike silhouettes
+        # are not in the pack at all.
+        "license": "cc-by-4.0",
+        "title": "Morphly Art Pack: PhyloPic",
+        "source": "https://www.phylopic.org",
+        "credit": "Silhouettes from PhyloPic (phylopic.org) by their individual "
+                  "contributors, each under CC0, the Public Domain Mark or CC BY, with the "
+                  "licence and the contributor recorded per silhouette in manifest.json. "
+                  "Non-commercial and share-alike silhouettes are excluded.",
+    },
 }
 
 

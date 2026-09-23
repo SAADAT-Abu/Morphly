@@ -404,6 +404,13 @@ scroll, and JPEG export.
   artwork, add text, arrows and panel layouts, load data into graphs, and export
   to PNG, SVG or PDF. The result is an ordinary .morphly file you can open and
   keep editing by hand, and everything still runs locally on your machine.
+- **Elements that draw themselves from your numbers.** Not pictures but
+  generators: a plasmid map from a list of features, gel lanes from band
+  positions, a multiwell plate from a layout, membranes, vesicles, brackets and
+  sequence tracks. Each one stays editable as data rather than as paths, so it
+  scales, recolours and redraws when the numbers change. This is the part no
+  illustration library can supply, because the drawing depends on what you are
+  drawing about.
 - **A layout that is easier to pick up.** Planned for 0.5 and only partly done,
   so it carries over: a labelled Insert bar, a toolbar that shows only what
   applies to the current selection, content (library, templates, uploads,

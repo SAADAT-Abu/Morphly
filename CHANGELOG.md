@@ -11,6 +11,18 @@ and version numbers follow [Semantic Versioning](https://semver.org/).
 
 Planned work is described in the [roadmap](README.md#roadmap).
 
+### Added
+
+- **Three new Art Packs**, installable from the Art Store without updating
+  Morphly. **PhyloPic**: silhouettes of organisms across the tree of life, from
+  bacteria to whales, filed by clade. **Reactome Icons**: 2,257 pathway pieces,
+  receptors, transporters, channels, complexes, compounds and reaction arrows,
+  each drawn by a named designer. **Health Icons**: 749 public health
+  pictograms for study designs and clinical workflows, all CC0, so nothing in
+  that pack needs crediting. Non-commercial and share-alike artwork is left out
+  of all three: a licence that spreads to the whole figure is the kind of thing
+  discovered at submission rather than at design time.
+
 ## [0.5.1] - 2026-09-22
 
 ### Fixed

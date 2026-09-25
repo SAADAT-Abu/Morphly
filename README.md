@@ -396,7 +396,7 @@ the graph, and a methods sentence can be copied straight into a manuscript.
 can be resized by dragging their boundaries, an asset library that loads as you
 scroll, and JPEG export.
 
-### Version 0.6 (next): reshaping data, and figures from AI assistants
+### Version 0.6 (next): reshaping data, and elements drawn from numbers
 
 - **Reshape a table without leaving Morphly.** The first thing to be built:
   filter rows, make a new column out of two others, turn long into wide,
@@ -404,12 +404,6 @@ scroll, and JPEG export.
   figure so it can be changed or undone later. Each step will show the R it is
   equivalent to, so a reshaped table can be checked the same way every
   statistical test already can.
-- **An MCP server.** Morphly will expose its editor through the Model Context
-  Protocol, so command-line assistants such as Claude Code and Codex can build
-  figures on request: search the illustration libraries, place and recolour
-  artwork, add text, arrows and panel layouts, load data into graphs, and export
-  to PNG, SVG or PDF. The result is an ordinary .morphly file you can open and
-  keep editing by hand, and everything still runs locally on your machine.
 - **Elements that draw themselves from your numbers.** Not pictures but
   generators: a plasmid map from a list of features, gel lanes from band
   positions, a multiwell plate from a layout, membranes, vesicles, brackets and
@@ -422,6 +416,15 @@ scroll, and JPEG export.
   applies to the current selection, content (library, templates, uploads,
   layers) in one collapsible side panel, properties split into Style and
   Arrange, and a search box for every command.
+
+### Version 0.7: figures from AI assistants
+
+- **An MCP server.** Morphly will expose its editor through the Model Context
+  Protocol, so command-line assistants such as Claude Code and Codex can build
+  figures on request: search the illustration libraries, place and recolour
+  artwork, add text, arrows and panel layouts, load data into graphs, and export
+  to PNG, SVG or PDF. The result is an ordinary .morphly file you can open and
+  keep editing by hand, and everything still runs locally on your machine.
 
 ### Later
 

@@ -404,6 +404,9 @@ scroll, and JPEG export.
   figure so it can be changed or undone later. Each step will show the R it is
   equivalent to, so a reshaped table can be checked the same way every
   statistical test already can.
+- **More on the heatmaps and PCA.** A dendrogram drawn beside a clustered
+  heatmap, and confidence ellipses on a PCA, so the clustering and the grouping
+  can be read off the figure itself.
 - **Elements that draw themselves from your numbers.** Not pictures but
   generators: a plasmid map from a list of features, gel lanes from band
   positions, a multiwell plate from a layout, membranes, vesicles, brackets and
@@ -430,9 +433,8 @@ scroll, and JPEG export.
 
 Directions we intend to take, not yet scheduled: figure templates, pathway
 diagrams generated from interaction tables (for example ligand-receptor
-results), dendrograms drawn beside a heatmap, confidence ellipses on a PCA, and
-an optional statistics download for the tests that need a full modelling
-engine, such as mixed models and Cox regression with covariates.
+results), and an optional statistics download for the tests that need a full
+modelling engine, such as mixed models and Cox regression with covariates.
 
 ## Found a bug? Want a feature?
 

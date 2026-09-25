@@ -239,8 +239,14 @@ package one.
 
 | Pack | Contents | Download |
 | --- | --- | --- |
+| PhyloPic | 11,078 silhouettes of organisms across the tree of life, by clade: mammals, birds, reptiles, fish, insects, molluscs, plants, fungi, bacteria. For model organism, evolution and ecology figures. | 59 MB |
 | Bioicons | 2,830 icons: chemistry, cell biology, lab equipment, sequencing, clinical imagery. Strong on epigenetics. | 180 MB |
+| Reactome Icons | 2,257 pathway icons: receptors, transporters, channels, complexes, compounds, cell types and tissues, with the arrows a pathway diagram needs. | 9 MB |
+| Health Icons | 749 public health pictograms: clinics and wards, staff and patients, devices and diagnostics, medicines and vaccines, symptoms and disease vectors. | 1 MB |
 | SciDraw | 609 drawings, each with a DOI: whole animals, neuroscience, behavioural setups, cells. | 59 MB |
+
+Together with the built-in NIH BioArt, that is over twenty thousand
+illustrations, every one openly licensed and labelled with its licence.
 
 Morphly also reads any library folder from anywhere on disk, which is what you
 want when running from source or building a library of your own:

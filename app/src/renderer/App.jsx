@@ -852,6 +852,15 @@ export default function App() {
         const dx = e.key === "ArrowLeft" ? -step : e.key === "ArrowRight" ? step : 0;
         const dy = e.key === "ArrowUp" ? -step : e.key === "ArrowDown" ? step : 0;
         s.nudgeSelected(dx, dy);
+      } else if (!mod && e.shiftKey) {
+        // Shifted letters mirror the selection. They are checked before the
+        // tool switches below, which now require an unshifted key, so Shift+V
+        // flips rather than reaching for the select tool.
+        const axis = { h: "x", v: "y" }[e.key.toLowerCase()];
+        if (axis) {
+          e.preventDefault();
+          s.flipSelected(axis);
+        }
       } else if (!mod) {
         // Single-key tool switches, as in most editors.
         if (e.key.toLowerCase() === "a") {
@@ -904,6 +913,8 @@ export default function App() {
           return s.alignSelected(action.slice("align:".length));
         case "distribute:h-gaps": case "distribute:v-gaps":
           return s.distributeSelected(action.slice("distribute:".length));
+        case "flip:x": case "flip:y":
+          return s.flipSelected(action.slice("flip:".length));
         case "insertImage": return handleInsertImage();
         case "toggleGrid": return s.toggleGrid();
         case "undo": return s.undo();

@@ -160,10 +160,12 @@ def build_zip(library: Path, pack_meta: dict, out_zip: Path) -> tuple[int, int]:
 import re
 import xml.etree.ElementTree as ET
 
-DRAWABLE = re.compile(r"<(?:[a-z]+:)?(?:path|circle|ellipse|polygon|polyline|line|text|image|use)\b", re.I)
-RECT = re.compile(r"<(?:[a-z]+:)?rect\b[^>]*>", re.I)
+# `[a-z][\w.-]*:` not `[a-z]+:`: a namespace prefix may contain digits, and
+# every NIH BioArt file uses `ns0:`. The narrower pattern read those as blank.
+DRAWABLE = re.compile(r"<(?:[a-z][\w.-]*:)?(?:path|circle|ellipse|polygon|polyline|line|text|image|use)\b", re.I)
+RECT = re.compile(r"<(?:[a-z][\w.-]*:)?rect\b[^>]*>", re.I)
 WHITE_OR_NONE = re.compile(r"fill\s*[:=]\s*[\"']?\s*(?:#fff\b|#ffffff\b|white\b|none\b)", re.I)
-ROOT = re.compile(r"<(?:[a-z]+:)?svg\b[^>]*>", re.I)
+ROOT = re.compile(r"<(?:[a-z][\w.-]*:)?svg\b[^>]*>", re.I)
 
 
 def fit_to_drawing(path: Path, page_w: float, page_h: float) -> str | None:
@@ -260,7 +262,7 @@ def clean_library(source: Path, staging: Path) -> dict:
                     else:
                         root = ROOT.search(body)
                         if root and "viewBox" not in root.group(0) and not re.search(r"\b(?:width|height)\s*=", root.group(0)):
-                            page = re.search(r"<(?:[a-z]+:)?g\b[^>]*\bwidth\s*=\s*[\"']([\d.]+)(?:px)?[\"'][^>]*\bheight\s*=\s*[\"']([\d.]+)(?:px)?[\"']", body, re.I)
+                            page = re.search(r"<(?:[a-z][\w.-]*:)?g\b[^>]*\bwidth\s*=\s*[\"']([\d.]+)(?:px)?[\"'][^>]*\bheight\s*=\s*[\"']([\d.]+)(?:px)?[\"']", body, re.I)
                             box = fit_to_drawing(path, float(page.group(1)), float(page.group(2))) if page else None
                             if not box and page:
                                 # Visible but loosely framed beats blank; say so loudly.

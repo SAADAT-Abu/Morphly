@@ -38,6 +38,21 @@ AUTHOR = {"name": "Saadat, Abu", "affiliation": "Josep Carreras Leukaemia Resear
 # CC BY is an honest umbrella. Bioicons mixes CC BY, CC BY-SA, CC0, MIT and
 # BSD, and no single licence describes it without misrepresenting part of it.
 PACKS = {
+    "bioart": {
+        # Public domain: works of the NIAID Visual and Medical Arts team. CC0 is
+        # the closest Zenodo licence to a public domain dedication, and it
+        # obliges nothing, which is accurate here. This is the same library the
+        # installers bundle, published as a pack so it can be installed or
+        # restored from inside the app without a new Morphly release.
+        "title": "Morphly Art Pack: NIH BioArt",
+        "license": "cc0-1.0",
+        "source": "https://bioart.niaid.nih.gov",
+        "credit": "Illustrations from the NIAID NIH BioArt Source "
+                  "(bioart.niaid.nih.gov), drawn by the NIAID Visual and Medical Arts "
+                  "team and released into the public domain. Citation is not required "
+                  "and is appreciated; the per-entry citation, creator and credit line "
+                  "are recorded in manifest.json.",
+    },
     "bioicons": {
         "title": "Morphly Art Pack: Bioicons",
         "license": "other-open",

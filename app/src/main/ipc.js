@@ -13,11 +13,12 @@ const fs = require("node:fs/promises");
 const fsSync = require("node:fs");
 const path = require("node:path");
 
-const { readSettings, writeSettings, libraryKey, libraryDirFor, defaultSaveFolder, saveFolderFrom } = require("./settings");
+const { readSettings, writeSettings, libraryKey, libraryDirFor, defaultSaveFolder, saveFolderFrom, bundledLibraryDirs } = require("./settings");
 const { safeTitle, uniquePath, writeAtomic, renameFigure } = require("./figureFiles");
 const { loadLibraries, readSvg } = require("./library");
 const { checkForUpdate } = require("./updates");
 const artpacks = require("./artpacks");
+const { findBundledDir, describeBundled } = require("./bundledPacks");
 const { prepareSvg, MAX_IMPORT_BYTES } = require("./svgImport");
 
 const ok = (data) => ({ ok: true, ...data });
@@ -186,11 +187,27 @@ function registerIpc({ recovery } = {}) {
 
     const installed = await artpacks.listInstalled(settings);
     const byId = new Map(installed.map((p) => [p.id, p]));
-    const packs = (catalogue.packs ?? []).map((pack) => ({
-      ...pack,
-      installed: byId.has(pack.id),
-      installedVersion: byId.get(pack.id)?.version ?? null,
-    }));
+
+    // What this build carries inside it goes first, so the library Morphly
+    // already has is the first thing the store says, and a user who unmounted
+    // it can put it back. A bundled copy hides the downloadable pack of the
+    // same artwork, unless that one is installed, which would otherwise leave
+    // it mounted with no card to remove it from.
+    const bundled = await describeBundled(bundledLibraryDirs(), settings.libraries);
+    const superseded = new Set(
+      bundled.map((p) => p.supersedes).filter((id) => id && !byId.has(id))
+    );
+
+    const packs = [
+      ...bundled,
+      ...(catalogue.packs ?? [])
+        .filter((pack) => !superseded.has(pack.id))
+        .map((pack) => ({
+          ...pack,
+          installed: byId.has(pack.id),
+          installedVersion: byId.get(pack.id)?.version ?? null,
+        })),
+    ];
 
     // A pack installed from a catalogue that no longer lists it should still be
     // visible, or it could never be removed from inside the app.
@@ -207,6 +224,25 @@ function registerIpc({ recovery } = {}) {
    *  runs, because these are hundreds of megabytes. */
   ipcMain.handle("artpacks:install", async (event, entry) => {
     const settings = await readSettings();
+
+    // A bundled library is already on disk inside the app, so adding it is only
+    // a mount: nothing is downloaded, verified or unpacked. The folder is looked
+    // up in our own list rather than taken from the entry the renderer sent
+    // back, so this cannot be talked into mounting an arbitrary path.
+    if (entry?.bundled) {
+      const dir = findBundledDir(bundledLibraryDirs(), entry.id);
+      if (!dir) return fail("That library is not part of this build of Morphly");
+      const next = settings.libraries.some((l) => l.dir === dir)
+        ? settings.libraries
+        : [...settings.libraries, { key: libraryKey(dir), dir, packId: entry.id }];
+      try {
+        await writeSettings({ libraries: next, librariesInitialised: true });
+        return ok({ library: await loadLibraries(next), dir });
+      } catch (err) {
+        return fail(err);
+      }
+    }
+
     try {
       const { dir } = await artpacks.installPack(entry, {
         settings,
@@ -228,6 +264,23 @@ function registerIpc({ recovery } = {}) {
    *  element carries its own SVG source. */
   ipcMain.handle("artpacks:remove", async (_event, id) => {
     const settings = await readSettings();
+
+    // Removing a bundled library unmounts it and deletes nothing: the artwork
+    // belongs to the installation, and the card stays in the store to add it
+    // back. Deleting it would also fail on a read-only AppImage mount.
+    const bundledDir = findBundledDir(bundledLibraryDirs(), id);
+    if (bundledDir) {
+      const next = settings.libraries.filter(
+        (l) => path.resolve(l.dir) !== path.resolve(bundledDir)
+      );
+      try {
+        await writeSettings({ libraries: next, librariesInitialised: true });
+        return ok({ library: next.length > 0 ? await loadLibraries(next) : null });
+      } catch (err) {
+        return fail(err);
+      }
+    }
+
     try {
       const { dir } = await artpacks.removePack(id, { settings });
       const next = settings.libraries.filter((l) => l.dir !== dir && l.packId !== id);

@@ -5,6 +5,12 @@
  * library made a 465 MB installer most of which many users never touch. The
  * rest are Art Packs, published on Zenodo and listed here.
  *
+ * BioArt is listed too, as the first card, for two reasons. It was invisible
+ * here, which read as though it were not included at all; and removing it from
+ * the sidebar was a one-way door, because the first-run mount does not repeat
+ * itself. Its card downloads nothing when the build carries the library: adding
+ * it mounts the copy already inside the app.
+ *
  * A card leads with what the pack contains and what it obliges you to do,
  * rather than with its name and size. Share-alike artwork can oblige a whole
  * figure to be shared openly, and that is the kind of thing better known
@@ -83,8 +89,9 @@ export default function ArtStore({ onClose, onLibraryChange, flash }) {
 
         <div className="help-body">
           <p className="lede">
-            Extra illustration libraries, downloaded when you want them. Morphly comes
-            with NIH BioArt; everything here is optional and can be removed again.
+            Illustration libraries you can add without reinstalling. The one Morphly
+            comes with is already inside the app; the rest download when you want
+            them. Every one of them can be removed again.
           </p>
 
           {offline && (
@@ -133,7 +140,11 @@ function PackCard({ pack, busy, progress, disabled, onInstall, onRemove }) {
           <strong>{pack.name}</strong>
           <span className="pack-meta">
             {pack.entries?.toLocaleString()} illustrations
-            {pack.bytes ? ` · ${formatBytes(pack.bytes)} download` : ""}
+            {pack.bundled
+              ? " · included with Morphly"
+              : pack.bytes
+                ? ` · ${formatBytes(pack.bytes)} download`
+                : ""}
           </span>
         </div>
 
@@ -161,6 +172,13 @@ function PackCard({ pack, busy, progress, disabled, onInstall, onRemove }) {
             <span className="licence-badge inline sa">{pack.shareAlike} share-alike</span>
           )}
         </div>
+
+        {pack.bundled && !pack.installed && (
+          <p className="hint">
+            Already inside Morphly, just not in your sidebar. Adding it needs no
+            download and works offline.
+          </p>
+        )}
 
         {pack.shareAlike > 0 && (
           <p className="hint">
@@ -193,14 +211,23 @@ function PackCard({ pack, busy, progress, disabled, onInstall, onRemove }) {
       <div className="pack-actions">
         {pack.installed ? (
           <>
-            <span className="pack-installed">Installed</span>
-            <button className="ghost small" onClick={onRemove} disabled={busy || disabled}>
+            <span className="pack-installed">{pack.bundled ? "In your library" : "Installed"}</span>
+            <button
+              className="ghost small"
+              onClick={onRemove}
+              disabled={busy || disabled}
+              title={
+                pack.bundled
+                  ? "Hides it from the sidebar. The artwork stays inside Morphly and can be added back here."
+                  : undefined
+              }
+            >
               {busy ? "Removing…" : "Remove"}
             </button>
           </>
         ) : (
           <button className="primary small" onClick={onInstall} disabled={busy || disabled}>
-            {busy ? "Installing…" : "Download"}
+            {pack.bundled ? (busy ? "Adding…" : "Add") : busy ? "Installing…" : "Download"}
           </button>
         )}
         {pack.homepage && (

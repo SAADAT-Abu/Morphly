@@ -125,4 +125,4 @@ async function libraryDirFor(key) {
   return libraries.find((l) => l.key === key)?.dir ?? null;
 }
 
-module.exports = { readSettings, writeSettings, settingsPath, libraryKey, libraryDirFor, defaultSaveFolder, saveFolderFrom };
+module.exports = { readSettings, writeSettings, settingsPath, libraryKey, libraryDirFor, defaultSaveFolder, saveFolderFrom, bundledLibraryDirs };

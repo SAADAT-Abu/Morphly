@@ -56,6 +56,8 @@ export default function App() {
   const rememberPane = useCallback((name, size) => window.morphly.setSettings(settingFor(name, size)), []);
   /** { latest, url } when Zenodo has a newer release than this build. */
   const [update, setUpdate] = useState(null);
+  /** Messages from the project, newest first; see main/notices.js. */
+  const [notices, setNotices] = useState([]);
 
   const store = useStore;
   const elements = useStore((s) => s.elements);
@@ -90,6 +92,20 @@ export default function App() {
   }, []);
 
   // Welcome screen on first launch, until the user opts out.
+  const runNoticeCheck = useCallback(async () => {
+    try {
+      const res = await window.morphly.checkNotices({});
+      if (res.notices?.length) setNotices(res.notices);
+    } catch {
+      /* a message from us is never worth breaking the editor over */
+    }
+  }, []);
+
+  const dismissNotice = useCallback((id) => {
+    setNotices((current) => current.filter((n) => n.id !== id));
+    window.morphly.dismissNotice(id);
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -136,9 +152,12 @@ export default function App() {
 
   useEffect(() => {
     // A moment after launch, so it never competes with loading the library.
-    const id = window.setTimeout(() => runUpdateCheck(), 4000);
+    const id = window.setTimeout(() => {
+      runUpdateCheck();
+      runNoticeCheck();
+    }, 4000);
     return () => window.clearTimeout(id);
-  }, [runUpdateCheck]);
+  }, [runUpdateCheck, runNoticeCheck]);
 
   // -- placing assets -------------------------------------------------------
 
@@ -1188,6 +1207,7 @@ export default function App() {
           }}
         />
       )}
+      <div className="banner-stack">
       {update && (
         <div className="update-banner">
           <span>
@@ -1202,6 +1222,24 @@ export default function App() {
           </button>
         </div>
       )}
+
+      {notices.map((notice) => (
+        <div key={notice.id} className={`update-banner notice-${notice.level}`}>
+          <span>
+            <strong>{notice.title}</strong>
+            {notice.body ? ` ${notice.body}` : ""}
+          </span>
+          {notice.url && (
+            <button className="primary small" onClick={() => window.morphly.openExternal(notice.url)}>
+              {notice.linkText}
+            </button>
+          )}
+          <button className="ghost small" onClick={() => dismissNotice(notice.id)}>
+            Dismiss
+          </button>
+        </div>
+      ))}
+      </div>
 
       {toast && <div className="toast">{toast}</div>}
     </div>

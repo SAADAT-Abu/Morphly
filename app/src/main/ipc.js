@@ -17,6 +17,7 @@ const { readSettings, writeSettings, libraryKey, bundledEntry, libraryDirFor, de
 const { safeTitle, uniquePath, writeAtomic, renameFigure } = require("./figureFiles");
 const { loadLibraries, readSvg } = require("./library");
 const { checkForUpdate } = require("./updates");
+const { checkNotices } = require("./notices");
 const artpacks = require("./artpacks");
 const { findBundledDir, describeBundled } = require("./bundledPacks");
 const { prepareSvg, MAX_IMPORT_BYTES } = require("./svgImport");
@@ -148,6 +149,23 @@ function registerIpc({ recovery } = {}) {
   ipcMain.handle("updates:check", async (_event, { force = false } = {}) => {
     const settings = await readSettings();
     return checkForUpdate({ settings, writeSettings, force });
+  });
+
+  /** Messages from the project: a faulty release, a new Art Pack, a licence
+   *  change. Which ones apply is decided here, so nothing is sent. */
+  ipcMain.handle("notices:check", async (_event, { force = false } = {}) => {
+    const settings = await readSettings();
+    return checkNotices({ settings, writeSettings, force });
+  });
+
+  /** Dismissing is remembered by id, so a notice does not come back tomorrow. */
+  ipcMain.handle("notices:dismiss", async (_event, id) => {
+    const settings = await readSettings();
+    const dismissed = settings.dismissedNotices ?? [];
+    if (!id || dismissed.includes(id)) return ok({});
+    // Bounded, so a long-lived profile cannot grow this without limit.
+    await writeSettings({ dismissedNotices: [...dismissed, String(id)].slice(-50) });
+    return ok({});
   });
 
   // -- art packs -----------------------------------------------------------

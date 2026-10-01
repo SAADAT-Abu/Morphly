@@ -58,6 +58,8 @@ contextBridge.exposeInMainWorld("morphly", {
   setDirty: (dirty) => ipcRenderer.send("app:dirty", dirty),
   /** Is a newer release on Zenodo? Reads a public record, sends nothing. */
   checkForUpdate: (opts) => ipcRenderer.invoke("updates:check", opts),
+  checkNotices: (opts) => ipcRenderer.invoke("notices:check", opts),
+  dismissNotice: (id) => ipcRenderer.invoke("notices:dismiss", id),
   /** Ask, in a native dialog, whether unsaved changes may be thrown away. */
   confirmDiscard: (options) => ipcRenderer.invoke("app:confirmDiscard", options),
   /** Close the window for real, after saving or discarding. */

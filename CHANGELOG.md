@@ -11,6 +11,23 @@ and version numbers follow [Semantic Versioning](https://semver.org/).
 
 Planned work is described in the [roadmap](README.md#roadmap).
 
+### Added
+
+- **The Linux build can update itself in place.** The AppImage now carries
+  update information and ships a `.zsync` file beside it, so AppImageUpdate,
+  `appimageupdatetool` or Gear Lever can fetch only the parts that changed
+  instead of another 280 MB. electron-builder builds its AppImages without
+  either, so Morphly writes the update information into the file and makes the
+  zsync itself, in the release workflow.
+- **Notices.** Morphly can now be told something other than "a newer version
+  exists": that a release has a fault worth updating for, that an Art Pack has
+  appeared, that a library changed its licence. Notices are read from a small
+  file in the repository, so one reaches versions that are already installed,
+  and which ones apply is decided on your own machine, so nothing is sent: no
+  identifier, no usage data, not even which version you are running. They are
+  dismissed for good once read, and the switch that turns off update checks
+  turns these off too.
+
 ## [0.5.2] - 2026-10-01
 
 ### Fixed

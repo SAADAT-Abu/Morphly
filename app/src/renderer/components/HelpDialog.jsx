@@ -333,9 +333,15 @@ function UpdatePreference() {
     setBusy(true);
     setResult(null);
     try {
-      const res = await window.morphly.checkForUpdate({ force: true });
-      if (res.available) setResult(`Morphly ${res.latest} is available.`);
-      else if (res.ok && res.latest) setResult(`You are on the latest version (${res.current}).`);
+      const [res, notices] = await Promise.all([
+        window.morphly.checkForUpdate({ force: true }),
+        window.morphly.checkNotices({ force: true }),
+      ]);
+      const extra = notices.notices?.length
+        ? ` ${notices.notices.length} notice${notices.notices.length > 1 ? "s" : ""} to read.`
+        : "";
+      if (res.available) setResult(`Morphly ${res.latest} is available.${extra}`);
+      else if (res.ok && res.latest) setResult(`You are on the latest version (${res.current}).${extra}`);
       else setResult("Could not reach Zenodo. Check again when you are online.");
     } finally {
       setBusy(false);
@@ -346,14 +352,18 @@ function UpdatePreference() {
     <>
       <label className="check">
         <input type="checkbox" checked={enabled} onChange={(e) => toggle(e.target.checked)} />
-        Check Zenodo for a newer version, at most once a day
+        Check for a newer version and for notices, at most once a day
       </label>
       <p>
-        This is the only network request Morphly makes. It reads the public Zenodo
-        record for the project and sends nothing: no identifiers, no usage data, not
-        even which version you are running. Nothing is ever downloaded or installed
-        automatically, since a release is close to half a gigabyte; Morphly only tells
-        you a newer one exists and offers to open the page.
+        These are the only requests Morphly makes on its own. It reads the public
+        Zenodo record for the project, and a small file of notices in the project
+        repository, which is how you would hear that a release has a fault worth
+        updating for. Both send nothing: no identifiers, no usage data, not even
+        which version you are running, so which notices apply is worked out on your
+        own machine rather than by a server that would have to be told. Nothing is
+        ever downloaded or installed automatically, since a release is close to half
+        a gigabyte; Morphly only tells you that something exists and offers to open
+        the page. Switching this off stops both.
       </p>
       <div className="link-row">
         <button className="ghost small" onClick={checkNow} disabled={busy}>

@@ -1,0 +1,18 @@
+{
+  "formatVersion": 1,
+  "updated": "2026-10-01",
+  "_comment": "Messages Morphly shows its users. Fetched at runtime, so a notice reaches versions that already exist without a release. Keep the list short and remove a notice once it has done its work: every entry here interrupts somebody. `maxVersion` reaches only the people still running an affected build; `platforms` narrows further. See app/src/main/notices.js.",
+  "notices": [
+    {
+      "id": "linux-library-lost-0.5.1",
+      "level": "important",
+      "title": "Linux: please update to 0.5.2.",
+      "body": "In this version the illustration library inside Morphly is lost after the first launch, because an AppImage mounts itself in a new place each time it starts. 0.5.2 fixes it and repairs the setting.",
+      "url": "https://github.com/SAADAT-Abu/Morphly/releases/latest",
+      "linkText": "Get 0.5.2",
+      "platforms": ["linux"],
+      "maxVersion": "0.5.1",
+      "published": "2026-10-01"
+    }
+  ]
+}

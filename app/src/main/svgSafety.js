@@ -18,9 +18,12 @@ const { XMLValidator } = require("fast-xml-parser");
  */
 function sanitiseSvg(text) {
   return text
-    .replace(/<\s*script[\s\S]*?<\s*\/\s*script\s*>/gi, "")
-    .replace(/<\s*script[^>]*\/>/gi, "")
-    .replace(/<\s*foreignObject[\s\S]*?<\s*\/\s*foreignObject\s*>/gi, "")
+    // The `(?:[a-z][\w.-]*:)?` is not decoration: a prefix bound to the SVG
+    // namespace makes <ns0:script> a script element, and BioArt-shaped files
+    // prefix everything, so leaving it out would let one through untouched.
+    .replace(/<\s*(?:[a-z][\w.-]*:)?script[\s\S]*?<\s*\/\s*(?:[a-z][\w.-]*:)?script\s*>/gi, "")
+    .replace(/<\s*(?:[a-z][\w.-]*:)?script[^>]*\/>/gi, "")
+    .replace(/<\s*(?:[a-z][\w.-]*:)?foreignObject[\s\S]*?<\s*\/\s*(?:[a-z][\w.-]*:)?foreignObject\s*>/gi, "")
     // on* handlers, quoted or bare
     .replace(/\son[a-z]+\s*=\s*(["'])[\s\S]*?\1/gi, "")
     .replace(/\son[a-z]+\s*=\s*[^\s>]+/gi, "")
@@ -34,8 +37,11 @@ function sanitiseSvg(text) {
 }
 
 
-const DRAWABLE = /<(?:[a-z]+:)?(?:path|circle|ellipse|polygon|polyline|line|text|image|use)\b/i;
-const RECT = /<(?:[a-z]+:)?rect\b[^>]*>/gi;
+// A namespace prefix can contain digits, and BioArt's files are all `ns0:`.
+// An earlier `[a-z]+:` matched `xlink:` but not `ns0:`, so every BioArt drawing
+// looked like a file with no drawable elements in it, which is to say blank.
+const DRAWABLE = /<(?:[a-z][\w.-]*:)?(?:path|circle|ellipse|polygon|polyline|line|text|image|use)\b/i;
+const RECT = /<(?:[a-z][\w.-]*:)?rect\b[^>]*>/gi;
 const WHITE_OR_NONE = /fill\s*[:=]\s*["']?\s*(?:#fff\b|#ffffff\b|white\b|none\b)/i;
 
 /**
@@ -64,7 +70,7 @@ function validateSvg(input) {
   // trimming them recovers the drawing. Anything else malformed is dropped.
   let check = XMLValidator.validate(text);
   if (check !== true) {
-    const close = /<\/(?:[a-z]+:)?svg\s*>/gi;
+    const close = /<\/(?:[a-z][\w.-]*:)?svg\s*>/gi;
     let last = null;
     for (let m = close.exec(text); m; m = close.exec(text)) last = m;
     if (last) {
@@ -86,9 +92,9 @@ function validateSvg(input) {
     }
   }
 
-  const root = /<(?:([a-z]+):)?svg\b[^>]*>/i.exec(body);
+  const root = /<(?:([a-z][\w.-]*):)?svg\b[^>]*>/i.exec(body);
   if (root && !/\bviewBox\s*=/.test(root[0]) && !/\b(?:width|height)\s*=/.test(root[0])) {
-    const sized = /<(?:[a-z]+:)?g\b[^>]*\bwidth\s*=\s*["']([\d.]+)(?:px)?["'][^>]*\bheight\s*=\s*["']([\d.]+)(?:px)?["']/i.exec(body);
+    const sized = /<(?:[a-z][\w.-]*:)?g\b[^>]*\bwidth\s*=\s*["']([\d.]+)(?:px)?["'][^>]*\bheight\s*=\s*["']([\d.]+)(?:px)?["']/i.exec(body);
     if (sized) {
       const [, w, h] = sized;
       const fixed = root[0].replace(/\s*\/?>$/, (end) => ` viewBox="0 0 ${w} ${h}" width="${w}" height="${h}"${end}`);

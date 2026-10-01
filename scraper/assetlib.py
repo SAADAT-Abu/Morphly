@@ -46,9 +46,9 @@ def sanitise_svg(text: str) -> str:
     Morphly sanitises art packs on install too, but a library built here can be
     mounted straight from the folder, which skips that step.
     """
-    text = re.sub(r"<\s*script[\s\S]*?<\s*/\s*script\s*>", "", text, flags=re.I)
-    text = re.sub(r"<\s*script[^>]*/>", "", text, flags=re.I)
-    text = re.sub(r"<\s*foreignObject[\s\S]*?<\s*/\s*foreignObject\s*>", "", text, flags=re.I)
+    text = re.sub(r"<\s*(?:[a-z][\w.-]*:)?script[\s\S]*?<\s*/\s*(?:[a-z][\w.-]*:)?script\s*>", "", text, flags=re.I)
+    text = re.sub(r"<\s*(?:[a-z][\w.-]*:)?script[^>]*/>", "", text, flags=re.I)
+    text = re.sub(r"<\s*(?:[a-z][\w.-]*:)?foreignObject[\s\S]*?<\s*/\s*(?:[a-z][\w.-]*:)?foreignObject\s*>", "", text, flags=re.I)
     text = re.sub(r"\son[a-z]+\s*=\s*\"[^\"]*\"", "", text, flags=re.I)
     text = re.sub(r"\son[a-z]+\s*=\s*'[^']*'", "", text, flags=re.I)
     return text

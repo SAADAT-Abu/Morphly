@@ -1,5 +1,6 @@
 import React from "react";
 import { useStore } from "../store";
+import { canFlip } from "../lib/geometry";
 import iconUrl from "../assets/icon.png";
 import { ALIGN_REFERENCES, movableUnits } from "../lib/align";
 import { connectorGeometry, isConnector } from "../lib/connectors";
@@ -62,6 +63,22 @@ const ICON = {
   "distribute-h-centres": <path d="M4 8h3v8H4zM10.5 6h3v12h-3zM17 9h3v6h-3zM5.5 3.5v2M12 3v2M18.5 3.5v2" />,
   "distribute-v-gaps": <path d="M4 3.5h16M4 20.5h16M7.5 7.5h9v3h-9zM5.5 13.5h13v3h-13z" />,
   "distribute-v-centres": <path d="M8 4h8v3H8zM6 10.5h12v3H6zM9 17h6v3H9zM3.5 5.5h2M3 12h2M3.5 18.5h2" />,
+
+  // A solid shape and its mirror image either side of a dashed axis.
+  "flip-h": (
+    <>
+      <path d="M12 3v18" strokeDasharray="2.5 2.5" />
+      <path d="M9.5 6.5 4 12l5.5 5.5z" fill="currentColor" />
+      <path d="M14.5 6.5 20 12l-5.5 5.5z" />
+    </>
+  ),
+  "flip-v": (
+    <>
+      <path d="M3 12h18" strokeDasharray="2.5 2.5" />
+      <path d="M6.5 9.5 12 4l5.5 5.5z" fill="currentColor" />
+      <path d="M6.5 14.5 12 20l5.5-5.5z" />
+    </>
+  ),
 
   "zoom-out": <path d="M6 12h12" />,
   "zoom-in": <path d="M12 6v12M6 12h12" />,
@@ -369,6 +386,7 @@ export default function Toolbar({
   const setAlignTo = useStore((s) => s.setAlignTo);
   const alignSelected = useStore((s) => s.alignSelected);
   const distributeSelected = useStore((s) => s.distributeSelected);
+  const flipSelected = useStore((s) => s.flipSelected);
   const snapping = useStore((s) => s.snapping);
   const toggleSnapping = useStore((s) => s.toggleSnapping);
 
@@ -379,6 +397,11 @@ export default function Toolbar({
   const units = selectedIds.length ? movableUnits(elements, selectedIds).length : 0;
   // Spreading between themselves needs three; across a page or panel, two.
   const canDistribute = units >= (alignTo === "page" || alignTo === "panel" ? 2 : 3);
+  // A mirror means nothing for a graph, a table or a word, so the buttons go
+  // quiet unless the selection holds something it does mean something for.
+  const canFlipSelection = elements.some(
+    (el) => selectedIds.includes(el.id) && !el.locked && canFlip(el)
+  );
 
   const title = useStore((s) => s.title);
 
@@ -458,6 +481,18 @@ export default function Toolbar({
           {ALIGN_BUTTONS.map(([edge, label]) => (
             <IconButton key={edge} icon={`align-${edge}`} label={label} onClick={() => alignSelected(edge)} disabled={units === 0} />
           ))}
+          <IconButton
+            icon="flip-h"
+            label={canFlipSelection ? "Flip left to right" : "Flip left to right (select artwork or a shape)"}
+            onClick={() => flipSelected("x")}
+            disabled={!canFlipSelection}
+          />
+          <IconButton
+            icon="flip-v"
+            label={canFlipSelection ? "Flip top to bottom" : "Flip top to bottom (select artwork or a shape)"}
+            onClick={() => flipSelected("y")}
+            disabled={!canFlipSelection}
+          />
           {DISTRIBUTE_BUTTONS.map(([mode, label]) => (
             <IconButton
               key={mode}

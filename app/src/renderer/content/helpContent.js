@@ -83,6 +83,7 @@ export const SHORTCUTS = [
       ["Ctrl + A", "Select all"],
       ["Ctrl + G", "Group selection"],
       ["Ctrl + Shift + G", "Ungroup"],
+      ["Shift + H / Shift + V", "Mirror left to right / top to bottom"],
       ["Delete", "Delete selection"],
       ["Shift + drag a corner", "Resize the other way: keep the proportions, or let go of them"],
       ["Arrow keys", "Nudge 2 px"],

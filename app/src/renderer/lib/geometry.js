@@ -10,6 +10,60 @@ export function pointsBounds(points) {
   };
 }
 
+/**
+ * Bounds in the element's own coordinates, before x/y and rotation.
+ *
+ * Most elements start at their own origin, so this is just their size; a line
+ * or arrow follows its points, which may sit either side of the origin.
+ */
+export function localBounds(el) {
+  if (el?.points?.length) {
+    const xs = el.points.filter((_, i) => i % 2 === 0);
+    const ys = el.points.filter((_, i) => i % 2 === 1);
+    return { x: Math.min(...xs), y: Math.min(...ys),
+             width: Math.max(...xs) - Math.min(...xs), height: Math.max(...ys) - Math.min(...ys) };
+  }
+  return { x: 0, y: 0, width: el?.width ?? 0, height: el?.height ?? 0 };
+}
+
+/**
+ * Element types a mirror makes sense for.
+ *
+ * Artwork and shapes flip; graphs, tables and text do not, because mirroring
+ * an axis, a column of numbers or a word makes it wrong rather than reversed.
+ * A caption inside a flipped shape is drawn outside the mirror for the same
+ * reason, so a labelled box flips and stays readable.
+ */
+export const FLIPPABLE = new Set([
+  "asset", "image", "rect", "ellipse", "triangle", "line", "arrow", "connector",
+]);
+
+export const canFlip = (el) => FLIPPABLE.has(el?.type);
+
+/**
+ * The mirror as a transform, for whoever is drawing.
+ *
+ * Returned as a translate plus a scale, applied in that order inside the
+ * element's own frame: p -> translate + scale * p. Mirroring about the centre
+ * of the local box leaves the element exactly where it was on the page.
+ *
+ * Deliberately NOT expressed as Konva's `offset`, which would move the point
+ * the element rotates about: rotation stays about the element's origin, which
+ * is what visualBox, snapping and alignment all assume.
+ */
+export function flipTransform(el) {
+  const box = localBounds(el);
+  const flipX = Boolean(el?.flipX);
+  const flipY = Boolean(el?.flipY);
+  return {
+    scaleX: flipX ? -1 : 1,
+    scaleY: flipY ? -1 : 1,
+    x: flipX ? 2 * box.x + box.width : 0,
+    y: flipY ? 2 * box.y + box.height : 0,
+    flipped: flipX || flipY,
+  };
+}
+
 /** Axis-aligned box of an element in canvas coordinates (ignores rotation). */
 export function elementBox(el) {
   if (el.points) {

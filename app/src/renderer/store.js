@@ -19,6 +19,7 @@ import { analyseSvg, topContainer, parentKey, cleanEdit, canvasDeltaToUser } fro
 import { applyDatasetOp, createDataset, DATASET_KINDS } from "./lib/datasets";
 import { applyMarks, baseMarks, hasFormatting, marksIn, plainText, runsOf, withBase } from "./lib/richText";
 import { defaultPlot } from "./lib/plotRender";
+import { canFlip } from "./lib/geometry";
 
 let groupCounter = 0;
 
@@ -1082,6 +1083,28 @@ export const useStore = create((set, get) => ({
     if (Object.keys(moves).length === 0) return;
     get().commit();
     set((st) => ({ elements: applyMoves(st.elements, moves), dirty: true }));
+  },
+
+  /**
+   * Mirror the selection, "x" for left to right or "y" for top to bottom.
+   *
+   * Stored as a flag rather than by rewriting coordinates, so a flip is exact,
+   * reversible and survives a save: mirroring an SVG's path data twice would
+   * not come back to the same numbers. Elements a mirror means nothing for are
+   * left untouched, which keeps a mixed selection sensible rather than refusing
+   * the lot.
+   */
+  flipSelected: (axis = "x") => {
+    const { elements, selectedIds } = get();
+    const field = axis === "y" ? "flipY" : "flipX";
+    const targets = elements.filter((el) => selectedIds.includes(el.id) && !el.locked && canFlip(el));
+    if (targets.length === 0) return;
+    const ids = new Set(targets.map((el) => el.id));
+    get().commit();
+    set((st) => ({
+      elements: st.elements.map((el) => (ids.has(el.id) ? { ...el, [field]: !el[field] } : el)),
+      dirty: true,
+    }));
   },
 
   /** Spread the selection evenly: "h-gaps" | "v-gaps" | "h-centres" | "v-centres". */

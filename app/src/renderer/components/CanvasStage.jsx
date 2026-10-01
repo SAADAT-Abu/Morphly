@@ -36,7 +36,7 @@ import { buildIsolationSvg, effectiveColorMap } from "../lib/svgPalette";
 import { isPanel } from "../lib/panelLayout";
 import { artworkText, analyseSvg, partForLeaf, topContainer, canvasDeltaToUser } from "../lib/svgParts";
 import { useHitMap, pickLeaf, pickLeafIn, partMask, partBox } from "../lib/useHitMap";
-import { pointsBounds, visualBox, unionBox, selectionKeepsRatio } from "../lib/geometry";
+import { pointsBounds, visualBox, unionBox, selectionKeepsRatio, flipTransform } from "../lib/geometry";
 import { snapContext, snapMove, snapPoint } from "../lib/snapping";
 import { measuredHeight, rememberHeight } from "../lib/measure";
 import { runsOf, hasFormatting } from "../lib/richText";
@@ -475,6 +475,22 @@ function PanelLetter({ element }) {
 
 /** Shapes that can carry a centred caption. */
 const LABELLABLE = ["rect", "ellipse", "triangle"];
+
+/**
+ * Mirrors its children about the element's own centre, or draws them untouched.
+ *
+ * No wrapper group is added when nothing is flipped, so the common case keeps
+ * exactly the node tree it had before.
+ */
+function Flip({ element, children }) {
+  const flip = flipTransform(element);
+  if (!flip.flipped) return children;
+  return (
+    <Group x={flip.x} y={flip.y} scaleX={flip.scaleX} scaleY={flip.scaleY}>
+      {children}
+    </Group>
+  );
+}
 
 /**
  * Resize handles. With the proportions locked the side handles go away: they
@@ -1244,15 +1260,23 @@ export default function CanvasStage({ stageRef, onRequestTextEdit, onExternalDro
               onTransform={(e) => handleTransform(e, element)}
               onTransformEnd={(e) => handleTransformEnd(e, element)}
             >
-              <ElementShape element={isConnector(element) ? connectorNow(element) : element} lookup={lookup} />
+              {/* The mirror wraps the artwork only. It is an inner group rather
+                  than scale on the outer one so that rotation keeps turning
+                  about the element's origin, which the snapping and alignment
+                  geometry relies on, and so the Transformer still sees a group
+                  at scale 1 while resizing. A caption and a panel letter sit
+                  outside it, upright and readable in a flipped shape. */}
+              <Flip element={element}>
+                <ElementShape element={isConnector(element) ? connectorNow(element) : element} lookup={lookup} />
+                {highlight?.elementId === element.id && element.type === "asset" && (
+                  <ColorHighlight element={element} hex={highlight.hex} />
+                )}
+                {partEdit?.elementId === element.id && (
+                  <PartEditor element={element} partEdit={partEdit} zoom={zoom} />
+                )}
+              </Flip>
               {LABELLABLE.includes(element.type) && <ShapeLabel element={element} />}
               {isPanel(element) && <PanelLetter element={element} />}
-              {highlight?.elementId === element.id && element.type === "asset" && (
-                <ColorHighlight element={element} hex={highlight.hex} />
-              )}
-              {partEdit?.elementId === element.id && (
-                <PartEditor element={element} partEdit={partEdit} zoom={zoom} />
-              )}
             </Group>
           ))}
 

@@ -13,6 +13,7 @@ import { connectorGeometry } from "./connectors";
 import { graphSvg } from "./graphs";
 import { runsOf, hasFormatting, layoutRichText } from "./richText";
 import { measureText } from "./textMeasure";
+import { flipTransform } from "./geometry";
 
 /** Two decimals is finer than any printer, and keeps the file readable. */
 const r = (v) => Math.round(v * 100) / 100;
@@ -337,6 +338,14 @@ function elementToSvg(element, stage, lookup, datasetOf) {
 
     default:
       return "";
+  }
+
+  // The mirror wraps the artwork only, exactly as the canvas does: a caption
+  // and a panel letter are added after it so they stay readable in a flipped
+  // shape. translate then scale, matching flipTransform.
+  const flip = flipTransform(element);
+  if (flip.flipped) {
+    body = `<g transform="translate(${flip.x} ${flip.y}) scale(${flip.scaleX} ${flip.scaleY})">${body}</g>`;
   }
 
   // Shapes can carry a centred caption; emit it after the shape so it sits on

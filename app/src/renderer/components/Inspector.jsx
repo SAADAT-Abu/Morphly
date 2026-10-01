@@ -12,7 +12,7 @@
 import React from "react";
 import { useStore, CANVAS_PRESETS } from "../store";
 import { isPanel } from "../lib/panelLayout";
-import { aspectLocked } from "../lib/geometry";
+import { aspectLocked, canFlip } from "../lib/geometry";
 import { lineEnds } from "../lib/connectors";
 import { analyseSvg, topContainer, partPalette, partLabel } from "../lib/svgParts";
 import { effectiveColorMap } from "../lib/svgPalette";
@@ -441,6 +441,26 @@ function GeometryFields({ element }) {
         )}
         <NumberField label="Rotation" value={element.rotation} onChange={(v) => set({ rotation: v })} />
       </div>
+      {canFlip(element) && (
+        <Field label="Mirror">
+          <div className="button-row">
+            <button
+              className={element.flipX ? "ghost active" : "ghost"}
+              aria-pressed={Boolean(element.flipX)}
+              onClick={() => set({ flipX: !element.flipX })}
+            >
+              Left to right
+            </button>
+            <button
+              className={element.flipY ? "ghost active" : "ghost"}
+              aria-pressed={Boolean(element.flipY)}
+              onClick={() => set({ flipY: !element.flipY })}
+            >
+              Top to bottom
+            </button>
+          </div>
+        </Field>
+      )}
       {sizable && (
         <>
           <label className="check">

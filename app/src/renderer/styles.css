@@ -303,6 +303,10 @@ input[type="range"] { padding: 0; }
 .format-card span { font-size: 11px; color: var(--text-dim); }
 .format-card.active { border-color: var(--accent); background: var(--accent-dim); }
 .format-card.active span { color: #dbe6ff; }
+.button-row { display: flex; gap: 6px; }
+.button-row .ghost { flex: 1; padding: 4px 6px; font-size: 11px; }
+.button-row .ghost.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
 .check { display: flex; align-items: center; gap: 7px; font-size: 12px; }
 .check input { width: auto; }
 .message { font-size: 12px; color: var(--accent); word-break: break-all; margin: 0; user-select: text; }

@@ -11,6 +11,34 @@ and version numbers follow [Semantic Versioning](https://semver.org/).
 
 Planned work is described in the [roadmap](README.md#roadmap).
 
+## [0.5.2] - 2026-10-01
+
+### Fixed
+
+- **The illustration library that ships inside Morphly now survives more than
+  one launch on Linux.** An AppImage mounts itself in a new temporary folder
+  every time it starts, and the first run recorded that folder's path rather
+  than the fact that the library lives inside the app. On the second launch the
+  path was gone, the sidebar came up empty, and no later launch recovered. The
+  library is now recorded by name and found wherever the app is mounted, and a
+  profile already spoiled by this repairs itself on first run.
+- **Drawings whose elements carry a namespace prefix are no longer thrown away
+  as blank.** A prefix containing a digit, such as the `ns0:` that every NIH
+  BioArt file uses, did not match the pattern that looks for drawable content,
+  so an installing Art Pack or an imported SVG could lose four fifths of its
+  artwork without saying anything. The same gap let a prefixed `<script>`
+  element through the sanitiser, which is now closed.
+
+### Added
+
+- **Mirror a selection**, left to right or top to bottom, from the Arrange
+  buttons in the toolbar, the Arrange menu, the properties panel or Shift+H and
+  Shift+V. Artwork, pictures, shapes, lines and arrows flip; a caption inside a
+  flipped shape stays readable, and graphs, tables and text are left alone,
+  since mirroring an axis or a word makes it wrong rather than reversed. The
+  flip is stored as a property, so it is exact, reversible and survives a save,
+  and it exports to SVG and PDF as a transform rather than as redrawn paths.
+
 ### Added
 
 - **Three new Art Packs**, installable from the Art Store without updating
@@ -339,7 +367,8 @@ First release.
 - Help window, application menu, keyboard shortcuts and a welcome screen.
 - Linux AppImage, and CI builds for Windows and macOS.
 
-[Unreleased]: https://github.com/SAADAT-Abu/Morphly/compare/v0.5.1...HEAD
+[Unreleased]: https://github.com/SAADAT-Abu/Morphly/compare/v0.5.2...HEAD
+[0.5.2]: https://github.com/SAADAT-Abu/Morphly/releases/tag/v0.5.2
 [0.5.1]: https://doi.org/10.5281/zenodo.22900404
 [0.5.0]: https://doi.org/10.5281/zenodo.22899306
 [0.4.0]: https://doi.org/10.5281/zenodo.22761841

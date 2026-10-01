@@ -1,18 +1,6 @@
 {
   "formatVersion": 1,
   "updated": "2026-10-01",
-  "_comment": "Messages Morphly shows its users. Fetched at runtime, so a notice reaches versions that already exist without a release. Keep the list short and remove a notice once it has done its work: every entry here interrupts somebody. `maxVersion` reaches only the people still running an affected build; `platforms` narrows further. See app/src/main/notices.js.",
-  "notices": [
-    {
-      "id": "linux-library-lost-0.5.1",
-      "level": "important",
-      "title": "Linux: please update to 0.5.2.",
-      "body": "In this version the illustration library inside Morphly is lost after the first launch, because an AppImage mounts itself in a new place each time it starts. 0.5.2 fixes it and repairs the setting.",
-      "url": "https://github.com/SAADAT-Abu/Morphly/releases/latest",
-      "linkText": "Get 0.5.2",
-      "platforms": ["linux"],
-      "maxVersion": "0.5.1",
-      "published": "2026-10-01"
-    }
-  ]
+  "_comment": "Messages Morphly shows its users. Fetched at runtime, so a notice reaches copies that are already installed without a release. Only builds from 0.6 onwards read this file: a notice cannot reach an older one, which is why the list starts empty rather than carrying a warning for 0.5.1 that would never be delivered. Keep it short and remove a notice once it has done its work, because every entry interrupts somebody. Fields: id, level (info|important), title, body, url (https only), linkText, platforms (linux|win32|darwin), minVersion, maxVersion, published. maxVersion reaches only the people still running an affected build. See app/src/main/notices.js.",
+  "notices": []
 }

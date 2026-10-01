@@ -26,7 +26,8 @@ Planned work is described in the [roadmap](README.md#roadmap).
   and which ones apply is decided on your own machine, so nothing is sent: no
   identifier, no usage data, not even which version you are running. They are
   dismissed for good once read, and the switch that turns off update checks
-  turns these off too.
+  turns these off too. Only builds from this version on can read them, so the
+  first audience is people running 0.6, not the releases before it.
 
 ## [0.5.2] - 2026-10-01
 

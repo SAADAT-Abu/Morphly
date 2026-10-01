@@ -47,6 +47,7 @@
     "productName": "Morphly",
     "files": [
       "src/main/**/*",
+      "!src/**/*.test.js",
       "dist/**/*",
       "build/icon.*",
       "package.json"

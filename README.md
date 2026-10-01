@@ -148,7 +148,13 @@ else's server.
 
 ### Download a build
 
-The current release is **0.5.1**, which brings your data into the figure. Type
+The current release is **0.5.2**, a patch that Linux users should take: the
+built-in illustration library used to survive only the first launch, because an
+AppImage mounts itself somewhere new each time it starts. It also stops artwork
+being dropped as blank when its elements carry a namespace prefix, and adds
+mirroring, so a drawing can face the other way.
+
+Underneath it is 0.5.1, which brings your data into the figure. Type
 numbers, paste a block from Excel or R, or import a CSV, and Morphly draws the
 graph: bar charts with individual points and error bars, dot and box plots,
 violins, SuperPlots, histograms, pies, scatter and line graphs with dose
@@ -162,10 +168,10 @@ changed in each release is in [`CHANGELOG.md`](CHANGELOG.md).
 
 | Platform | Download | Size |
 | --- | --- | --- |
-| Linux | [Morphly-0.5.1.AppImage](https://zenodo.org/records/22900404/files/Morphly-0.5.1.AppImage?download=1) | 281 MB |
-| Windows | [Morphly Setup 0.5.1.exe](https://zenodo.org/records/22900404/files/Morphly%20Setup%200.5.1.exe?download=1) | 245 MB |
-| macOS, Apple Silicon | [Morphly-0.5.1-arm64.dmg](https://zenodo.org/records/22900404/files/Morphly-0.5.1-arm64.dmg?download=1) | 275 MB |
-| macOS, Intel | [Morphly-0.5.1.dmg](https://zenodo.org/records/22900404/files/Morphly-0.5.1.dmg?download=1) | 280 MB |
+| Linux | [Morphly-0.5.2.AppImage](https://zenodo.org/records/23084681/files/Morphly-0.5.2.AppImage?download=1) | 281 MB |
+| Windows | [Morphly Setup 0.5.2.exe](https://zenodo.org/records/23084681/files/Morphly%20Setup%200.5.2.exe?download=1) | 246 MB |
+| macOS, Apple Silicon | [Morphly-0.5.2-arm64.dmg](https://zenodo.org/records/23084681/files/Morphly-0.5.2-arm64.dmg?download=1) | 275 MB |
+| macOS, Intel | [Morphly-0.5.2.dmg](https://zenodo.org/records/23084681/files/Morphly-0.5.2.dmg?download=1) | 280 MB |
 
 **Which Mac do you have?** Click the Apple menu and choose *About This Mac*.
 If it says **Chip: Apple M1, M2, M3** or similar, take the **arm64** file. If
@@ -174,15 +180,15 @@ it says **Processor: Intel**, take the other one. Every Mac sold since late
 and the wrong one will not run, so it is worth the ten seconds to check.
 
 All files, with their checksums, are on the
-[Zenodo record](https://doi.org/10.5281/zenodo.22900404). The concept DOI
+[Zenodo record](https://doi.org/10.5281/zenodo.23084681). The concept DOI
 [10.5281/zenodo.22238248](https://doi.org/10.5281/zenodo.22238248) always
 resolves to the newest release.
 
 On Linux, mark the AppImage executable and run it:
 
 ```bash
-chmod +x Morphly-0.5.1.AppImage
-./Morphly-0.5.1.AppImage
+chmod +x Morphly-0.5.2.AppImage
+./Morphly-0.5.2.AppImage
 ```
 
 On macOS, open the .dmg and drag Morphly to your Applications folder.
@@ -454,7 +460,7 @@ If Morphly helped make a figure in your work, please cite the archived
 release:
 
 > Saadat, A. (2026). *Morphly: a free desktop editor for scientific figures*
-> (version 0.5.1) [Software]. Zenodo. https://doi.org/10.5281/zenodo.22900404
+> (version 0.5.2) [Software]. Zenodo. https://doi.org/10.5281/zenodo.23084681
 
 To cite whichever version is current rather than this one, use the concept DOI
 [10.5281/zenodo.22238248](https://doi.org/10.5281/zenodo.22238248), which always

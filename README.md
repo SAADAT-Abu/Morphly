@@ -191,6 +191,11 @@ chmod +x Morphly-0.5.2.AppImage
 ./Morphly-0.5.2.AppImage
 ```
 
+From 0.6 onwards the AppImage carries update information and ships a `.zsync`
+file beside it, so [AppImageUpdate](https://github.com/AppImage/AppImageUpdate),
+`appimageupdatetool` or Gear Lever can update it in place and fetch only the
+parts that changed, rather than another 280 MB.
+
 On macOS, open the .dmg and drag Morphly to your Applications folder.
 
 Windows ships as an installer only. A portable build would unpack its entire

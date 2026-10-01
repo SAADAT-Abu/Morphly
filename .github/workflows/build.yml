@@ -29,7 +29,8 @@ jobs:
           - os: ubuntu-latest
             name: Linux
             args: "--linux AppImage"
-            artifacts: "app/release/*.AppImage"
+            # The glob takes the .zsync file beside the AppImage as well.
+            artifacts: "app/release/*.AppImage*"
           - os: windows-latest
             name: Windows
             args: "--win nsis"
@@ -133,6 +134,24 @@ jobs:
         run: npm run dist -- ${{ matrix.args }} --publish never
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
+
+      # electron-builder 26 builds AppImages with mksquashfs rather than with
+      # appimagetool and has no zsync support, so the update information section
+      # ships empty and AppImageUpdate cannot see a newer build. Fill it in and
+      # publish the zsync file beside the AppImage. Order matters: embedding
+      # changes the file's checksum, so the zsync is made afterwards.
+      - name: Make the AppImage updatable
+        if: matrix.name == 'Linux'
+        shell: bash
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y zsync
+          appimage=$(ls app/release/*.AppImage)
+          python3 tools/appimage_update_info.py "$appimage"
+          zsyncmake -u "$(basename "$appimage")" -o "$appimage.zsync" "$appimage"
+          python3 tools/appimage_update_info.py --show "$appimage"
+          head -c 120 "$appimage.zsync" | tr '\r' '\n' | head -4
+          test -s "$appimage.zsync"
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4

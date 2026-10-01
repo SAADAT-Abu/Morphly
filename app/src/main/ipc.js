@@ -13,7 +13,7 @@ const fs = require("node:fs/promises");
 const fsSync = require("node:fs");
 const path = require("node:path");
 
-const { readSettings, writeSettings, libraryKey, libraryDirFor, defaultSaveFolder, saveFolderFrom, bundledLibraryDirs } = require("./settings");
+const { readSettings, writeSettings, libraryKey, bundledEntry, libraryDirFor, defaultSaveFolder, saveFolderFrom, bundledLibraryDirs } = require("./settings");
 const { safeTitle, uniquePath, writeAtomic, renameFigure } = require("./figureFiles");
 const { loadLibraries, readSvg } = require("./library");
 const { checkForUpdate } = require("./updates");
@@ -232,9 +232,11 @@ function registerIpc({ recovery } = {}) {
     if (entry?.bundled) {
       const dir = findBundledDir(bundledLibraryDirs(), entry.id);
       if (!dir) return fail("That library is not part of this build of Morphly");
+      // Recorded by name, so the next launch finds it wherever the app is
+      // mounted rather than where it happened to be today.
       const next = settings.libraries.some((l) => l.dir === dir)
         ? settings.libraries
-        : [...settings.libraries, { key: libraryKey(dir), dir, packId: entry.id }];
+        : [...settings.libraries, { ...bundledEntry(dir), packId: entry.id }];
       try {
         await writeSettings({ libraries: next, librariesInitialised: true });
         return ok({ library: await loadLibraries(next), dir });
